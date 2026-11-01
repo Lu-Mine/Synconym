@@ -291,46 +291,59 @@ p {
 
 .intro-orbits {
   position: relative;
-  width: 64px;
+  width: 72px;
   height: 58px;
-  flex: 0 0 64px;
+  flex: 0 0 72px;
   isolation: isolate;
 }
 
 .intro-orb {
   position: absolute;
-  width: 34px;
-  height: 34px;
+  top: 14px;
+  left: 21px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   will-change: transform;
+  animation-duration: 5.6s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
 .intro-orb-a {
-  top: 2px;
-  left: 2px;
   background: var(--player-0);
-  animation: orbit-a 4.8s var(--ease-in-out) infinite alternate;
+  animation-name: orbit-a;
 }
 
 .intro-orb-b {
-  right: 2px;
-  bottom: 2px;
   background: var(--player-1);
   mix-blend-mode: multiply;
   opacity: .92;
-  animation: orbit-b 4.8s var(--ease-in-out) infinite alternate;
+  animation-name: orbit-b;
 }
 
 @keyframes orbit-a {
-  0%, 12% { transform: translate(-1px, 1px); }
-  45%, 62% { transform: translate(12px, 10px); }
-  100% { transform: translate(2px, 18px); }
+  0% { transform: translate(21px, 0); }
+  12.5% { transform: translate(14.85px, 7.78px); }
+  25% { transform: translate(0, 11px); }
+  37.5% { transform: translate(-14.85px, 7.78px); }
+  50% { transform: translate(-21px, 0); }
+  62.5% { transform: translate(-14.85px, -7.78px); }
+  75% { transform: translate(0, -11px); }
+  87.5% { transform: translate(14.85px, -7.78px); }
+  100% { transform: translate(21px, 0); }
 }
 
 @keyframes orbit-b {
-  0%, 12% { transform: translate(1px, -1px); }
-  45%, 62% { transform: translate(-12px, -10px); }
-  100% { transform: translate(-2px, -18px); }
+  0% { transform: translate(-21px, 0); }
+  12.5% { transform: translate(-14.85px, -7.78px); }
+  25% { transform: translate(0, -11px); }
+  37.5% { transform: translate(14.85px, -7.78px); }
+  50% { transform: translate(21px, 0); }
+  62.5% { transform: translate(14.85px, 7.78px); }
+  75% { transform: translate(0, 11px); }
+  87.5% { transform: translate(-14.85px, 7.78px); }
+  100% { transform: translate(-21px, 0); }
 }
 
 /* === 首页入口工作台 === */
@@ -1368,12 +1381,17 @@ p {
   }
 
   .intro-orbits {
-    width: 48px;
-    height: 46px;
-    flex-basis: 48px;
+    width: 60px;
+    height: 50px;
+    flex-basis: 60px;
   }
 
-  .intro-orb { width: 28px; height: 28px; }
+  .intro-orb {
+    top: 11px;
+    left: 16px;
+    width: 28px;
+    height: 28px;
+  }
 
   .join-form {
     flex-direction: column;
@@ -1450,8 +1468,8 @@ p {
   }
   .intro-orb-a,
   .intro-orb-b { animation: none !important; }
-  .intro-orb-a { transform: translate(7px, 6px) !important; }
-  .intro-orb-b { transform: translate(-7px, -6px) !important; }
+  .intro-orb-a { transform: translate(7px, 0) !important; }
+  .intro-orb-b { transform: translate(-7px, 0) !important; }
 
 
 }
