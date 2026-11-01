@@ -269,23 +269,32 @@ p {
   min-height: 56px;
   padding: 14px 20px;
   border: 0;
-  border-radius: var(--radius-md);
   justify-content: center;
   color: #FFFFFF;
+  background: transparent;
+  position: relative;
+  isolation: isolate;
+  font-size: 16px;
+}
+
+/* 可见按钮面向内收，点击热区仍保留完整尺寸 */
+.create-submit::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  z-index: -1;
+  border-radius: var(--radius-md);
   background-color: var(--accent);
   background-image: linear-gradient(90deg, var(--accent), var(--vermilion));
   background-image: linear-gradient(90deg in oklab, var(--accent), var(--vermilion));
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  font-size: 16px;
 }
 
 .create-submit::after {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 4px;
   z-index: 0;
+  border-radius: var(--radius-md);
   background: #000000;
   opacity: 0;
   pointer-events: none;
