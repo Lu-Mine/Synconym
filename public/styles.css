@@ -1114,6 +1114,19 @@ p {
   text-transform: uppercase;
 }
 
+.avatar-glyph {
+  display: block;
+  min-width: 1em;
+  height: 1em;
+  line-height: 1;
+  text-align: center;
+  transform: translateY(0);
+}
+
+.avatar-glyph.is-han {
+  transform: translateY(-.5px);
+}
+
 .avatar[data-avatar-tone="1"] {
   --avatar-ink: #B94735;
   --avatar-bg: #FFF0EC;

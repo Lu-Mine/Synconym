@@ -11,12 +11,12 @@ export function avatarDetails(name) {
     hash = Math.imul(hash, 16777619);
   }
   hash ^= hash >>> 16;
-  return { initial, tone: hash >>> 0 & 3 };
+  return { initial, tone: hash >>> 0 & 3, isHan: /\p{Script=Han}/u.test(initial) };
 }
 
 export function avatarMarkup(name, className = '') {
-  const { initial, tone } = avatarDetails(name);
-  return `<span class="avatar ${className}" data-avatar-tone="${tone}" aria-hidden="true">${escapeHtml(initial)}</span>`;
+  const { initial, tone, isHan } = avatarDetails(name);
+  return `<span class="avatar ${className}" data-avatar-tone="${tone}" aria-hidden="true"><span class="avatar-glyph ${isHan ? 'is-han' : ''}">${escapeHtml(initial)}</span></span>`;
 }
 
 export function icon(name, className = '') {

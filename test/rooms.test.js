@@ -177,12 +177,13 @@ test('文字头像按完整名字稳定映射四种配色', () => {
   const first = avatarDetails('随和的荔枝');
   assert.deepEqual(avatarDetails('随和的荔枝'), first);
   assert.equal(first.initial, '随');
+  assert.equal(first.isHan, true);
   assert.equal(avatarDetails('Alice').initial, 'A');
-
+  assert.equal(avatarDetails('Alice').isHan, false);
   const tones = new Set(Array.from({ length: 64 }, (_, index) => `用户${index}`)
     .map((name) => avatarDetails(name).tone));
   assert.deepEqual([...tones].sort(), [0, 1, 2, 3]);
 
   const shell = shellMarkup(false, { uid: 'u1', name: '随和的荔枝' });
-  assert.match(shell, new RegExp(`data-avatar-tone="${first.tone}"[^>]*>随<`));
+  assert.match(shell, new RegExp(`data-avatar-tone="${first.tone}"[^>]*><span class="avatar-glyph is-han">随<`));
 });
