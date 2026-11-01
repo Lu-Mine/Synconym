@@ -299,51 +299,32 @@ p {
 
 .intro-orb {
   position: absolute;
-  top: 14px;
-  left: 21px;
+  top: 0;
+  left: 0;
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  will-change: transform;
-  animation-duration: 5.6s;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  offset-path: ellipse(21px 11px at 36px 29px);
+  offset-anchor: center;
+  offset-rotate: 0deg;
+  will-change: offset-distance;
+  animation: orbit 5.6s linear infinite;
 }
 
 .intro-orb-a {
   background: var(--player-0);
-  animation-name: orbit-a;
 }
 
 .intro-orb-b {
   background: var(--player-1);
   mix-blend-mode: multiply;
   opacity: .92;
-  animation-name: orbit-b;
+  animation-delay: -2.8s;
 }
 
-@keyframes orbit-a {
-  0% { transform: translate(21px, 0); }
-  12.5% { transform: translate(14.85px, 7.78px); }
-  25% { transform: translate(0, 11px); }
-  37.5% { transform: translate(-14.85px, 7.78px); }
-  50% { transform: translate(-21px, 0); }
-  62.5% { transform: translate(-14.85px, -7.78px); }
-  75% { transform: translate(0, -11px); }
-  87.5% { transform: translate(14.85px, -7.78px); }
-  100% { transform: translate(21px, 0); }
-}
-
-@keyframes orbit-b {
-  0% { transform: translate(-21px, 0); }
-  12.5% { transform: translate(-14.85px, -7.78px); }
-  25% { transform: translate(0, -11px); }
-  37.5% { transform: translate(14.85px, -7.78px); }
-  50% { transform: translate(21px, 0); }
-  62.5% { transform: translate(14.85px, 7.78px); }
-  75% { transform: translate(0, 11px); }
-  87.5% { transform: translate(-14.85px, 7.78px); }
-  100% { transform: translate(-21px, 0); }
+@keyframes orbit {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
 }
 
 /* === 首页入口工作台 === */
@@ -1387,10 +1368,9 @@ p {
   }
 
   .intro-orb {
-    top: 11px;
-    left: 16px;
     width: 28px;
     height: 28px;
+    offset-path: ellipse(16px 9px at 30px 25px);
   }
 
   .join-form {
@@ -1467,9 +1447,13 @@ p {
     translate: -50% 0;
   }
   .intro-orb-a,
-  .intro-orb-b { animation: none !important; }
-  .intro-orb-a { transform: translate(7px, 0) !important; }
-  .intro-orb-b { transform: translate(-7px, 0) !important; }
+  .intro-orb-b {
+    animation: none !important;
+    offset-path: none;
+    top: 14px;
+  }
+  .intro-orb-a { left: 14px; }
+  .intro-orb-b { left: 28px; }
 
 
 }
