@@ -232,13 +232,6 @@ function patchHeaderDOM(inRoom) {
     }
     if (name) name.textContent = user?.name || '';
   }
-  const leaveBtn = app.querySelector('#header-leave');
-  if (leaveBtn) {
-    leaveBtn.classList.toggle('is-visible', inRoom);
-    leaveBtn.toggleAttribute('inert', !inRoom);
-    if (inRoom) leaveBtn.removeAttribute('tabindex');
-    else leaveBtn.setAttribute('tabindex', '-1');
-  }
   const uid = app.querySelector('#rename-uid');
   if (uid) uid.textContent = `UID：${user?.uid || ''}`;
   syncRenameModalDOM(false);
@@ -251,7 +244,9 @@ function patchLobbyDOM(nextState) {
 
   const host = room.hostUid === uid;
   const me = room.players.find((player) => player.uid === uid);
-  const canStart = host && room.players.length >= 2 && room.players.every((player) => player.ready && player.connected);
+  const canStart = host && room.players.length >= 2 && room.players
+    .filter((player) => player.uid !== room.hostUid)
+    .every((player) => player.ready && player.connected);
 
   const codeEl = page.querySelector('#lobby-room-code');
   if (codeEl) codeEl.textContent = room.code;
@@ -309,23 +304,20 @@ function patchLobbyDOM(nextState) {
 
   const actions = page.querySelector('#lobby-actions');
   if (actions) {
-    const readyBtn = actions.querySelector('[data-action="ready"]');
-    if (readyBtn && me) {
-      readyBtn.className = `button ${me.ready ? 'secondary' : 'primary'} ready-button`;
-      readyBtn.innerHTML = me.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`;
-    }
-    let startBtn = actions.querySelector('[data-action="start"]');
+    const primaryAction = actions.querySelector('[data-action="ready"], [data-action="start"]');
     if (host) {
-      if (!startBtn) {
-        actions.insertAdjacentHTML(
-          'beforeend',
-          `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
-        );
+      if (primaryAction?.dataset.action !== 'start') {
+        primaryAction?.remove();
+        actions.insertAdjacentHTML('afterbegin', `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`);
       } else {
-        startBtn.disabled = !canStart;
+        primaryAction.disabled = !canStart;
       }
-    } else if (startBtn) {
-      startBtn.remove();
+    } else if (primaryAction?.dataset.action !== 'ready') {
+      primaryAction?.remove();
+      actions.insertAdjacentHTML('afterbegin', `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`);
+    } else if (me) {
+      primaryAction.className = `button ${me.ready ? 'secondary' : 'primary'} ready-button`;
+      primaryAction.innerHTML = me.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`;
     }
   }
 

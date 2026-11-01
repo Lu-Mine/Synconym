@@ -43,7 +43,7 @@ test('未进入房间也可以修改名字并收到用户资料状态', (t) => {
   assert.equal(states.at(-1).user.name, '首页新名字');
 });
 
-test('凭房号加入、改名、准备、取消、房主开始', (t) => {
+test('凭房号加入、改名、准备、取消、房主无需准备即可开始', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const manager = new RoomManager();
   const host = client(manager);
@@ -58,7 +58,7 @@ test('凭房号加入、改名、准备、取消、房主开始', (t) => {
   passRateLimit(t);
   manager.handle(guest, { type: 'rename', name: '同席新名字' });
   passRateLimit(t);
-  manager.handle(host, { type: 'setReady', ready: true });
+  assert.throws(() => manager.handle(host, { type: 'setReady', ready: true }), /房主无需准备/);
   passRateLimit(t);
   manager.handle(guest, { type: 'setReady', ready: true });
   passRateLimit(t);

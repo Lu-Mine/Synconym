@@ -64,9 +64,6 @@ test('真实 WebSocket 完成 M1 流程并恢复原席位', async (t) => {
   const recovered = await nextState(restored, (state) => state.room?.players.length === 2);
   assert.equal(recovered.room.players.find((player) => player.uid === uid).seat, seat);
   assert.equal(recovered.room.players.find((player) => player.uid === uid).name, '恢复席位的人');
-  await sleep(510);
-  host.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
-  await sleep(510);
   restored.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
   await sleep(510);
   host.ws.send(JSON.stringify({ type: 'start' }));

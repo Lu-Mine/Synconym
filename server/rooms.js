@@ -183,6 +183,7 @@ export class RoomManager {
       }
       case 'setReady': {
         if (current.phase !== 'lobby') throw new Error('当前不能准备');
+        if (current.hostUid === connection.uid) throw new Error('房主无需准备');
         if (typeof message.ready !== 'boolean') throw new Error('准备状态无效');
         player.ready = message.ready;
         break;
@@ -193,7 +194,7 @@ export class RoomManager {
         if (current.players.length < 2 || current.players.length > 4) {
           throw new Error('需要 2 到 4 人才能开始');
         }
-        if (current.players.some((item) => !item.ready || !item.connected)) {
+        if (current.players.some((item) => item.uid !== current.hostUid && (!item.ready || !item.connected))) {
           throw new Error('等所有在线玩家准备后才能开始');
         }
         current.phase = 'writing';

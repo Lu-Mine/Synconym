@@ -76,9 +76,6 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
   return `<header class="site-header" id="site-header">
     ${brandMarkup()}
     <div class="header-actions">
-      <button class="ghost-button leave-button ${inRoom ? 'is-visible' : ''}" id="header-leave" type="button" data-action="leave" aria-label="退出房间" ${inRoom ? '' : 'inert tabindex="-1"'}>
-        ${icon('log-out')}<span>退出</span>
-      </button>
       <div class="header-user ${user ? 'is-visible' : ''}" id="header-user">
         ${avatarMarkup(name, 'header-avatar')}
         <span class="header-user-name" id="header-user-name">${escapeHtml(name)}</span>
@@ -110,21 +107,24 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
 export function homeMarkup(settings, settingsOpen = false) {
   return `<div class="page home-page" data-screen="home">
     <section class="intro">
-      <h1>各自想一个，<br>直到想到一起。</h1>
-      <p>两个词之间，藏着我们想到的同一个东西。</p>
+      <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
+      <div class="intro-copy">
+        <h1>各自想一个，<br>直到想到一起。</h1>
+        <p>两个词之间，藏着我们想到的同一个东西。</p>
+      </div>
     </section>
 
     <div class="entry-deck">
       <form id="create-form" class="create-card">
-        <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label">${icon('plus')}<span>创建房间</span></span>
-        </button>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
             <span class="drawer-trigger-title">${icon('sliders-horizontal')}<span>房间设置</span></span>
             <span class="drawer-summary" id="settings-summary">${escapeHtml(settingsSummaryText(settings))}</span>
           </button>
         </div>
+        <button class="button primary create-submit" type="submit">
+          <span class="create-submit-label"><span>创建房间</span>${icon('plus')}</span>
+        </button>
         <div class="drawer-grid ${settingsOpen ? 'is-open' : ''}" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
           <div class="drawer-inner">
             ${settingsMarkup(settings, true)}
@@ -146,17 +146,18 @@ export function homeMarkup(settings, settingsOpen = false) {
 export function playerItemMarkup(player, room, uid) {
   const isMe = player.uid === uid;
   const isHost = player.uid === room.hostUid;
-  return `<li class="player ${player.ready ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
+  return `<li class="player ${!isHost && player.ready ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
     ${avatarMarkup(player.name)}
     <div class="player-meta">
       <div class="player-name-row">
         <span class="player-name">${escapeHtml(player.name)}</span>
         ${isMe ? `<button class="icon-button rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>` : ''}
+        ${isMe ? '<span class="badge me-label">你</span>' : ''}
         ${isHost ? '<span class="badge host-label">房主</span>' : ''}
         ${!player.connected ? '<span class="badge offline-label">暂时离开</span>' : ''}
       </div>
     </div>
-    <span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>
+    ${isHost ? '' : `<span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>`}
   </li>`;
 }
 
@@ -164,7 +165,9 @@ export function lobbyMarkup(state) {
   const { room, uid } = state;
   const me = room.players.find((player) => player.uid === uid);
   const host = room.hostUid === uid;
-  const canStart = host && room.players.length >= 2 && room.players.every((player) => player.ready && player.connected);
+  const canStart = host && room.players.length >= 2 && room.players
+    .filter((player) => player.uid !== room.hostUid)
+    .every((player) => player.ready && player.connected);
   return `<div class="page lobby-page" data-screen="lobby" data-room="${escapeHtml(room.code)}">
     <section class="room-banner">
       <div class="room-heading-copy">
@@ -199,10 +202,10 @@ export function lobbyMarkup(state) {
     </section>
 
     <div class="lobby-actions" id="lobby-actions">
-      <button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">
-        ${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}
-      </button>
-      ${host ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>` : ''}
+      ${host
+        ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
+        : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`}
+      <button class="button secondary lobby-leave-button" type="button" data-action="leave">${icon('log-out')}<span>退出</span></button>
     </div>
   </div>`;
 }
