@@ -13,7 +13,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^12.4.1",
     "lucide-static": "^1.66.0",
     "opencc-js": "^1.4.2",
     "ws": "^8.22.1"

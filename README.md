@@ -39,7 +39,7 @@ npm run dev      # node --watch server/index.js
 
 浏览器打开 <http://localhost:3000>。开发时用 `npm run dev`（改代码自动重启），正式启动用 `npm start`。
 
-> **Node 版本**：`better-sqlite3@13` 的原生模块要求 **Node ≥ 22**。`package.json` 里的 `engines` 仍写着 `>=20`，在 Node 20 上加载该模块会直接崩溃（进程退出码 `0xC0000005`）。
+> **Node 版本**：要求 Node ≥ 20，与 `package.json` 的 `engines` 一致。`better-sqlite3` 固定在 `^12`（官方支持 Node 20/22/23/24）；**不要升级到 13.x** —— 它要求 Node ≥ 22，在 Node 20 上加载原生模块会让进程直接崩溃（退出码 `0xC0000005`）。
 
 首次运行会自动创建 `data/synconym.db`（已在 `.gitignore` 中忽略）。前端首次连接由服务端分配一个 LocalSend 风格的名字（`形容词的＋水果`）和 uid，uid 存在浏览器 `localStorage`，因此刷新后仍是同一身份。
 
