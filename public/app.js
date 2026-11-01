@@ -167,11 +167,8 @@ function patchHeaderDOM(inRoom) {
     const name = headerUser.querySelector('#header-user-name');
     if (avatar) {
       const details = avatarDetails(user?.name);
-      const glyph = avatar.querySelector('.avatar-glyph');
-      if (glyph) {
-        glyph.textContent = details.initial;
-        glyph.classList.toggle('is-han', details.isHan);
-      }
+      const glyph = avatar.querySelector('.avatar-glyph text');
+      if (glyph) glyph.textContent = details.initial;
       avatar.dataset.avatarTone = String(details.tone);
     }
     if (name) name.textContent = user?.name || '';

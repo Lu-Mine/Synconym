@@ -1116,15 +1116,16 @@ p {
 
 .avatar-glyph {
   display: block;
-  min-width: 1em;
+  width: 1em;
   height: 1em;
-  line-height: 1;
-  text-align: center;
-  transform: translateY(0);
+  overflow: visible;
 }
 
-.avatar-glyph.is-han {
-  transform: translateY(-.5px);
+.avatar-glyph text {
+  fill: currentColor;
+  font: inherit;
+  font-size: 100px;
+  text-transform: uppercase;
 }
 
 .avatar[data-avatar-tone="1"] {
