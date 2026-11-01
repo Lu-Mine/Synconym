@@ -209,6 +209,8 @@ button svg {
 .rename-modal {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100dvh;
   z-index: 20;
   display: grid;
   place-items: center;
@@ -221,6 +223,12 @@ button svg {
 .rename-modal.is-open {
   visibility: visible;
   opacity: 1;
+
+/* 弹窗打开时锁定背景滚动，并让遮罩铺到视口边缘：否则右侧滚动条槽不会被模糊覆盖 */
+html:has(.rename-modal.is-open) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
   transition-delay: 0s;
 }
 
@@ -231,7 +239,9 @@ button svg {
   height: 100%;
   padding: 0;
   border: 0;
-  background: rgba(22, 22, 26, .34);
+  background: rgba(22, 22, 26, .3);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   cursor: default;
 }
 
@@ -743,16 +753,21 @@ p {
   color: var(--ink);
 }
 
-/* 非房主的只读取值（与控件同高，保持条目行高一致） */
+/* 非房主的只读取值（与被替换控件同高，条目行高保持一致） */
 .setting-value {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 32px;
+  min-height: 24px;
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+.setting-value[data-control="segmented"],
+.setting-value[data-control="stepper"] {
+  min-height: 38px;
 }
 
 /* 分段选择器（平滑滑块） */
@@ -1536,6 +1551,12 @@ p {
 
   .setting-row > .segmented {
     width: 100%;
+  }
+
+  /* 只读取值对齐分段选择器换行后的行高 */
+  .setting-row > .setting-value[data-control="segmented"] {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .room-banner {

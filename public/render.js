@@ -47,20 +47,21 @@ export function settingValueText(name, settings) {
   return SETTING_VALUE_TEXT[name](settings);
 }
 
-function settingValueMarkup(name, settings) {
-  return `<span class="setting-value" data-setting-value="${name}">${escapeHtml(settingValueText(name, settings))}</span>`;
+function settingValueMarkup(name, settings, control) {
+  return `<span class="setting-value" data-setting-value="${name}" data-control="${control}">${escapeHtml(settingValueText(name, settings))}</span>`;
 }
 
 export function settingsMarkup(settings, editable) {
-  const control = (name, markup) => (editable ? markup : settingValueMarkup(name, settings));
+  // 只读时用纯文本取值替换控件，data-control 记录被替换控件的类型以对齐行高
+  const control = (name, type, markup) => (editable ? markup : settingValueMarkup(name, settings, type));
   return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
     <div class="setting-row">
       <span class="setting-label">模式</span>
-      ${control('mode', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
+      ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
     </div>
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
-      ${control('maxRounds', `<div class="stepper" role="group" aria-label="轮次上限">
+      ${control('maxRounds', 'stepper', `<div class="stepper" role="group" aria-label="轮次上限">
         <button class="stepper-btn" type="button" data-step="-1" aria-label="减少轮次" ${settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
         <output id="rounds" class="stepper-value" data-value="${settings.maxRounds}">${settings.maxRounds}</output>
         <button class="stepper-btn" type="button" data-step="1" aria-label="增加轮次" ${settings.maxRounds >= 20 ? 'disabled' : ''}>${icon('plus')}</button>
@@ -68,15 +69,15 @@ export function settingsMarkup(settings, editable) {
     </div>
     <div class="setting-row">
       <span class="setting-label">写词时限</span>
-      ${control('writeSeconds', segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
+      ${control('writeSeconds', 'segmented', segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
     </div>
     <div class="setting-row">
       <span class="setting-label">准备时限</span>
-      ${control('prepareSeconds', segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
+      ${control('prepareSeconds', 'segmented', segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
     </div>
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="banRepeat">禁止重复词</label>' : '<span class="setting-label">禁止重复词</span>'}
-      ${control('banRepeat', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
+      ${control('banRepeat', 'switch', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
     </div>
   </section>`;
 }
