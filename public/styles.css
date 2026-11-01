@@ -55,7 +55,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
-  background-color: var(--bg);
+  background-color: transparent;
 }
 
 @property --bg-a { syntax: '<color>'; inherits: true; initial-value: #DDE4FF; }
@@ -63,13 +63,13 @@ body {
 @property --bg-c { syntax: '<color>'; inherits: true; initial-value: #D8F0FF; }
 
 body {
-  --bg-a: #DDE4FF;
-  --bg-b: #E9DEFF;
-  --bg-c: #D8F0FF;
+  --bg-a: #CBD6FF;
+  --bg-b: #E0CFFF;
+  --bg-c: #C4E6FF;
   transition: --bg-a 1.4s ease, --bg-b 1.4s ease, --bg-c 1.4s ease;
 }
-body[data-scene="lobby"] { --bg-a: #D3F2E6; --bg-b: #D9ECFF; --bg-c: #E6F5D6; }
-body[data-scene="writing"] { --bg-a: #FFE1D6; --bg-b: #FFD9EA; --bg-c: #FFEFC9; }
+body[data-scene="lobby"] { --bg-a: #BCEBD6; --bg-b: #C6E0FF; --bg-c: #DAF0BF; }
+body[data-scene="writing"] { --bg-a: #FFD0BF; --bg-b: #FFC4DE; --bg-c: #FFE7B3; }
 
 body::before,
 body::after {
@@ -84,14 +84,14 @@ body::before {
   background:
     radial-gradient(45% 40% at 20% 20%, var(--bg-a), transparent 70%),
     radial-gradient(40% 45% at 85% 25%, var(--bg-b), transparent 70%);
-  opacity: .8;
+  opacity: .9;
   animation: bg-drift-a 28s ease-in-out infinite alternate;
 }
 body::after {
   background:
     radial-gradient(45% 45% at 75% 85%, var(--bg-c), transparent 70%),
     radial-gradient(35% 35% at 15% 80%, var(--bg-b), transparent 70%);
-  opacity: .7;
+  opacity: .8;
   animation: bg-drift-b 36s ease-in-out infinite alternate;
 }
 @keyframes bg-drift-a {
