@@ -49,6 +49,10 @@ button svg { flex: 0 0 auto; }
 .brand-accent { color: var(--accent); }
 .brand-sep { width: 1px; height: 16px; background: var(--line); flex-shrink: 0; }
 .brand-en { font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
+.brand-c { position: relative; display: inline-block; color: var(--accent); margin: 0 1px 0 .5px; transform: rotate(-8deg); transform-origin: 50% 62%; transition: transform var(--dur-2) var(--ease-out); }
+.brand-c::after { content: ''; position: absolute; right: .5px; top: 62%; width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--player-1); transform: translateY(-50%); transition: transform var(--dur-2) var(--ease-out); }
+.brand:hover .brand-c, .brand:focus-visible .brand-c { transform: rotate(0deg); }
+.brand:hover .brand-c::after, .brand:focus-visible .brand-c::after { transform: translate(-1.5px, -50%); }
 .intro { padding: 80px 0 48px; }
 h1 { margin: 0 0 16px; font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.03em; }
 h2 { font-size: 16px; font-weight: 500; margin: 0; }
