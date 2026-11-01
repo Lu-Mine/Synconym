@@ -463,3 +463,80 @@ M1、M2 同期完成设计系统（令牌、组件、动画），不留到后面
 3. **再来一局有人拒绝**：立即销毁房间，各自回首页
 4. **崩局投票未过半**：直接进下一轮，不再走准备
 5. **字母大小写**：`iOS` 与 `ios` 归一为同一词
+
+---
+
+## 十八、工程约定
+
+新会话接手时按本节落地，不要自行改技术选型。
+
+### 18.1 运行环境
+
+- **Node 20+，ESM**（`"type": "module"`）
+- 单进程同时提供静态文件与 WebSocket，端口默认 `3000`，可用 `PORT` 覆盖
+- 无打包器、无框架、无 TypeScript 编译；浏览器直接跑 ES module
+
+### 18.2 目录结构
+
+```
+synconym/
+├── DESIGN.md
+├── package.json
+├── server/
+│   ├── index.js          // 启动：http + ws 挂载，静态文件
+│   ├── rooms.js          // 房间 Map、状态机、定时器
+│   ├── rules.js          // 归一化、校验、判定
+│   ├── db.js             // SQLite 建表与读写
+│   ├── similarity.js     // 词簇表 / 向量接口
+│   └── names.js          // LocalSend 风格名字生成
+├── public/
+│   ├── index.html
+│   ├── app.js            // 客户端主逻辑
+│   ├── ws.js             // 连接、重连、消息
+│   ├── render.js         // renderState 纯函数
+│   ├── chart.js          // 结算页 SVG 曲线
+│   ├── styles.css
+│   └── icons.svg         // 构建期生成的 sprite
+├── data/
+│   ├── clusters.json     // 词簇表
+│   └── themes.json       // 12 个情境与禁词
+└── scripts/
+    └── build-icons.js    // 从 lucide-static 抽 sprite
+```
+
+### 18.3 依赖
+
+| 包 | 用途 | 阶段 |
+|---|---|---|
+| `ws` | WebSocket 服务端 | 运行时 |
+| `better-sqlite3` | 持久化 | 运行时 |
+| `opencc-js` | 繁简归一（只引 t2s） | 运行时 |
+| `lucide-static` | 图标源文件 | 构建期 |
+
+除上述四个外不新增依赖。图标必须是 Lucide 的，不许手写 SVG path。
+
+### 18.4 脚本
+
+```json
+{
+  "dev":        "node --watch server/index.js",
+  "start":      "node server/index.js",
+  "build:icons":"node scripts/build-icons.js",
+  "test":       "node --test"
+}
+```
+
+### 18.5 代码约定
+
+- 服务端是唯一权威，客户端不发号施令、只渲染快照
+- 所有时间点用毫秒时间戳，倒计时以服务端 `phaseDeadline` 为准，客户端只做插值显示
+- 归一化、校验、判定集中在 `rules.js`，前后端共用同一份规则（前端用于即时拦截，服务端用于最终裁决）
+- 每次状态变更后立即广播全量快照，不做增量
+- 提交前跑 `npm test`；每个里程碑完成即 `git commit`
+
+### 18.6 接手指引
+
+1. 通读本文件，尤其 §四（流程）、§六（判定）、§九（协议）、§十（设计系统）
+2. 按 §十四 的 M1 开始，不要提前实现后续里程碑
+3. M1 验收：能建房、能加入、能改名、准备后房主点开始、刷新恢复席位
+4. 每完成一个里程碑停下来汇报，等确认再继续
