@@ -48,7 +48,7 @@ button svg { flex: 0 0 auto; }
 .brand-cn { font-size: 20px; font-weight: 600; letter-spacing: .02em; line-height: 1; color: var(--ink); }
 .brand-sep { width: 1px; height: 16px; background: var(--line); flex-shrink: 0; }
 .brand-en { font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
-.brand-accent { display: inline-block; padding: 1px 0; margin: -1px 0; background-image: linear-gradient(135deg, var(--player-1) 0%, var(--player-1) 42%, var(--accent) 58%, var(--accent) 100%); background-size: 260% 260%; background-position: 100% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; transition: background-position var(--dur-3) var(--ease-out); }
+.brand-accent { display: inline-block; padding: 1px 0; margin: -1px 0; background-image: linear-gradient(135deg, var(--player-1) 0%, var(--player-1) 42%, var(--accent) 58%, var(--accent) 100%); background-size: 260% 260%; background-position: 100% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; transition: background-position 800ms var(--ease-in-out); }
 .brand:hover .brand-accent, .brand:focus-visible .brand-accent { background-position: 0% 0%; }
 .intro { padding: 80px 0 48px; }
 h1 { margin: 0 0 16px; font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.03em; }
