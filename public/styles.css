@@ -223,13 +223,13 @@ button svg {
 .rename-modal.is-open {
   visibility: visible;
   opacity: 1;
+  transition-delay: 0s;
+}
 
 /* 弹窗打开时锁定背景滚动，并让遮罩铺到视口边缘：否则右侧滚动条槽不会被模糊覆盖 */
 html:has(.rename-modal.is-open) {
   overflow: hidden;
   scrollbar-gutter: auto;
-}
-  transition-delay: 0s;
 }
 
 .rename-modal-backdrop {
