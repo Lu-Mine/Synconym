@@ -5,6 +5,7 @@ import {
   lobbyMarkup,
   playerItemMarkup,
   settingsSummaryText,
+  shellMarkup,
   writingMarkup
 } from './render.js';
 
@@ -251,8 +252,27 @@ function buildScreenMarkup(screen) {
   return writingMarkup(state);
 }
 
+function ensureShell(inRoom) {
+  let stage = app.querySelector('#stage');
+  if (!stage) {
+    app.innerHTML = shellMarkup(inRoom);
+    stage = app.querySelector('#stage');
+  } else {
+    const leaveBtn = app.querySelector('#header-leave');
+    if (leaveBtn) {
+      leaveBtn.classList.toggle('is-visible', inRoom);
+      leaveBtn.toggleAttribute('inert', !inRoom);
+      if (inRoom) leaveBtn.removeAttribute('tabindex');
+      else leaveBtn.setAttribute('tabindex', '-1');
+    }
+  }
+  return stage;
+}
+
 function render({ forceFull = false } = {}) {
   const nextScreen = screenKeyFor(state);
+  const inRoom = Boolean(state.room);
+  const stage = ensureShell(inRoom);
 
   if (!forceFull && nextScreen === currentScreen) {
     if (nextScreen === 'home' && patchSettingsDOM(settings, true)) {
@@ -266,16 +286,19 @@ function render({ forceFull = false } = {}) {
   }
 
   const html = buildScreenMarkup(nextScreen);
-  const applyDOM = () => {
-    app.innerHTML = html;
-  };
-
   const shouldTransition = Boolean(
     currentScreen &&
     currentScreen !== nextScreen &&
     document.startViewTransition &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
+
+  const applyDOM = () => {
+    stage.innerHTML = html;
+    if (shouldTransition) {
+      stage.firstElementChild?.classList.add('vt-managed');
+    }
+  };
 
   if (shouldTransition) {
     document.startViewTransition(applyDOM);

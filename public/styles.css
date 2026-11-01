@@ -1,5 +1,7 @@
 :root {
   color-scheme: light;
+  scrollbar-gutter: stable;
+  view-transition-name: none;
   --bg: #F4F5F9;
   --bg-subtle: #EAECEF;
   --card: #FFFFFF;
@@ -97,17 +99,33 @@ button svg {
 .app {
   width: min(100% - 40px, 600px);
   margin: 0 auto;
+  padding: 36px 0 64px;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 36px;
+}
+
+.stage {
+  view-transition-name: stage;
 }
 
 .page {
-  padding: 36px 0 64px;
-  animation: page-enter var(--dur-4) var(--ease-out) both;
+  animation: page-enter var(--dur-3) var(--ease-out) both;
+}
+
+.page.vt-managed {
+  animation: none;
 }
 
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -696,14 +714,23 @@ p {
 .ghost-button:active:not(:disabled) {
   transform: translateY(1px);
 }
+.leave-button {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-2) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.leave-button.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* === 等待大厅 === */
-.lobby-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 
 .room-banner {
   display: flex;
@@ -1112,19 +1139,38 @@ p {
   background: var(--muted);
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: var(--dur-3);
-  animation-timing-function: var(--ease-out);
+::view-transition-group(stage) {
+  animation-duration: 0s;
+}
+
+::view-transition-old(stage),
+::view-transition-new(stage) {
+  width: 100%;
+  height: auto;
+}
+
+::view-transition-old(stage) {
+  animation: stage-fade-out var(--dur-2) var(--ease-out) both;
+}
+
+::view-transition-new(stage) {
+  animation: stage-fade-in var(--dur-3) var(--ease-out) both;
+}
+
+@keyframes stage-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes stage-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* === 移动端自适应 === */
 @media (max-width: 560px) {
   .app {
     width: min(100% - 28px, 600px);
-  }
-
-  .page {
     padding: 24px 0 48px;
   }
 

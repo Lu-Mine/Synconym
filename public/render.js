@@ -53,9 +53,18 @@ export function settingsSummaryText(settings) {
   return `${modeText} · ${settings.maxRounds} 轮 · 写 ${settings.writeSeconds}s`;
 }
 
+export function shellMarkup(inRoom = false) {
+  return `<header class="site-header" id="site-header">
+    ${brandMarkup()}
+    <button class="ghost-button leave-button ${inRoom ? 'is-visible' : ''}" id="header-leave" type="button" data-action="leave" aria-label="退出房间" ${inRoom ? '' : 'inert tabindex="-1"'}>
+      ${icon('log-out')}<span>退出</span>
+    </button>
+  </header>
+  <div id="stage" class="stage"></div>`;
+}
+
 export function homeMarkup(settings, settingsOpen = false) {
   return `<div class="page home-page" data-screen="home">
-    <header class="home-header">${brandMarkup()}</header>
     <section class="intro">
       <h1>各自想一个，<br>直到想到一起。</h1>
       <p>两个词之间，藏着我们想到的同一个东西。</p>
@@ -115,13 +124,6 @@ export function lobbyMarkup(state, renameOpen = false) {
   const host = room.hostUid === uid;
   const canStart = host && room.players.length >= 2 && room.players.every((player) => player.ready && player.connected);
   return `<div class="page lobby-page" data-screen="lobby" data-room="${escapeHtml(room.code)}">
-    <header class="lobby-header">
-      ${brandMarkup()}
-      <button class="ghost-button leave-button" type="button" data-action="leave" aria-label="退出房间">
-        ${icon('log-out')}<span>退出</span>
-      </button>
-    </header>
-
     <section class="room-banner">
       <div class="room-heading-copy">
         <h1>等待大家准备</h1>
@@ -176,12 +178,6 @@ export function lobbyMarkup(state, renameOpen = false) {
 export function writingMarkup(state) {
   const { room } = state;
   return `<div class="page writing-page" data-screen="writing" data-room="${escapeHtml(room.code)}">
-    <header class="lobby-header">
-      ${brandMarkup()}
-      <button class="ghost-button leave-button" type="button" data-action="leave" aria-label="退出房间">
-        ${icon('log-out')}<span>退出</span>
-      </button>
-    </header>
     <section class="writing-stage">
       <div class="round-pill">第 ${room.round} / ${room.maxRounds} 轮 · 房间 ${escapeHtml(room.code)}</div>
       <h1>各自写下此刻想到的词</h1>

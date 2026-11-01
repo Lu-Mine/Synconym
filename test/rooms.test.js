@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
 import { DEFAULT_SETTINGS, normalizeWord, validateName, validateSettings } from '../server/rules.js';
-import { homeMarkup, lobbyMarkup, writingMarkup } from '../public/render.js';
+import { homeMarkup, lobbyMarkup, shellMarkup, writingMarkup } from '../public/render.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -128,15 +128,14 @@ test('设置校验兼容字符串数值，且所有控件按钮均显式声明 t
     ]
   };
   const markups = [
+    shellMarkup(true),
     homeMarkup(DEFAULT_SETTINGS, true),
     lobbyMarkup({ room: sampleRoom, uid: 'u1' }, true),
     writingMarkup({ room: { ...sampleRoom, phase: 'writing' }, uid: 'u1' })
   ];
-  for (const html of markups) {
-    const tags = html.match(/<button\b[^>]*>/g) || [];
-    assert.ok(tags.length > 0);
-    for (const tag of tags) {
-      assert.match(tag, /\btype="(button|submit)"/, `按钮缺少显式 type 属性: ${tag}`);
-    }
+  const allTags = markups.flatMap((html) => html.match(/<button\b[^>]*>/g) || []);
+  assert.ok(allTags.length > 0);
+  for (const tag of allTags) {
+    assert.match(tag, /\btype="(button|submit)"/, `按钮缺少显式 type 属性: ${tag}`);
   }
 });
