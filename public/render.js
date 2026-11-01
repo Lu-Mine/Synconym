@@ -7,7 +7,7 @@ export function icon(name, className = '') {
 }
 
 export function brandMarkup() {
-  return `<a class="brand" href="/" data-action="home" aria-label="返回近意词 Synconym 主页"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn">近<span class="brand-accent">意</span>词</span><span class="brand-sep" aria-hidden="true"></span><span class="brand-en">Syn<span class="brand-c">c</span>onym</span></a>`;
+  return `<a class="brand" href="/" data-action="home" aria-label="返回近意词 Synconym 主页"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn"><span class="brand-wing-l">近</span><span class="brand-accent">意</span><span class="brand-wing-r">词</span></span><span class="brand-sep" aria-hidden="true"></span><span class="brand-en">Syn<span class="brand-c">c</span>onym</span></a>`;
 }
 
 export function segmented(name, value, options, disabled = false) {
