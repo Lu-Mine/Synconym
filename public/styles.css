@@ -263,18 +263,53 @@ p {
   border-color: var(--line-strong);
 }
 
-.create-submit {
+.create-submit,
+.create-submit:hover:not(:disabled) {
   width: 100%;
   min-height: 56px;
   padding: 14px 20px;
+  border: 0;
+  border-radius: var(--radius-md);
   justify-content: center;
+  color: #FFFFFF;
+  background-color: var(--accent);
+  background-image: linear-gradient(90deg, var(--accent), var(--vermilion));
+  background-image: linear-gradient(90deg in oklab, var(--accent), var(--vermilion));
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   font-size: 16px;
 }
 
+.create-submit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #000000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
 .create-submit-label {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  /* 按白色字形像素重心校正：加号与文字组合视觉中心略偏右 */
+  transform: translateX(-9px);
+}
+
+@media (hover: hover) {
+  .create-submit:hover:not(:disabled)::after {
+    opacity: .10;
+  }
+}
+
+.create-submit:active:not(:disabled)::after {
+  opacity: .18;
 }
 
 /* === 首页平滑展开式房间设置抽屉 === */
@@ -355,10 +390,9 @@ p {
   border-top: 1px solid var(--line);
 }
 
-/* === 宽屏：创建与设置拼成一枚胶囊（40% / 60%），热区仍为两块，展开面板横跨整行 === */
+/* === 宽屏：创建按钮占 40% 热区，设置按钮占其余 60%，展开面板横跨整行 === */
 @media (min-width: 561px) {
   .create-card {
-    /* 左块宽度占比；同时决定蓝→朱砂渐变的中点位置 */
     --split: 40;
     display: grid;
     grid-template-columns: calc(var(--split) * 1%) calc((100 - var(--split)) * 1%);
@@ -366,56 +400,11 @@ p {
     align-items: stretch;
   }
 
-  /* 两块各自把整枚胶囊宽度的渐变拉伸后截取自己那一段，接缝处颜色连续；
-     中间的色彩提示点落在 --split 处，即两块的分界线 */
-  /* 悬停选择器一并列出：通用 .primary:hover / .drawer-trigger:hover 用 background 简写，会重置渐变 */
-  .create-submit,
-  .create-submit:hover:not(:disabled),
-  .drawer-trigger,
-  .drawer-trigger:hover {
-    border: 0;
-    color: #FFFFFF;
-    background-color: var(--accent);
-    background-image: linear-gradient(90deg, var(--accent), calc(var(--split) * 1%), var(--vermilion));
-    background-image: linear-gradient(90deg in oklab, var(--accent), calc(var(--split) * 1%), var(--vermilion));
-    background-repeat: no-repeat;
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    transition: color var(--dur-1) var(--ease-out);
-  }
-
-  /* 压暗叠加层：只改透明度，渐变本身保持连续；内容在叠加层之上 */
-  .create-submit::after,
-  .drawer-trigger::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    background: #000000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--dur-1) var(--ease-out);
-  }
-
-  .create-submit > *,
-  .drawer-trigger > * {
-    position: relative;
-    z-index: 1;
-  }
-
   .create-submit {
     grid-area: 1 / 1 / 2 / 2;
-    border-radius: var(--radius-md) 0 0 var(--radius-md);
   }
 
-  .create-submit,
-  .create-submit:hover:not(:disabled) {
-    background-size: calc(100% * 100 / var(--split)) 100%;
-    background-position: left center;
-  }
-
-  /* 按下时不做缩放，避免两块错位露出接缝 */
+  /* 按下时不缩放，避免影响旁边设置热区的位置 */
   .create-submit:active:not(:disabled) {
     transform: none;
   }
@@ -431,9 +420,15 @@ p {
     height: 100%;
     min-height: 56px;
     padding: 0 16px;
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
-    /* 内容整体左右镜像：标题在右，概要紧贴标题左侧 */
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    /* 保留上一版的内容顺序：标题在右，概要紧贴标题左侧 */
     flex-direction: row-reverse;
+  }
+
+  .drawer-trigger:hover {
+    background: var(--card-hover);
   }
 
   .drawer-trigger-title {
@@ -441,50 +436,13 @@ p {
   }
 
   .drawer-summary {
-    margin: 0;
-  }
-
-  .drawer-trigger,
-  .drawer-trigger:hover {
-    background-size: calc(100% * 100 / (100 - var(--split))) 100%;
-    background-position: right center;
-  }
-
-  /* 悬停压暗只在支持悬停的指针下生效，避免触屏点按后 :hover 粘住不恢复 */
-  @media (hover: hover) {
-    .create-submit:hover:not(:disabled)::after,
-    .drawer-trigger:hover::after {
-      opacity: .10;
-    }
-  }
-
-  /* 按压更深一档，松手即恢复 */
-  .create-submit:active:not(:disabled)::after,
-  .drawer-trigger:active::after {
-    opacity: .18;
-  }
-
-  .create-submit:focus-visible,
-  .drawer-trigger:focus-visible {
-    outline-color: #FFFFFF;
-    outline-offset: -4px;
-  }
-
-  .drawer-trigger-title .icon {
-    color: #FFFFFF;
-  }
-
-  .drawer-shell.is-open .drawer-trigger {
-    color: #FFFFFF;
-  }
-
-  .drawer-summary {
     min-width: 0;
+    margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: rgba(255, 255, 255, .82);
   }
+
   .drawer-grid .settings {
     margin-top: 8px;
   }
