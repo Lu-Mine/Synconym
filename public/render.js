@@ -11,51 +11,185 @@ export function brandMarkup() {
 }
 
 export function segmented(name, value, options, disabled = false) {
-  return `<div class="segmented" role="group" style="--selected:${options.findIndex((option) => String(option.value) === String(value))};--count:${options.length}">${options.map((option) =>
-    `<button class="segment ${String(option.value) === String(value) ? 'selected' : ''}" type="button" data-setting="${name}" data-value="${option.value}" aria-pressed="${String(option.value) === String(value)}" ${disabled ? 'disabled' : ''}>${option.label}</button>`).join('')}</div>`;
+  const index = Math.max(0, options.findIndex((option) => String(option.value) === String(value)));
+  return `<div class="segmented" role="group" data-segmented="${name}" style="--selected:${index};--count:${options.length}">${options.map((option) => {
+    const isSelected = String(option.value) === String(value);
+    return `<button class="segment ${isSelected ? 'selected' : ''}" type="button" data-setting="${name}" data-value="${option.value}" aria-pressed="${isSelected}" ${disabled ? 'disabled' : ''}>${option.label}</button>`;
+  }).join('')}</div>`;
 }
 
 export function settingsMarkup(settings, editable) {
-  return `<section class="settings" aria-label="房间设置">
-    <div class="setting-row"><span>模式</span>${segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], !editable)}</div>
-    <div class="setting-row"><label for="rounds">轮次上限</label><div class="stepper">
-      <button class="icon-button" data-step="-1" aria-label="减少轮次" ${!editable || settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
-      <output id="rounds" class="stepper-value">${settings.maxRounds}</output>
-      <button class="icon-button" data-step="1" aria-label="增加轮次" ${!editable || settings.maxRounds >= 20 ? 'disabled' : ''}>${icon('plus')}</button>
-    </div></div>
-    <div class="setting-row"><span>写词时限</span>${segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}</div>
-    <div class="setting-row"><span>准备时限</span>${segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}</div>
-    <div class="setting-row"><label for="banRepeat">禁止重复词</label><button id="banRepeat" class="switch" role="switch" aria-checked="${settings.banRepeat}" data-setting="banRepeat" aria-label="禁止重复词" ${!editable ? 'disabled' : ''}><span></span></button></div>
+  return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
+    <div class="setting-row">
+      <span class="setting-label">模式</span>
+      ${segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], !editable)}
+    </div>
+    <div class="setting-row">
+      <label class="setting-label" for="rounds">轮次上限</label>
+      <div class="stepper" role="group" aria-label="轮次上限">
+        <button class="stepper-btn" type="button" data-step="-1" aria-label="减少轮次" ${!editable || settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
+        <output id="rounds" class="stepper-value" data-value="${settings.maxRounds}">${settings.maxRounds}</output>
+        <button class="stepper-btn" type="button" data-step="1" aria-label="增加轮次" ${!editable || settings.maxRounds >= 20 ? 'disabled' : ''}>${icon('plus')}</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">写词时限</span>
+      ${segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">准备时限</span>
+      ${segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}
+    </div>
+    <div class="setting-row">
+      <label class="setting-label" for="banRepeat">禁止重复词</label>
+      <button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词" ${!editable ? 'disabled' : ''}><span class="switch-thumb"></span></button>
+    </div>
   </section>`;
 }
 
-export function homeMarkup(settings) {
-  return `<div class="page home-page"><header class="home-header">${brandMarkup()}</header>
-    <section class="intro"><h1>各自想一个，<br>直到想到一起。</h1><p>两个词之间，藏着我们想到的同一个东西。</p></section>
-    <form id="create-form"><button class="button primary" type="submit">${icon('plus')}创建房间</button></form>
-    <div class="join-heading">或者加入朋友的房间</div>
-    <form id="join-form" class="join-form"><label class="sr-only" for="room-code">4 位房号</label><input id="room-code" name="code" class="input code-input" placeholder="输入 4 位房号" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" required><button class="button secondary" type="submit">加入房间</button></form>
-    <details class="create-settings"><summary>${icon('settings')}房间设置${icon('chevron-down', 'chevron')}</summary><div class="details-content">${settingsMarkup(settings, true)}</div></details>
+export function settingsSummaryText(settings) {
+  const modeText = settings.mode === 'theme' ? '主题' : '自由';
+  const repeatText = settings.banRepeat ? '禁重复' : '可重复';
+  return `${modeText} · ${settings.maxRounds} 轮 · 写 ${settings.writeSeconds}s`;
+}
+
+export function homeMarkup(settings, settingsOpen = false) {
+  return `<div class="page home-page" data-screen="home">
+    <header class="home-header">${brandMarkup()}</header>
+    <section class="intro">
+      <h1>各自想一个，<br>直到想到一起。</h1>
+      <p>两个词之间，藏着我们想到的同一个东西。</p>
+    </section>
+
+    <div class="entry-deck">
+      <form id="create-form" class="create-card">
+        <button class="button primary create-submit" type="submit">
+          <span class="create-submit-label">${icon('plus')}<span>创建房间</span></span>
+          ${icon('arrow-right', 'button-trail')}
+        </button>
+        <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
+          <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
+            <span class="drawer-trigger-title">${icon('sliders-horizontal')}<span>房间设置</span></span>
+            <span class="drawer-summary" id="settings-summary">${escapeHtml(settingsSummaryText(settings))}</span>
+            ${icon('chevron-down', 'chevron')}
+          </button>
+          <div class="drawer-grid" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
+            <div class="drawer-inner">
+              ${settingsMarkup(settings, true)}
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="entry-divider" role="separator"><span>或者加入朋友的房间</span></div>
+
+      <form id="join-form" class="join-form">
+        <label class="sr-only" for="room-code">4 位房号</label>
+        <input id="room-code" name="code" class="input code-input" placeholder="输入 4 位房号" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+        <button class="button secondary join-submit" type="submit">加入房间</button>
+      </form>
+    </div>
   </div>`;
 }
 
-export function lobbyMarkup(state) {
+export function playerItemMarkup(player, room, uid) {
+  const isMe = player.uid === uid;
+  const isHost = player.uid === room.hostUid;
+  return `<li class="player ${player.ready ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
+    <span class="avatar" aria-hidden="true">${escapeHtml([...player.name][0] || '')}</span>
+    <div class="player-meta">
+      <div class="player-name-row">
+        <span class="player-name">${escapeHtml(player.name)}</span>
+        ${isHost ? '<span class="badge host-label">房主</span>' : ''}
+        ${!player.connected ? '<span class="badge offline-label">暂时离开</span>' : ''}
+      </div>
+    </div>
+    ${isMe ? `<button class="icon-button rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>` : ''}
+    <span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>
+  </li>`;
+}
+
+export function lobbyMarkup(state, renameOpen = false) {
   const { room, uid } = state;
   const me = room.players.find((player) => player.uid === uid);
   const host = room.hostUid === uid;
   const canStart = host && room.players.length >= 2 && room.players.every((player) => player.ready && player.connected);
-  return `<div class="page lobby-page"><header class="lobby-header">${brandMarkup()}<button class="icon-button leave-button" data-action="leave" aria-label="退出房间" title="退出房间">${icon('log-out')}</button></header>
-    <section class="room-heading"><div><h1>等待大家准备</h1><p>邀请朋友，准备好后由房主开始。</p></div><button class="room-code" data-action="copy" aria-label="复制邀请链接" title="复制邀请链接"><span>${escapeHtml(room.code)}</span>${icon('copy')}</button></section>
-    <section class="players" aria-label="房间玩家"><div class="section-heading"><h2>${icon('users')}玩家</h2><span>${room.players.length} / 4</span></div><ul class="player-list">${room.players.map((player) => `<li class="player" style="--player:var(--player-${player.seat})">
-      <span class="avatar">${escapeHtml([...player.name][0] || '')}</span><div class="player-name">${escapeHtml(player.name)}${player.uid === room.hostUid ? '<span class="host-label">房主</span>' : ''}${!player.connected ? '<span class="offline-label">暂时离开</span>' : ''}</div>
-      ${player.uid === uid ? `<button class="icon-button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('user')}</button>` : ''}<span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? icon('check') + '已准备' : '未准备'}</span></li>`).join('')}</ul></section>
-    <form id="rename-form" class="rename-form" hidden><label class="sr-only" for="player-name">名字</label><input id="player-name" class="input" maxlength="12" required value="${escapeHtml(me?.name || '')}"><button class="button secondary" type="submit">保存名字</button></form>
-    ${settingsMarkup(room, host)}
-    <div class="lobby-actions"><button class="button ${me?.ready ? 'secondary' : 'primary'}" data-action="ready">${me?.ready ? icon('x') + '取消准备' : icon('check') + '准备'}</button>
-    ${host ? `<button class="button primary" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}开始</button>` : ''}</div>
+  return `<div class="page lobby-page" data-screen="lobby" data-room="${escapeHtml(room.code)}">
+    <header class="lobby-header">
+      ${brandMarkup()}
+      <button class="ghost-button leave-button" type="button" data-action="leave" aria-label="退出房间">
+        ${icon('log-out')}<span>退出</span>
+      </button>
+    </header>
+
+    <section class="room-banner">
+      <div class="room-heading-copy">
+        <h1>等待大家准备</h1>
+        <p>邀请朋友，准备好后由房主开始。</p>
+      </div>
+      <button class="room-code-ticket" type="button" data-action="copy" aria-label="复制邀请链接" title="复制邀请链接">
+        <span class="ticket-caption">房间号</span>
+        <span class="ticket-code-row">
+          <span class="ticket-code" id="lobby-room-code">${escapeHtml(room.code)}</span>
+          ${icon('copy', 'ticket-copy-icon')}
+        </span>
+      </button>
+    </section>
+
+    <section class="surface-block players-block" aria-label="房间玩家">
+      <div class="section-heading">
+        <h2>${icon('users')}<span>玩家</span></h2>
+        <span class="player-count" id="player-count">${room.players.length} / 4</span>
+      </div>
+      <ul class="player-list" id="player-list">
+        ${room.players.map((player) => playerItemMarkup(player, room, uid)).join('')}
+      </ul>
+      <div class="inline-drawer ${renameOpen ? 'is-open' : ''}" id="rename-drawer">
+        <div class="drawer-inner">
+          <form id="rename-form" class="rename-form">
+            <label class="sr-only" for="player-name">名字</label>
+            <input id="player-name" class="input" maxlength="12" placeholder="输入新名字（最多 12 字）" required value="${escapeHtml(me?.name || '')}">
+            <button class="button secondary" type="submit">保存名字</button>
+            <button class="icon-button" type="button" data-action="cancel-rename" aria-label="收起改名">${icon('x')}</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="surface-block settings-block">
+      <div class="section-heading">
+        <h2>${icon('sliders-horizontal')}<span>房间设置</span></h2>
+        ${!host ? '<span class="readonly-tag">房主可改</span>' : ''}
+      </div>
+      ${settingsMarkup(room, host)}
+    </section>
+
+    <div class="lobby-actions" id="lobby-actions">
+      <button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">
+        ${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}
+      </button>
+      ${host ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>` : ''}
+    </div>
   </div>`;
 }
 
 export function writingMarkup(state) {
-  return `<div class="page"><header class="lobby-header">${brandMarkup()}</header><section class="intro"><h1>第 ${state.room.round} 轮</h1><p>房间 ${escapeHtml(state.room.code)} · ${state.room.players.length} 位玩家</p></section><div class="writing-clock">${icon('clock')}<span id="countdown"></span></div></div>`;
+  const { room } = state;
+  return `<div class="page writing-page" data-screen="writing" data-room="${escapeHtml(room.code)}">
+    <header class="lobby-header">
+      ${brandMarkup()}
+      <button class="ghost-button leave-button" type="button" data-action="leave" aria-label="退出房间">
+        ${icon('log-out')}<span>退出</span>
+      </button>
+    </header>
+    <section class="writing-stage">
+      <div class="round-pill">第 ${room.round} / ${room.maxRounds} 轮 · 房间 ${escapeHtml(room.code)}</div>
+      <h1>各自写下此刻想到的词</h1>
+      <p>${room.players.length} 位玩家同场作答</p>
+      <div class="writing-clock" role="timer" aria-live="off">
+        ${icon('clock')}
+        <span id="countdown"></span>
+      </div>
+    </section>
+  </div>`;
 }

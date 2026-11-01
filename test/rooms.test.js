@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
-import { normalizeWord, validateName, validateSettings } from '../server/rules.js';
+import { DEFAULT_SETTINGS, normalizeWord, validateName, validateSettings } from '../server/rules.js';
+import { homeMarkup, lobbyMarkup, writingMarkup } from '../public/render.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -109,4 +110,33 @@ test('规则校验与繁简、空格归一', () => {
   assert.throws(() => validateSettings({ maxRounds: 3 }));
   assert.equal(validateName(' 名字 '), '名字');
   assert.throws(() => validateName('十三个字符的名字不能通过验证'));
+});
+
+test('设置校验兼容字符串数值，且所有控件按钮均显式声明 type 防止页面刷新', () => {
+  const parsed = validateSettings({ maxRounds: '16', writeSeconds: '30', prepareSeconds: '15', banRepeat: false });
+  assert.deepEqual(parsed, { mode: 'free', maxRounds: 16, writeSeconds: 30, prepareSeconds: 15, banRepeat: false });
+
+  const sampleRoom = {
+    code: 'ABCD',
+    ...DEFAULT_SETTINGS,
+    phase: 'lobby',
+    round: 1,
+    hostUid: 'u1',
+    players: [
+      { uid: 'u1', name: '甲', seat: 0, connected: true, ready: false },
+      { uid: 'u2', name: '乙', seat: 1, connected: true, ready: true }
+    ]
+  };
+  const markups = [
+    homeMarkup(DEFAULT_SETTINGS, true),
+    lobbyMarkup({ room: sampleRoom, uid: 'u1' }, true),
+    writingMarkup({ room: { ...sampleRoom, phase: 'writing' }, uid: 'u1' })
+  ];
+  for (const html of markups) {
+    const tags = html.match(/<button\b[^>]*>/g) || [];
+    assert.ok(tags.length > 0);
+    for (const tag of tags) {
+      assert.match(tag, /\btype="(button|submit)"/, `按钮缺少显式 type 属性: ${tag}`);
+    }
+  }
 });

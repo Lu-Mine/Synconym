@@ -14,18 +14,24 @@ export function normalizeWord(word) {
 }
 
 export function validateSettings(settings) {
-  const value = { ...DEFAULT_SETTINGS, ...settings };
-  if (!['free', 'theme'].includes(value.mode)) throw new Error('房间模式无效');
-  if (!Number.isInteger(value.maxRounds) || value.maxRounds < 4 || value.maxRounds > 20) {
+  const raw = { ...DEFAULT_SETTINGS, ...settings };
+  const maxRounds = typeof raw.maxRounds === 'string' && raw.maxRounds.trim() !== ''
+    ? Number(raw.maxRounds) : raw.maxRounds;
+  const writeSeconds = typeof raw.writeSeconds === 'string' && raw.writeSeconds.trim() !== ''
+    ? Number(raw.writeSeconds) : raw.writeSeconds;
+  const prepareSeconds = typeof raw.prepareSeconds === 'string' && raw.prepareSeconds.trim() !== ''
+    ? Number(raw.prepareSeconds) : raw.prepareSeconds;
+  if (!['free', 'theme'].includes(raw.mode)) throw new Error('房间模式无效');
+  if (!Number.isInteger(maxRounds) || maxRounds < 4 || maxRounds > 20) {
     throw new Error('轮次上限须为 4 到 20 的整数');
   }
-  if (!durations.includes(value.writeSeconds) || !durations.includes(value.prepareSeconds)) {
+  if (!durations.includes(writeSeconds) || !durations.includes(prepareSeconds)) {
     throw new Error('时限设置无效');
   }
-  if (typeof value.banRepeat !== 'boolean') throw new Error('重复词设置无效');
+  if (typeof raw.banRepeat !== 'boolean') throw new Error('重复词设置无效');
   return {
-    mode: value.mode, maxRounds: value.maxRounds, writeSeconds: value.writeSeconds,
-    prepareSeconds: value.prepareSeconds, banRepeat: value.banRepeat
+    mode: raw.mode, maxRounds, writeSeconds,
+    prepareSeconds, banRepeat: raw.banRepeat
   };
 }
 
