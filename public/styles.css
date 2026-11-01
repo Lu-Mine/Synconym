@@ -110,6 +110,108 @@ button svg {
   height: 36px;
 }
 
+.header-actions,
+.header-user {
+  display: flex;
+  align-items: center;
+}
+
+.header-actions { gap: 8px; }
+
+.header-user {
+  gap: 8px;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+
+.header-user.is-visible { opacity: 1; }
+
+.header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size: 13px;
+}
+
+.header-user-name {
+  max-width: 132px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-rename-trigger,
+.player-name-row .rename-trigger {
+  width: 30px;
+  height: 30px;
+}
+
+.header-rename-trigger .icon,
+.player-name-row .rename-trigger .icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* 修改名字窗口 */
+.rename-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out), visibility 0s linear var(--dur-2);
+}
+
+.rename-modal.is-open {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.rename-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(22, 22, 26, .34);
+  cursor: default;
+}
+
+.rename-dialog {
+  position: relative;
+  width: min(100%, 400px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 20px 60px rgba(30, 34, 50, .18);
+  transform: translateY(8px) scale(.98);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.rename-modal.is-open .rename-dialog { transform: translateY(0) scale(1); }
+
+.rename-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.rename-dialog-heading h2 { font-size: 18px; }
+
 .stage {
   view-transition-name: stage;
 }
@@ -373,8 +475,7 @@ p {
   color: var(--ink);
 }
 
-.drawer-grid,
-.inline-drawer {
+.drawer-grid {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -383,8 +484,7 @@ p {
     opacity var(--dur-2) var(--ease-out);
 }
 
-.drawer-grid.is-open,
-.inline-drawer.is-open {
+.drawer-grid.is-open {
   grid-template-rows: 1fr;
   opacity: 1;
 }
@@ -1021,7 +1121,7 @@ p {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px 6px;
 }
 
 .player-name {
@@ -1084,22 +1184,36 @@ p {
   background: var(--jade-soft);
 }
 
-/* 改名内联抽屉 */
 .rename-form {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  padding-top: 12px;
 }
 
-.rename-form .input {
-  height: 44px;
+.rename-form label {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-secondary);
 }
 
-.rename-form .button {
-  min-height: 44px;
-  padding: 0 16px;
-  flex-shrink: 0;
+.rename-form .input { height: 44px; }
+
+.rename-uid {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.rename-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rename-dialog-actions .button {
+  min-height: 40px;
+  padding: 0 18px;
 }
 
 /* 底部主操作区 */
@@ -1312,16 +1426,14 @@ p {
     padding: 10px;
   }
 
-  .rename-form {
-    flex-wrap: wrap;
-  }
+  .header-user-name { max-width: 80px; }
 
-  .rename-form .input {
-    flex: 1 1 100%;
-  }
+  .leave-button span { display: none; }
 
-  .rename-form .button {
-    flex: 1;
+  .leave-button { padding: 0 10px; }
+
+  .rename-dialog {
+    padding: 18px;
   }
 }
 

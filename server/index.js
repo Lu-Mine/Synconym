@@ -53,7 +53,7 @@ export function createSynconymServer({ db = createDatabase() } = {}) {
             delete player.disconnectedAt;
             manager.touch(room);
           } else {
-            ws.send(JSON.stringify({ type: 'state', uid: connection.uid, room: null, serverNow: Date.now() }));
+            manager.sendState(connection, null);
           }
         } else if (connection) {
           manager.handle(connection, message);

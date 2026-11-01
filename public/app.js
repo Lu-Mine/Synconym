@@ -142,17 +142,41 @@ function syncHomeDrawerDOM() {
   panel.toggleAttribute('inert', !homeSettingsOpen);
 }
 
-function syncRenameDrawerDOM(focusInput = false) {
-  const drawer = app.querySelector('#rename-drawer');
-  if (!drawer) return;
-  drawer.classList.toggle('is-open', renameOpen);
-  const input = drawer.querySelector('#player-name');
+function syncRenameModalDOM(focusInput = false) {
+  const modal = app.querySelector('#rename-modal');
+  if (!modal) return;
+  modal.classList.toggle('is-open', renameOpen);
+  modal.toggleAttribute('inert', !renameOpen);
+  const input = modal.querySelector('#player-name');
+  if (input && state.user && document.activeElement !== input) input.value = state.user.name;
   if (renameOpen && focusInput && input) {
     requestAnimationFrame(() => {
       input.focus();
       input.select();
     });
   }
+}
+
+function patchHeaderDOM(inRoom) {
+  const user = state.user;
+  const headerUser = app.querySelector('#header-user');
+  if (headerUser) {
+    headerUser.classList.toggle('is-visible', Boolean(user));
+    const avatar = headerUser.querySelector('.header-avatar');
+    const name = headerUser.querySelector('#header-user-name');
+    if (avatar) avatar.textContent = [...(user?.name || '')][0] || '';
+    if (name) name.textContent = user?.name || '';
+  }
+  const leaveBtn = app.querySelector('#header-leave');
+  if (leaveBtn) {
+    leaveBtn.classList.toggle('is-visible', inRoom);
+    leaveBtn.toggleAttribute('inert', !inRoom);
+    if (inRoom) leaveBtn.removeAttribute('tabindex');
+    else leaveBtn.setAttribute('tabindex', '-1');
+  }
+  const uid = app.querySelector('#rename-uid');
+  if (uid) uid.textContent = `UID：${user?.uid || ''}`;
+  syncRenameModalDOM(false);
 }
 
 function patchLobbyDOM(nextState) {
@@ -199,7 +223,7 @@ function patchLobbyDOM(nextState) {
     if (activeElementId) document.getElementById(activeElementId)?.focus();
   }
 
-  const nameInput = page.querySelector('#player-name');
+  const nameInput = app.querySelector('#player-name');
   if (nameInput && me && document.activeElement !== nameInput) {
     nameInput.value = me.name;
   }
@@ -256,17 +280,10 @@ function buildScreenMarkup(screen) {
 function ensureShell(inRoom) {
   let stage = app.querySelector('#stage');
   if (!stage) {
-    app.innerHTML = shellMarkup(inRoom);
+    app.innerHTML = shellMarkup(inRoom, state.user, renameOpen);
     stage = app.querySelector('#stage');
-  } else {
-    const leaveBtn = app.querySelector('#header-leave');
-    if (leaveBtn) {
-      leaveBtn.classList.toggle('is-visible', inRoom);
-      leaveBtn.toggleAttribute('inert', !inRoom);
-      if (inRoom) leaveBtn.removeAttribute('tabindex');
-      else leaveBtn.setAttribute('tabindex', '-1');
-    }
   }
+  patchHeaderDOM(inRoom);
   return stage;
 }
 
@@ -281,7 +298,7 @@ function render({ forceFull = false } = {}) {
       return;
     }
     if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
-      syncRenameDrawerDOM(false);
+      syncRenameModalDOM(false);
       return;
     }
   }
@@ -406,7 +423,7 @@ app.addEventListener('submit', (event) => {
     const name = input?.value.trim() || '';
     if (!name) return;
     renameOpen = false;
-    syncRenameDrawerDOM(false);
+    syncRenameModalDOM(false);
     enqueueWrite({ type: 'rename', name });
   }
 });
@@ -500,11 +517,11 @@ app.addEventListener('click', async (event) => {
   } else if (button.dataset.action === 'rename') {
     event.preventDefault();
     renameOpen = !renameOpen;
-    syncRenameDrawerDOM(renameOpen);
+    syncRenameModalDOM(renameOpen);
   } else if (button.dataset.action === 'cancel-rename') {
     event.preventDefault();
     renameOpen = false;
-    syncRenameDrawerDOM(false);
+    syncRenameModalDOM(false);
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;
@@ -517,5 +534,12 @@ app.addEventListener('click', async (event) => {
     } catch {
       toast('请复制浏览器地址栏中的邀请链接');
     }
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && renameOpen) {
+    renameOpen = false;
+    syncRenameModalDOM(false);
   }
 });

@@ -53,13 +53,40 @@ export function settingsSummaryText(settings) {
   return `${modeText} · ${settings.maxRounds} 轮 · 写 ${settings.writeSeconds}s`;
 }
 
-export function shellMarkup(inRoom = false) {
+export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
+  const name = user?.name || '';
+  const uid = user?.uid || '';
   return `<header class="site-header" id="site-header">
     ${brandMarkup()}
-    <button class="ghost-button leave-button ${inRoom ? 'is-visible' : ''}" id="header-leave" type="button" data-action="leave" aria-label="退出房间" ${inRoom ? '' : 'inert tabindex="-1"'}>
-      ${icon('log-out')}<span>退出</span>
-    </button>
+    <div class="header-actions">
+      <button class="ghost-button leave-button ${inRoom ? 'is-visible' : ''}" id="header-leave" type="button" data-action="leave" aria-label="退出房间" ${inRoom ? '' : 'inert tabindex="-1"'}>
+        ${icon('log-out')}<span>退出</span>
+      </button>
+      <div class="header-user ${user ? 'is-visible' : ''}" id="header-user">
+        <span class="avatar header-avatar" aria-hidden="true">${escapeHtml([...name][0] || '')}</span>
+        <span class="header-user-name" id="header-user-name">${escapeHtml(name)}</span>
+        <button class="icon-button header-rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>
+      </div>
+    </div>
   </header>
+  <div class="rename-modal ${renameOpen ? 'is-open' : ''}" id="rename-modal" ${renameOpen ? '' : 'inert'}>
+    <button class="rename-modal-backdrop" type="button" data-action="cancel-rename" aria-label="关闭修改名字窗口"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+      <div class="rename-dialog-heading">
+        <h2 id="rename-title">修改名字</h2>
+        <button class="icon-button" type="button" data-action="cancel-rename" aria-label="关闭">${icon('x')}</button>
+      </div>
+      <form id="rename-form" class="rename-form">
+        <label for="player-name">名字</label>
+        <input id="player-name" class="input" maxlength="12" placeholder="输入新名字（最多 12 字）" required value="${escapeHtml(name)}">
+        <p class="rename-uid" id="rename-uid">UID：${escapeHtml(uid)}</p>
+        <div class="rename-dialog-actions">
+          <button class="button secondary" type="button" data-action="cancel-rename">取消</button>
+          <button class="button primary" type="submit">保存</button>
+        </div>
+      </form>
+    </section>
+  </div>
   <div id="stage" class="stage"></div>`;
 }
 
@@ -107,16 +134,16 @@ export function playerItemMarkup(player, room, uid) {
     <div class="player-meta">
       <div class="player-name-row">
         <span class="player-name">${escapeHtml(player.name)}</span>
+        ${isMe ? `<button class="icon-button rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>` : ''}
         ${isHost ? '<span class="badge host-label">房主</span>' : ''}
         ${!player.connected ? '<span class="badge offline-label">暂时离开</span>' : ''}
       </div>
     </div>
-    ${isMe ? `<button class="icon-button rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>` : ''}
     <span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>
   </li>`;
 }
 
-export function lobbyMarkup(state, renameOpen = false) {
+export function lobbyMarkup(state) {
   const { room, uid } = state;
   const me = room.players.find((player) => player.uid === uid);
   const host = room.hostUid === uid;
@@ -144,16 +171,6 @@ export function lobbyMarkup(state, renameOpen = false) {
       <ul class="player-list" id="player-list">
         ${room.players.map((player) => playerItemMarkup(player, room, uid)).join('')}
       </ul>
-      <div class="inline-drawer ${renameOpen ? 'is-open' : ''}" id="rename-drawer">
-        <div class="drawer-inner">
-          <form id="rename-form" class="rename-form">
-            <label class="sr-only" for="player-name">名字</label>
-            <input id="player-name" class="input" maxlength="12" placeholder="输入新名字（最多 12 字）" required value="${escapeHtml(me?.name || '')}">
-            <button class="button secondary" type="submit">保存名字</button>
-            <button class="icon-button" type="button" data-action="cancel-rename" aria-label="收起改名">${icon('x')}</button>
-          </form>
-        </div>
-      </div>
     </section>
 
     <section class="surface-block settings-block">

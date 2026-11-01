@@ -59,11 +59,12 @@ export class RoomManager {
   }
 
   sendState(connection, room = this.rooms.get(connection.roomCode)) {
-    if (!room || connection.ws?.readyState !== 1) return;
+    if (connection.ws?.readyState !== 1) return;
+    const user = this.db.getPlayer(connection.uid);
     connection.ws.send(JSON.stringify({
-      type: 'state', uid: connection.uid,
+      type: 'state', uid: connection.uid, user: { uid: user.uid, name: user.name },
       publicUrl: process.env.PUBLIC_URL?.replace(/\/$/, ''),
-      room: {
+      room: room ? {
         code: room.code, mode: room.mode, themeId: room.themeId,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
@@ -71,7 +72,7 @@ export class RoomManager {
         hostUid: room.hostUid,
         players: room.players.map(({ uid, name, seat, connected, ready }) =>
           ({ uid, name, seat, connected, ready }))
-      },
+      } : null,
       serverNow: Date.now()
     }));
   }
@@ -133,6 +134,12 @@ export class RoomManager {
     const room = connection.roomCode ? this.rooms.get(connection.roomCode) : null;
     if (type === 'hello') {
       if (room) this.sendState(connection);
+      return;
+    }
+    if (type === 'rename' && !room) {
+      const name = validateName(message.name);
+      this.db.rename(connection.uid, name);
+      this.sendState(connection, null);
       return;
     }
     if (type === 'createRoom' || type === 'joinRoom') {
@@ -203,7 +210,7 @@ export class RoomManager {
           if (current.hostUid === connection.uid) this.transferHost(current);
           this.touch(current);
         }
-        connection.ws.send(JSON.stringify({ type: 'state', uid: connection.uid, room: null, serverNow: Date.now() }));
+        this.sendState(connection, null);
         return;
       }
       default:

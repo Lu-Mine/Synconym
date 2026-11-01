@@ -24,6 +24,25 @@ test('名字默认生成，改名保留 uid 并写入数据库', (t) => {
   assert.equal(manager.roomFor(a).players[0].uid, uid);
 });
 
+test('未进入房间也可以修改名字并收到用户资料状态', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 100000 });
+  const db = createMemoryDb();
+  const manager = new RoomManager({ db });
+  const states = [];
+  const connection = manager.connect();
+  connection.ws = { readyState: 1, send(payload) { states.push(JSON.parse(payload)); }, close() {} };
+
+  manager.sendState(connection, null);
+  assert.equal(states.at(-1).user.uid, connection.uid);
+  assert.equal(states.at(-1).user.name, db.getPlayer(connection.uid).name);
+  assert.equal(states.at(-1).room, null);
+
+  passRateLimit(t);
+  manager.handle(connection, { type: 'rename', name: '首页新名字' });
+  assert.equal(db.getPlayer(connection.uid).name, '首页新名字');
+  assert.equal(states.at(-1).user.name, '首页新名字');
+});
+
 test('凭房号加入、改名、准备、取消、房主开始', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const manager = new RoomManager();
@@ -128,14 +147,28 @@ test('设置校验兼容字符串数值，且所有控件按钮均显式声明 t
     ]
   };
   const markups = [
-    shellMarkup(true),
+    shellMarkup(true, { uid: 'user-uid', name: '甲' }, true),
     homeMarkup(DEFAULT_SETTINGS, true),
-    lobbyMarkup({ room: sampleRoom, uid: 'u1' }, true),
-    writingMarkup({ room: { ...sampleRoom, phase: 'writing' }, uid: 'u1' })
+    lobbyMarkup({ room: sampleRoom, uid: 'u1', user: { uid: 'u1', name: '甲' } }, true),
+    writingMarkup({ room: { ...sampleRoom, phase: 'writing' }, uid: 'u1', user: { uid: 'u1', name: '甲' } })
   ];
   const allTags = markups.flatMap((html) => html.match(/<button\b[^>]*>/g) || []);
   assert.ok(allTags.length > 0);
   for (const tag of allTags) {
     assert.match(tag, /\btype="(button|submit)"/, `按钮缺少显式 type 属性: ${tag}`);
   }
+});
+
+test('header 展示用户与 UID，玩家改名按钮位于名字右侧', () => {
+  const shell = shellMarkup(false, { uid: 'uid-123', name: '测试用户' }, true);
+  assert.match(shell, /header-user-name[^>]*>测试用户</);
+  assert.match(shell, /UID：uid-123/);
+  assert.match(shell, /rename-modal is-open/);
+
+  const room = {
+    code: 'ABCD', ...DEFAULT_SETTINGS, phase: 'lobby', round: 0, hostUid: 'u1',
+    players: [{ uid: 'u1', name: '甲', seat: 0, connected: true, ready: false }]
+  };
+  const lobby = lobbyMarkup({ room, uid: 'u1', user: { uid: 'u1', name: '甲' } });
+  assert.match(lobby, /player-name-row[\s\S]*player-name[^>]*>甲<[\s\S]*rename-trigger[\s\S]*<\/div>/);
 });
