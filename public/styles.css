@@ -978,7 +978,7 @@ p {
 .room-banner {
   display: flex;
   align-items: stretch;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   padding: 36px 0 24px;
 }
@@ -998,8 +998,39 @@ p {
   font-size: 14px;
 }
 
+.idle-clock {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+.idle-clock .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.idle-clock.urgent {
+  border-color: transparent;
+  background: #FFF1EF;
+  color: var(--vermilion);
+}
+
 .room-code-ticket {
   display: flex;
+  margin-left: auto;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
@@ -1009,7 +1040,6 @@ p {
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink);
-  flex-shrink: 0;
   transition:
     border-color var(--dur-2) var(--ease-out),
     background-color var(--dur-1) var(--ease-out),
@@ -1484,6 +1514,11 @@ p {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .idle-clock {
+    align-self: flex-start;
   }
 
   .surface-block {

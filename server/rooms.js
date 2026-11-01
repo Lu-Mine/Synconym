@@ -3,6 +3,7 @@ import { createName } from './names.js';
 import { validateCode, validateName, validateSettings } from './rules.js';
 
 const CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const ROOM_IDLE_MS = 5 * 60 * 1000;
 
 export class RoomManager {
   constructor({ db = createMemoryDb(), random = Math.random } = {}) {
@@ -69,7 +70,7 @@ export class RoomManager {
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
-        hostUid: room.hostUid,
+        hostUid: room.hostUid, idleDeadline: room.lastActiveAt + ROOM_IDLE_MS,
         players: room.players.map(({ uid, name, seat, connected, ready }) =>
           ({ uid, name, seat, connected, ready }))
       } : null,
@@ -228,7 +229,7 @@ export class RoomManager {
         if (expired.some((player) => player.uid === room.hostUid)) this.transferHost(room);
         if (room.players.length) this.broadcast(room);
       }
-      if (!room.players.length || now - room.lastActiveAt >= 5 * 60 * 1000) {
+      if (!room.players.length || now - room.lastActiveAt >= ROOM_IDLE_MS) {
         for (const player of room.players) {
           const connection = this.clients.get(player.uid);
           if (connection) {

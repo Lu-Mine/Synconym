@@ -86,6 +86,7 @@ let previousRoomCode = '';
 let currentScreen = '';
 let timeOffset = 0;
 let countdownTimer;
+let idleCountdownTimer;
 let stepperAnimTimer;
 let lastWriteAt = 0;
 let writeDrainTimer;
@@ -118,6 +119,31 @@ function updateCountdown() {
   };
   tick();
   countdownTimer = setInterval(tick, 250);
+}
+
+function formatClock(seconds) {
+  const total = Math.max(0, seconds);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function updateIdleCountdown() {
+  clearInterval(idleCountdownTimer);
+  const element = document.querySelector('#idle-countdown');
+  const idleDeadline = state.room?.idleDeadline;
+  if (!element || !idleDeadline) return;
+  const clock = element.closest('.idle-clock');
+  const tick = () => {
+    const seconds = Math.max(0, Math.ceil((idleDeadline - (Date.now() + timeOffset)) / 1000));
+    element.textContent = seconds > 0 ? formatClock(seconds) : '即将关闭';
+    clock?.classList.toggle('urgent', seconds <= 30);
+  };
+  tick();
+  idleCountdownTimer = setInterval(tick, 500);
+}
+
+function refreshTimers() {
+  updateCountdown();
+  updateIdleCountdown();
 }
 
 function animateStepperValue(nextNumber, direction = 1) {
@@ -358,6 +384,7 @@ function render({ forceFull = false } = {}) {
     }
     if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
       syncRenameModalDOM(false);
+      refreshTimers();
       return;
     }
   }
@@ -379,13 +406,13 @@ function render({ forceFull = false } = {}) {
   };
 
   if (shouldTransition) {
-    document.startViewTransition(applyDOM);
+    document.startViewTransition(applyDOM).updateCallbackDone.then(refreshTimers, refreshTimers);
   } else {
     applyDOM();
+    refreshTimers();
   }
 
   currentScreen = nextScreen;
-  updateCountdown();
 }
 
 function flushWriteQueue() {

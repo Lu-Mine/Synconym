@@ -176,6 +176,10 @@ export function lobbyMarkup(state) {
         <h1>等待大家准备</h1>
         <p>邀请朋友，准备好后由房主开始。</p>
       </div>
+      <div class="idle-clock" role="timer" aria-live="off" title="房间空闲 5 分钟后自动关闭">
+        ${icon('clock')}
+        <span id="idle-countdown"></span>
+      </div>
       <button class="room-code-ticket" type="button" data-action="copy" aria-label="复制邀请链接" title="复制邀请链接">
         <span class="ticket-caption">房间号</span>
         <span class="ticket-code-row">

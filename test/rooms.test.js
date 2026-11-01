@@ -43,6 +43,28 @@ test('未进入房间也可以修改名字并收到用户资料状态', (t) => {
   assert.equal(states.at(-1).user.name, '首页新名字');
 });
 
+test('房间状态下发空闲截止时间，有活动后重置为五分钟', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 100000 });
+  const states = [];
+  const manager = new RoomManager({ db: createMemoryDb() });
+  const attach = (connection) => {
+    connection.ws = { readyState: 1, send(payload) { states.push(JSON.parse(payload)); }, close() {} };
+    return connection;
+  };
+  const idleMs = 5 * 60 * 1000;
+  const host = attach(manager.connect());
+  manager.handle(host, { type: 'createRoom' });
+  const room = manager.roomFor(host);
+  assert.equal(states.at(-1).room.idleDeadline, room.lastActiveAt + idleMs);
+
+  t.mock.timers.tick(2 * 60 * 1000);
+  const guest = attach(manager.connect());
+  manager.handle(guest, { type: 'joinRoom', code: room.code });
+  assert.equal(states.at(-1).room.idleDeadline, Date.now() + idleMs);
+  assert.ok(states.at(-1).room.idleDeadline > room.createdAt + idleMs);
+  assert.match(lobbyMarkup({ room, uid: host.uid, user: { uid: host.uid, name: '甲' } }), /id="idle-countdown"/);
+});
+
 test('凭房号加入、改名、准备、取消、房主无需准备即可开始', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const manager = new RoomManager();
