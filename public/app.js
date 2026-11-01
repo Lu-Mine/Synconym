@@ -349,6 +349,7 @@ function render({ forceFull = false } = {}) {
   const nextScreen = screenKeyFor(state);
   const inRoom = Boolean(state.room);
   const stage = ensureShell(inRoom);
+  document.body.dataset.scene = nextScreen;
 
   if (!forceFull && nextScreen === currentScreen) {
     if (nextScreen === 'home' && patchSettingsDOM(settings, true)) {
