@@ -758,6 +758,7 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   min-height: 24px;
   font-size: 14px;
   font-weight: 600;
@@ -768,6 +769,39 @@ p {
 .setting-value[data-control="segmented"],
 .setting-value[data-control="stepper"] {
   min-height: 38px;
+}
+
+.setting-value-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.setting-value.is-on .setting-value-icon {
+  color: var(--jade);
+}
+
+.setting-value.is-off .setting-value-icon {
+  color: var(--vermilion);
+}
+
+/* 四档强度条（对应分段选择器的四个档位，点亮到当前值） */
+.level-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.level-meter i {
+  display: block;
+  width: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+
+.level-meter i.is-on {
+  background: var(--accent);
 }
 
 /* 分段选择器（平滑滑块） */

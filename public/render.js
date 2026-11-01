@@ -43,12 +43,30 @@ const SETTING_VALUE_TEXT = {
   banRepeat: (settings) => (settings.banRepeat ? '开启' : '关闭')
 };
 
+const DURATIONS = [15, 30, 45, 60];
+const SETTING_LEVEL = {
+  maxRounds: (settings) => Math.min(3, Math.floor((settings.maxRounds - 4) / 4)),
+  writeSeconds: (settings) => Math.max(0, DURATIONS.indexOf(settings.writeSeconds)),
+  prepareSeconds: (settings) => Math.max(0, DURATIONS.indexOf(settings.prepareSeconds))
+};
+
 export function settingValueText(name, settings) {
   return SETTING_VALUE_TEXT[name](settings);
 }
 
-function settingValueMarkup(name, settings, control) {
-  return `<span class="setting-value" data-setting-value="${name}" data-control="${control}">${escapeHtml(settingValueText(name, settings))}</span>`;
+// 四档强度条：点亮到当前档位，与分段选择器的四档一一对应
+function levelMeterMarkup(level) {
+  return `<span class="level-meter" aria-hidden="true">${Array.from({ length: DURATIONS.length }, (_, index) => (index <= level ? '<i class="is-on"></i>' : '<i></i>')).join('')}</span>`;
+}
+
+export function settingValueMarkup(name, settings, control) {
+  const level = SETTING_LEVEL[name] ? Math.max(0, SETTING_LEVEL[name](settings)) : -1;
+  const state = name === 'banRepeat' ? (settings.banRepeat ? ' is-on' : ' is-off') : '';
+  return `<span class="setting-value${state}" data-setting-value="${name}" data-control="${control}">`
+    + (name === 'banRepeat' ? icon(settings.banRepeat ? 'check' : 'x', 'setting-value-icon') : '')
+    + `<span class="setting-value-text">${escapeHtml(settingValueText(name, settings))}</span>`
+    + (level >= 0 ? levelMeterMarkup(level) : '')
+    + '</span>';
 }
 
 export function settingsMarkup(settings, editable) {
@@ -184,6 +202,16 @@ export function playerItemMarkup(player, room, uid) {
   </li>`;
 }
 
+export function settingsBlockMarkup(room, host) {
+  return `<section class="surface-block settings-block">
+    <div class="section-heading">
+      <h2>${icon('sliders-horizontal')}<span>房间设置</span></h2>
+      ${!host ? '<span class="readonly-tag">房主可改</span>' : ''}
+    </div>
+    ${settingsMarkup(room, host)}
+  </section>`;
+}
+
 export function lobbyMarkup(state) {
   const { room, uid } = state;
   const me = room.players.find((player) => player.uid === uid);
@@ -220,13 +248,7 @@ export function lobbyMarkup(state) {
       </ul>
     </section>
 
-    <section class="surface-block settings-block">
-      <div class="section-heading">
-        <h2>${icon('sliders-horizontal')}<span>房间设置</span></h2>
-        ${!host ? '<span class="readonly-tag">房主可改</span>' : ''}
-      </div>
-      ${settingsMarkup(room, host)}
-    </section>
+    ${settingsBlockMarkup(room, host)}
 
     <div class="lobby-actions" id="lobby-actions">
       ${host

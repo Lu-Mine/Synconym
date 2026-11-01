@@ -5,7 +5,8 @@ import {
   icon,
   lobbyMarkup,
   playerItemMarkup,
-  settingValueText,
+  settingValueMarkup,
+  settingsBlockMarkup,
   settingsSummaryText,
   shellMarkup,
   writingMarkup
@@ -211,8 +212,8 @@ function patchSettingsDOM(values, editable) {
   }
 
   for (const node of section.querySelectorAll('[data-setting-value]')) {
-    const text = settingValueText(node.dataset.settingValue, values);
-    if (node.textContent !== text) node.textContent = text;
+    const markup = settingValueMarkup(node.dataset.settingValue, values, node.dataset.control);
+    if (node.outerHTML !== markup) node.outerHTML = markup;
   }
 
   const summary = app.querySelector('#settings-summary');
@@ -299,23 +300,50 @@ function patchLobbyDOM(nextState) {
     .filter((player) => player.uid !== room.hostUid)
     .every((player) => player.ready && player.connected);
 
-  // 房主身份变化会改变设置板块的结构（可编辑控件 / 只读信息），交给整页重渲染
-  if (page.querySelector('.settings')?.dataset.editable !== String(host)) return false;
-
   const codeEl = page.querySelector('#lobby-room-code');
   if (codeEl) codeEl.textContent = room.code;
 
   const countEl = page.querySelector('#player-count');
   if (countEl) countEl.textContent = `${room.players.length} / 4`;
 
+  // 先量旧位置，再动其它区块，换位动画才能把设置区高度变化也算进去
   const list = page.querySelector('#player-list');
+  const firstRects = new Map();
   if (list) {
-    const firstRects = new Map();
     for (const item of list.querySelectorAll('.player[data-uid]')) {
       firstRects.set(item.dataset.uid, item.getBoundingClientRect());
     }
+  }
+  const activeElementId = document.activeElement?.id;
 
-    const activeElementId = document.activeElement?.id;
+  // 房主身份变化会改变设置板块结构（可编辑控件 / 只读取值）：就地重建这一块，
+  // 不走整页重渲染，玩家列表才能继续用换位动画。
+  const settingsBlock = page.querySelector('.settings-block');
+  const settingsEditable = settingsBlock?.querySelector('.settings')?.dataset.editable === 'true';
+  if (settingsBlock && settingsEditable !== host) {
+    settingsBlock.outerHTML = settingsBlockMarkup(room, host);
+  }
+
+  const actions = page.querySelector('#lobby-actions');
+  if (actions) {
+    const primaryAction = actions.querySelector('[data-action="ready"], [data-action="start"]');
+    if (host) {
+      if (primaryAction?.dataset.action !== 'start') {
+        primaryAction?.remove();
+        actions.insertAdjacentHTML('afterbegin', `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`);
+      } else {
+        primaryAction.disabled = !canStart;
+      }
+    } else if (primaryAction?.dataset.action !== 'ready') {
+      primaryAction?.remove();
+      actions.insertAdjacentHTML('afterbegin', `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`);
+    } else if (me) {
+      primaryAction.className = `button ${me.ready ? 'secondary' : 'primary'} ready-button`;
+      primaryAction.innerHTML = me.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`;
+    }
+  }
+
+  if (list) {
     list.innerHTML = room.players.map((player) => playerItemMarkup(player, room, uid)).join('');
     hydrateAvatars(list);
 
@@ -343,37 +371,8 @@ function patchLobbyDOM(nextState) {
     nameInput.value = me.name;
   }
 
-  const settingsHeading = page.querySelector('.settings-block .section-heading');
-  if (settingsHeading) {
-    const existingTag = settingsHeading.querySelector('.readonly-tag');
-    if (!host && !existingTag) {
-      settingsHeading.insertAdjacentHTML('beforeend', '<span class="readonly-tag">房主可改</span>');
-    } else if (host && existingTag) {
-      existingTag.remove();
-    }
-  }
-
   const effectiveSettings = pendingLobbySettings && host ? pendingLobbySettings : room;
   if (!patchSettingsDOM(effectiveSettings, host)) return false;
-
-  const actions = page.querySelector('#lobby-actions');
-  if (actions) {
-    const primaryAction = actions.querySelector('[data-action="ready"], [data-action="start"]');
-    if (host) {
-      if (primaryAction?.dataset.action !== 'start') {
-        primaryAction?.remove();
-        actions.insertAdjacentHTML('afterbegin', `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`);
-      } else {
-        primaryAction.disabled = !canStart;
-      }
-    } else if (primaryAction?.dataset.action !== 'ready') {
-      primaryAction?.remove();
-      actions.insertAdjacentHTML('afterbegin', `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`);
-    } else if (me) {
-      primaryAction.className = `button ${me.ready ? 'secondary' : 'primary'} ready-button`;
-      primaryAction.innerHTML = me.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`;
-    }
-  }
 
   return true;
 }
