@@ -35,31 +35,48 @@ export function segmented(name, value, options, disabled = false) {
   }).join('')}</div>`;
 }
 
+const SETTING_VALUE_TEXT = {
+  mode: (settings) => (settings.mode === 'theme' ? '主题' : '自由'),
+  maxRounds: (settings) => `${settings.maxRounds} 轮`,
+  writeSeconds: (settings) => `${settings.writeSeconds} 秒`,
+  prepareSeconds: (settings) => `${settings.prepareSeconds} 秒`,
+  banRepeat: (settings) => (settings.banRepeat ? '开启' : '关闭')
+};
+
+export function settingValueText(name, settings) {
+  return SETTING_VALUE_TEXT[name](settings);
+}
+
+function settingValueMarkup(name, settings) {
+  return `<span class="setting-value" data-setting-value="${name}">${escapeHtml(settingValueText(name, settings))}</span>`;
+}
+
 export function settingsMarkup(settings, editable) {
+  const control = (name, markup) => (editable ? markup : settingValueMarkup(name, settings));
   return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
     <div class="setting-row">
       <span class="setting-label">模式</span>
-      ${segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], !editable)}
+      ${control('mode', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
     </div>
     <div class="setting-row">
-      <label class="setting-label" for="rounds">轮次上限</label>
-      <div class="stepper" role="group" aria-label="轮次上限">
-        <button class="stepper-btn" type="button" data-step="-1" aria-label="减少轮次" ${!editable || settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
+      ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
+      ${control('maxRounds', `<div class="stepper" role="group" aria-label="轮次上限">
+        <button class="stepper-btn" type="button" data-step="-1" aria-label="减少轮次" ${settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
         <output id="rounds" class="stepper-value" data-value="${settings.maxRounds}">${settings.maxRounds}</output>
-        <button class="stepper-btn" type="button" data-step="1" aria-label="增加轮次" ${!editable || settings.maxRounds >= 20 ? 'disabled' : ''}>${icon('plus')}</button>
-      </div>
+        <button class="stepper-btn" type="button" data-step="1" aria-label="增加轮次" ${settings.maxRounds >= 20 ? 'disabled' : ''}>${icon('plus')}</button>
+      </div>`)}
     </div>
     <div class="setting-row">
       <span class="setting-label">写词时限</span>
-      ${segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}
+      ${control('writeSeconds', segmented('writeSeconds', settings.writeSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
     </div>
     <div class="setting-row">
       <span class="setting-label">准备时限</span>
-      ${segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })), !editable)}
+      ${control('prepareSeconds', segmented('prepareSeconds', settings.prepareSeconds, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
     </div>
     <div class="setting-row">
-      <label class="setting-label" for="banRepeat">禁止重复词</label>
-      <button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词" ${!editable ? 'disabled' : ''}><span class="switch-thumb"></span></button>
+      ${editable ? '<label class="setting-label" for="banRepeat">禁止重复词</label>' : '<span class="setting-label">禁止重复词</span>'}
+      ${control('banRepeat', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
     </div>
   </section>`;
 }
@@ -215,6 +232,21 @@ export function lobbyMarkup(state) {
         ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
         : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`}
       <button class="button secondary lobby-leave-button" type="button" data-action="leave">${icon('log-out')}<span>退出</span></button>
+    </div>
+
+    <div class="rename-modal transfer-modal" id="transfer-modal" inert>
+      <button class="rename-modal-backdrop" type="button" data-action="cancel-transfer" aria-label="取消转让房主"></button>
+      <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+        <div class="rename-dialog-heading">
+          <h2 id="transfer-title">转让房主</h2>
+          <button class="icon-button" type="button" data-action="cancel-transfer" aria-label="取消">${icon('x')}</button>
+        </div>
+        <p class="transfer-hint">把房主转给 <strong id="transfer-target-name"></strong> 后，你会变成普通玩家，需要准备后才能开始。</p>
+        <div class="rename-dialog-actions">
+          <button class="button secondary" type="button" data-action="cancel-transfer">取消</button>
+          <button class="button primary" type="button" data-action="confirm-transfer">转让房主</button>
+        </div>
+      </section>
     </div>
   </div>`;
 }

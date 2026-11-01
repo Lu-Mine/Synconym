@@ -5,6 +5,7 @@ import {
   icon,
   lobbyMarkup,
   playerItemMarkup,
+  settingValueText,
   settingsSummaryText,
   shellMarkup,
   writingMarkup
@@ -81,6 +82,7 @@ let settings = {
 };
 let homeSettingsOpen = false;
 let renameOpen = false;
+let pendingTransfer = null;
 let toastTimer;
 let previousRoomCode = '';
 let currentScreen = '';
@@ -174,7 +176,7 @@ function animateStepperValue(nextNumber, direction = 1) {
 
 function patchSettingsDOM(values, editable) {
   const section = app.querySelector('.settings');
-  if (!section) return false;
+  if (!section || section.dataset.editable !== String(editable)) return false;
   section.dataset.editable = String(editable);
 
   for (const group of section.querySelectorAll('[data-segmented]')) {
@@ -208,6 +210,11 @@ function patchSettingsDOM(values, editable) {
     switchBtn.disabled = !editable;
   }
 
+  for (const node of section.querySelectorAll('[data-setting-value]')) {
+    const text = settingValueText(node.dataset.settingValue, values);
+    if (node.textContent !== text) node.textContent = text;
+  }
+
   const summary = app.querySelector('#settings-summary');
   if (summary) summary.textContent = settingsSummaryText(values);
   return true;
@@ -237,6 +244,24 @@ function syncRenameModalDOM(focusInput = false) {
       input.select();
     });
   }
+}
+
+function syncTransferModalDOM() {
+  const modal = app.querySelector('#transfer-modal');
+  if (!modal) return;
+  modal.classList.toggle('is-open', Boolean(pendingTransfer));
+  modal.toggleAttribute('inert', !pendingTransfer);
+  const nameEl = modal.querySelector('#transfer-target-name');
+  if (nameEl) nameEl.textContent = pendingTransfer?.name || '';
+  if (pendingTransfer) {
+    requestAnimationFrame(() => modal.querySelector('[data-action="cancel-transfer"].button')?.focus());
+  }
+}
+
+function requestTransfer(player) {
+  if (!player || !state.room || state.room.hostUid !== state.uid) return;
+  pendingTransfer = { uid: player.uid, name: player.name };
+  syncTransferModalDOM();
 }
 
 function patchHeaderDOM(inRoom) {
@@ -273,6 +298,9 @@ function patchLobbyDOM(nextState) {
   const canStart = host && room.players.length >= 2 && room.players
     .filter((player) => player.uid !== room.hostUid)
     .every((player) => player.ready && player.connected);
+
+  // 房主身份变化会改变设置板块的结构（可编辑控件 / 只读信息），交给整页重渲染
+  if (page.querySelector('.settings')?.dataset.editable !== String(host)) return false;
 
   const codeEl = page.querySelector('#lobby-room-code');
   if (codeEl) codeEl.textContent = room.code;
@@ -326,7 +354,7 @@ function patchLobbyDOM(nextState) {
   }
 
   const effectiveSettings = pendingLobbySettings && host ? pendingLobbySettings : room;
-  patchSettingsDOM(effectiveSettings, host);
+  if (!patchSettingsDOM(effectiveSettings, host)) return false;
 
   const actions = page.querySelector('#lobby-actions');
   if (actions) {
@@ -384,6 +412,7 @@ function render({ forceFull = false } = {}) {
     }
     if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
       syncRenameModalDOM(false);
+      syncTransferModalDOM();
       refreshTimers();
       return;
     }
@@ -400,6 +429,7 @@ function render({ forceFull = false } = {}) {
   const applyDOM = () => {
     stage.innerHTML = html;
     hydrateAvatars(stage);
+    syncTransferModalDOM();
     if (shouldTransition) {
       stage.firstElementChild?.classList.add('vt-managed');
     }
@@ -475,6 +505,7 @@ const socket = new Socket({
       socket.roomCode = next.room.code;
       if (previousRoomCode !== next.room.code) {
         renameOpen = false;
+        pendingTransfer = null;
         pendingLobbySettings = null;
         history.replaceState(null, '', `/?r=${next.room.code}`);
         previousRoomCode = next.room.code;
@@ -483,6 +514,7 @@ const socket = new Socket({
       socket.roomCode = '';
       previousRoomCode = '';
       renameOpen = false;
+      pendingTransfer = null;
       pendingLobbySettings = null;
       if (location.search) history.replaceState(null, '', '/');
     }
@@ -526,9 +558,7 @@ app.addEventListener('keydown', (event) => {
   const row = event.target.closest?.('[data-action="transfer-host"]');
   if (!row || row !== event.target) return;
   event.preventDefault();
-  if (state.room?.hostUid === state.uid) {
-    enqueueWrite({ type: 'transferHost', uid: row.dataset.uid });
-  }
+  requestTransfer(state.room?.players.find((player) => player.uid === row.dataset.uid));
 });
 
 app.addEventListener('click', async (event) => {
@@ -549,10 +579,7 @@ app.addEventListener('click', async (event) => {
   const transferRow = event.target.closest('[data-action="transfer-host"]');
   if (transferRow && event.button === 0) {
     event.preventDefault();
-    const targetUid = transferRow.dataset.uid;
-    if (targetUid && state.room?.hostUid === state.uid) {
-      enqueueWrite({ type: 'transferHost', uid: targetUid });
-    }
+    requestTransfer(state.room?.players.find((player) => player.uid === transferRow.dataset.uid));
     return;
   }
   const button = event.target.closest('button');
@@ -628,6 +655,16 @@ app.addEventListener('click', async (event) => {
     event.preventDefault();
     renameOpen = false;
     syncRenameModalDOM(false);
+  } else if (button.dataset.action === 'cancel-transfer') {
+    event.preventDefault();
+    pendingTransfer = null;
+    syncTransferModalDOM();
+  } else if (button.dataset.action === 'confirm-transfer') {
+    event.preventDefault();
+    const targetUid = pendingTransfer?.uid;
+    pendingTransfer = null;
+    syncTransferModalDOM();
+    if (targetUid) enqueueWrite({ type: 'transferHost', uid: targetUid });
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;
@@ -644,7 +681,13 @@ app.addEventListener('click', async (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && renameOpen) {
+  if (event.key !== 'Escape') return;
+  if (pendingTransfer) {
+    pendingTransfer = null;
+    syncTransferModalDOM();
+    return;
+  }
+  if (renameOpen) {
     renameOpen = false;
     syncRenameModalDOM(false);
   }

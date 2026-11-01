@@ -258,6 +258,18 @@ button svg {
 
 .rename-dialog-heading h2 { font-size: 18px; }
 
+.transfer-hint {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.transfer-hint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .stage {
   view-transition-name: stage;
 }
@@ -731,6 +743,18 @@ p {
   color: var(--ink);
 }
 
+/* 非房主的只读取值（与控件同高，保持条目行高一致） */
+.setting-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 分段选择器（平滑滑块） */
 .segmented {
   display: grid;
@@ -755,10 +779,6 @@ p {
   box-shadow: 0 1px 3px rgba(22, 22, 26, .08);
   transform: translateX(calc(var(--selected) * 100%));
   transition: transform var(--dur-3) var(--ease-out), opacity var(--dur-2) var(--ease-out);
-}
-
-.settings[data-editable="false"] .segmented {
-  opacity: .76;
 }
 
 .segment {
