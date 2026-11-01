@@ -168,7 +168,10 @@ function patchHeaderDOM(inRoom) {
     if (avatar) {
       const details = avatarDetails(user?.name);
       const glyph = avatar.querySelector('.avatar-glyph text');
-      if (glyph) glyph.textContent = details.initial;
+      if (glyph) {
+        glyph.textContent = details.initial;
+        glyph.setAttribute('dy', details.glyphDy);
+      }
       avatar.dataset.avatarTone = String(details.tone);
     }
     if (name) name.textContent = user?.name || '';
