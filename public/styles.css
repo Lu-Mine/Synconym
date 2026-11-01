@@ -502,6 +502,7 @@ p {
 
 .drawer-summary {
   font-size: 13px;
+  line-height: 21px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   transition: opacity var(--dur-2) var(--ease-out);
