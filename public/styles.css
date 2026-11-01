@@ -313,24 +313,36 @@ p {
   offset-path: ellipse(21px 11px at 36px 29px);
   offset-anchor: center;
   offset-rotate: 0deg;
-  will-change: offset-distance;
-  animation: orbit 5.6s linear infinite;
+  will-change: offset-distance, z-index;
+  animation: orbit 5.6s linear infinite, orbit-depth-a 5.6s linear infinite;
 }
 
 .intro-orb-a {
+  z-index: 2;
   background: var(--player-0);
 }
-
 .intro-orb-b {
+  z-index: 1;
   background: var(--player-1);
-  mix-blend-mode: multiply;
-  opacity: .92;
-  animation-delay: -2.8s;
+  animation-name: orbit, orbit-depth-b;
+  animation-delay: -2.8s, 0s;
 }
 
 @keyframes orbit {
   from { offset-distance: 0%; }
   to { offset-distance: 100%; }
+}
+
+@keyframes orbit-depth-a {
+  0%, 42.49% { z-index: 2; }
+  42.5%, 92.49% { z-index: 1; }
+  92.5%, 100% { z-index: 2; }
+}
+
+@keyframes orbit-depth-b {
+  0%, 42.49% { z-index: 1; }
+  42.5%, 92.49% { z-index: 2; }
+  92.5%, 100% { z-index: 1; }
 }
 
 /* === 首页入口工作台 === */
