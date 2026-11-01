@@ -1,0 +1,21 @@
+{
+  "name": "synconym",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch server/index.js",
+    "start": "node server/index.js",
+    "build:icons": "node scripts/build-icons.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "lucide-static": "^1.66.0",
+    "opencc-js": "^1.4.2",
+    "ws": "^8.22.1"
+  }
+}
