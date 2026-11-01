@@ -107,11 +107,11 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
 export function homeMarkup(settings, settingsOpen = false) {
   return `<div class="page home-page" data-screen="home">
     <section class="intro">
-      <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
-      <div class="intro-copy">
+      <div class="intro-main">
+        <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
         <h1>各自想一个，<br>直到想到一起。</h1>
-        <p>两个词之间，藏着我们想到的同一个东西。</p>
       </div>
+      <p>两个词之间，藏着我们想到的同一个东西。</p>
     </section>
 
     <div class="entry-deck">
