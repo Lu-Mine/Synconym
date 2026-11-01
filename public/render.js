@@ -146,7 +146,8 @@ export function homeMarkup(settings, settingsOpen = false) {
 export function playerItemMarkup(player, room, uid) {
   const isMe = player.uid === uid;
   const isHost = player.uid === room.hostUid;
-  return `<li class="player ${!isHost && player.ready ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
+  const isReady = isHost || player.ready;
+  return `<li class="player ${isReady ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
     ${avatarMarkup(player.name)}
     <div class="player-meta">
       <div class="player-name-row">
@@ -157,7 +158,7 @@ export function playerItemMarkup(player, room, uid) {
         ${!player.connected ? '<span class="badge offline-label">暂时离开</span>' : ''}
       </div>
     </div>
-    ${isHost ? '' : `<span class="ready-state ${player.ready ? 'ready' : ''}">${player.ready ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>`}
+    <span class="ready-state ${isReady ? 'ready' : ''}">${isReady ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>
   </li>`;
 }
 
