@@ -79,6 +79,19 @@ app.addEventListener('input', (event) => {
 });
 
 app.addEventListener('click', async (event) => {
+  const homeLink = event.target.closest('[data-action="home"]');
+  if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    if (state.room) {
+      socket.send({ type: 'leave' });
+    } else {
+      socket.roomCode = '';
+      previousRoomCode = '';
+      history.replaceState(null, '', '/');
+      render();
+    }
+    return;
+  }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
   if (button.dataset.setting) {

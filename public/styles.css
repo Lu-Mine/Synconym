@@ -29,23 +29,26 @@ button, input { font: inherit; }
 button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button, input { transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), opacity var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out); }
 button:active:not(:disabled) { transform: translateY(1px) scale(.99); }
-button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 button:disabled { opacity: .4; pointer-events: none; }
 button svg { flex: 0 0 auto; }
 .icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .app { width: min(100% - 48px, 640px); margin: 0 auto; }
 .page { padding: 40px 0 64px; opacity: 1; transform: translateY(0); transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out); }
 @starting-style { .page { opacity: 0; transform: translateY(8px); } }
-.brand { display: inline-flex; align-items: center; gap: 10px; user-select: none; }
-.brand-mark { position: relative; width: 26px; height: 18px; flex-shrink: 0; isolation: isolate; }
-.brand-mark .orb { position: absolute; top: 1px; width: 16px; height: 16px; border-radius: 50%; transition: transform var(--dur-2) var(--ease-out); }
-.brand-mark .orb-a { left: 0; background: var(--player-0); }
-.brand-mark .orb-b { right: 0; background: var(--player-1); mix-blend-mode: multiply; opacity: .92; }
-.brand:hover .orb-a { transform: translateX(2px); }
-.brand:hover .orb-b { transform: translateX(-2px); }
+.brand { display: inline-flex; align-items: center; gap: 10px; padding: 4px 6px 4px 2px; margin-left: -2px; border-radius: 10px; color: var(--ink); text-decoration: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
+.brand:hover { background: #f3f2ef; }
+.brand:active { transform: translateY(1px) scale(.99); }
+.brand-mark { position: relative; width: 24px; height: 24px; flex-shrink: 0; isolation: isolate; }
+.brand-mark .orb { position: absolute; width: 14px; height: 14px; border-radius: 50%; transition: transform var(--dur-2) var(--ease-out); }
+.brand-mark .orb-a { top: 1px; left: 1px; background: var(--player-0); }
+.brand-mark .orb-b { bottom: 1px; right: 1px; background: var(--player-1); mix-blend-mode: multiply; opacity: .92; }
+.brand:hover .orb-a, .brand:focus-visible .orb-a { transform: translate(2px, 2px); }
+.brand:hover .orb-b, .brand:focus-visible .orb-b { transform: translate(-2px, -2px); }
 .brand-cn { font-size: 20px; font-weight: 600; letter-spacing: .02em; line-height: 1; color: var(--ink); }
 .brand-accent { color: var(--accent); }
-.brand-en { font-size: 13px; font-weight: 500; letter-spacing: -.01em; line-height: 1; color: var(--muted); padding-left: 10px; border-left: 1px solid var(--line); }
+.brand-sep { width: 1px; height: 16px; background: var(--line); flex-shrink: 0; }
+.brand-en { font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1; color: var(--ink); }
 .intro { padding: 80px 0 48px; }
 h1 { margin: 0 0 16px; font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.03em; }
 h2 { font-size: 16px; font-weight: 500; margin: 0; }
