@@ -411,6 +411,8 @@ p {
 
   .create-submit {
     grid-area: 1 / 1 / 2 / 2;
+    width: calc(100% - 24px);
+    justify-self: center;
   }
 
   /* 按下时不缩放，避免影响旁边设置热区的位置 */
