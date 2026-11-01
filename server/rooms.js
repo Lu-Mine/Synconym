@@ -111,6 +111,15 @@ export class RoomManager {
   transferHost(room) {
     const next = room.players.find((player) => player.connected && player.uid !== room.hostUid);
     if (next) room.hostUid = next.uid;
+    this.sortPlayers(room);
+  }
+
+  sortPlayers(room) {
+    room.players.sort((a, b) => {
+      if (a.uid === room.hostUid) return -1;
+      if (b.uid === room.hostUid) return 1;
+      return (a.joinedAt || 0) - (b.joinedAt || 0);
+    });
   }
 
   addPlayer(connection, room, name) {
@@ -123,6 +132,7 @@ export class RoomManager {
       draft: '', joinedAt: Date.now()
     });
     connection.roomCode = room.code;
+    this.sortPlayers(room);
   }
 
   handle(connection, message) {
@@ -187,6 +197,19 @@ export class RoomManager {
         if (current.hostUid === connection.uid) throw new Error('房主无需准备');
         if (typeof message.ready !== 'boolean') throw new Error('准备状态无效');
         player.ready = message.ready;
+        break;
+      }
+      case 'transferHost': {
+        if (current.hostUid !== connection.uid) throw new Error('只有房主可以转让房主');
+        if (current.phase !== 'lobby') throw new Error('开局后不能转让房主');
+        const nextHost = current.players.find((item) => item.uid === message.uid);
+        if (!nextHost) throw new Error('没有找到这位玩家');
+        if (nextHost.uid === connection.uid) throw new Error('你已经是房主');
+        if (!nextHost.connected) throw new Error('对方暂时不在线');
+        current.hostUid = nextHost.uid;
+        player.ready = false;
+        nextHost.ready = false;
+        this.sortPlayers(current);
         break;
       }
       case 'start': {

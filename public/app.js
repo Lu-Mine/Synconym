@@ -521,6 +521,16 @@ app.addEventListener('input', (event) => {
   }
 });
 
+app.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const row = event.target.closest?.('[data-action="transfer-host"]');
+  if (!row || row !== event.target) return;
+  event.preventDefault();
+  if (state.room?.hostUid === state.uid) {
+    enqueueWrite({ type: 'transferHost', uid: row.dataset.uid });
+  }
+});
+
 app.addEventListener('click', async (event) => {
   const homeLink = event.target.closest('[data-action="home"]');
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -536,6 +546,15 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  const transferRow = event.target.closest('[data-action="transfer-host"]');
+  if (transferRow && event.button === 0) {
+    event.preventDefault();
+    const targetUid = transferRow.dataset.uid;
+    if (targetUid && state.room?.hostUid === state.uid) {
+      enqueueWrite({ type: 'transferHost', uid: targetUid });
+    }
+    return;
+  }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
 

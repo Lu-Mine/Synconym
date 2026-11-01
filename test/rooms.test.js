@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
 import { DEFAULT_SETTINGS, normalizeWord, validateName, validateSettings } from '../server/rules.js';
-import { avatarDetails, homeMarkup, lobbyMarkup, shellMarkup, writingMarkup } from '../public/render.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, writingMarkup } from '../public/render.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -63,6 +63,67 @@ test('房间状态下发空闲截止时间，有活动后重置为五分钟', (t
   assert.equal(states.at(-1).room.idleDeadline, Date.now() + idleMs);
   assert.ok(states.at(-1).room.idleDeadline > room.createdAt + idleMs);
   assert.match(lobbyMarkup({ room, uid: host.uid, user: { uid: host.uid, name: '甲' } }), /id="idle-countdown"/);
+});
+
+test('房主固定在第一位，其余按加入顺序，房主可点击转让', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 100000 });
+  const manager = new RoomManager({ db: createMemoryDb() });
+  const host = client(manager);
+  manager.handle(host, { type: 'createRoom' });
+  const room = manager.roomFor(host);
+  const late = client(manager);
+  passRateLimit(t);
+  manager.handle(late, { type: 'joinRoom', code: room.code });
+  const mid = client(manager);
+  passRateLimit(t);
+  manager.handle(mid, { type: 'joinRoom', code: room.code });
+
+  assert.deepEqual(room.players.map((player) => player.uid), [host.uid, late.uid, mid.uid]);
+
+  passRateLimit(t);
+  assert.throws(() => manager.handle(late, { type: 'transferHost', uid: host.uid }), /只有房主/);
+  passRateLimit(t);
+  assert.throws(() => manager.handle(host, { type: 'transferHost', uid: host.uid }), /已经是房主/);
+  passRateLimit(t);
+  assert.throws(() => manager.handle(host, { type: 'transferHost', uid: 'nobody' }), /没有找到/);
+
+  passRateLimit(t);
+  manager.handle(host, { type: 'transferHost', uid: mid.uid });
+  assert.equal(room.hostUid, mid.uid);
+  assert.deepEqual(room.players.map((player) => player.uid), [mid.uid, host.uid, late.uid]);
+  assert.equal(room.players.find((player) => player.uid === mid.uid).ready, false);
+  assert.equal(room.players.find((player) => player.uid === host.uid).ready, false);
+
+  // 开局后不能再转让
+  passRateLimit(t);
+  manager.handle(host, { type: 'setReady', ready: true });
+  passRateLimit(t);
+  manager.handle(late, { type: 'setReady', ready: true });
+  passRateLimit(t);
+  manager.handle(mid, { type: 'start' });
+  assert.equal(room.phase, 'writing');
+  passRateLimit(t);
+  assert.throws(() => manager.handle(mid, { type: 'transferHost', uid: host.uid }), /开局后/);
+});
+
+test('只有在线玩家能被选为新房主，断线玩家不可转让', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 100000 });
+  const manager = new RoomManager({ db: createMemoryDb() });
+  const host = client(manager);
+  manager.handle(host, { type: 'createRoom' });
+  const room = manager.roomFor(host);
+  const guest = client(manager);
+  passRateLimit(t);
+  manager.handle(guest, { type: 'joinRoom', code: room.code });
+  const guestPlayer = room.players.find((player) => player.uid === guest.uid);
+  assert.match(playerItemMarkup(guestPlayer, room, host.uid), /data-action="transfer-host"/);
+
+  manager.disconnect(guest);
+  assert.equal(guestPlayer.connected, false);
+  assert.doesNotMatch(playerItemMarkup(guestPlayer, room, host.uid), /transfer-host/);
+  passRateLimit(t);
+  assert.throws(() => manager.handle(host, { type: 'transferHost', uid: guest.uid }), /不在线/);
+  assert.equal(room.hostUid, host.uid);
 });
 
 test('凭房号加入、改名、准备、取消、房主无需准备即可开始', (t) => {

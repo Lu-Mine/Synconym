@@ -147,7 +147,10 @@ export function playerItemMarkup(player, room, uid) {
   const isMe = player.uid === uid;
   const isHost = player.uid === room.hostUid;
   const isReady = !isHost && player.ready;
-  return `<li class="player ${isHost ? 'is-host' : ''} ${isReady ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
+  const canTransfer = room.phase === 'lobby' && room.hostUid === uid && !isHost && player.connected;
+  return `<li class="player ${isHost ? 'is-host' : ''} ${isReady ? 'is-ready' : ''} ${isMe ? 'is-me' : ''} ${canTransfer ? 'is-transferable' : ''}" data-uid="${escapeHtml(player.uid)}"${canTransfer
+    ? ` data-action="transfer-host" tabindex="0" role="button" title="点击把房主转给 ${escapeHtml(player.name)}"`
+    : ''} style="--player:var(--player-${player.seat})">
     ${avatarMarkup(player.name)}
     <div class="player-meta">
       <div class="player-name-row">
