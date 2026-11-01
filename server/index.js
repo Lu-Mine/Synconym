@@ -42,17 +42,15 @@ export function createSynconymServer({ db = createDatabase() } = {}) {
           if (connection) { manager.sendState(connection); return; }
           connection = manager.connect(message.uid);
           connection.ws = ws;
-          const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : '';
+          const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : connection.roomCode;
           const room = manager.rooms.get(roomCode);
-          const restored = Boolean(room?.players.some((player) => player.uid === connection.uid));
+          const player = room?.players.find((item) => item.uid === connection.uid);
+          const restored = Boolean(player && (player.connected || player.disconnectedAt == null || Date.now() - player.disconnectedAt < 90000));
           ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored, serverNow: Date.now() }));
-          if (restored) {
-            connection.roomCode = roomCode;
-            const player = manager.playerFor(room, connection.uid);
-            player.connected = true;
-            delete player.disconnectedAt;
-            manager.touch(room);
-          } else {
+          if (restored) manager.restore(connection, roomCode);
+          else {
+            if (player) manager.cleanup();
+            connection.roomCode = null;
             manager.sendState(connection, null);
           }
         } else if (connection) {
@@ -77,6 +75,7 @@ export function createSynconymServer({ db = createDatabase() } = {}) {
   heartbeat.unref(); cleanup.unref();
   server.on('close', () => {
     clearInterval(heartbeat); clearInterval(cleanup);
+    manager.close();
     for (const ws of wss.clients) ws.terminate();
     wss.close(); db.close();
   });

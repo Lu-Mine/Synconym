@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
-import { DEFAULT_SETTINGS, normalizeWord, validateName, validateSettings } from '../server/rules.js';
-import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, writingMarkup } from '../public/render.js';
+import { DEFAULT_SETTINGS, isValidUid, normalizeWord, validateCode, validateName, validateSettings } from '../server/rules.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../public/render.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -219,7 +219,7 @@ test('设置校验兼容字符串数值，且所有控件按钮均显式声明 t
   assert.deepEqual(parsed, { mode: 'free', maxRounds: 16, writeSeconds: 30, prepareSeconds: 15, banRepeat: false });
 
   const sampleRoom = {
-    code: 'ABCD',
+    code: '12345',
     ...DEFAULT_SETTINGS,
     phase: 'lobby',
     round: 1,
@@ -249,7 +249,7 @@ test('header 展示用户与 UID，玩家改名按钮位于名字右侧', () => 
   assert.match(shell, /rename-modal is-open/);
 
   const room = {
-    code: 'ABCD', ...DEFAULT_SETTINGS, phase: 'lobby', round: 0, hostUid: 'u1',
+    code: '12345', ...DEFAULT_SETTINGS, phase: 'lobby', round: 0, hostUid: 'u1',
     players: [{ uid: 'u1', name: '甲', seat: 0, connected: true, ready: false }]
   };
   const lobby = lobbyMarkup({ room, uid: 'u1', user: { uid: 'u1', name: '甲' } });
@@ -269,4 +269,169 @@ test('文字头像按完整名字稳定映射四种配色', () => {
 
   const shell = shellMarkup(false, { uid: 'u1', name: '随和的荔枝' });
   assert.match(shell, new RegExp(`<img class="avatar header-avatar" data-avatar-name="随和的荔枝" data-avatar-tone="${first.tone}" alt=""`));
+});
+
+test('房号为 5 位纯数字，UID 为 8 位去掉易混字符的数字字母组合', () => {
+  const manager = new RoomManager({ db: createMemoryDb() });
+  for (let index = 0; index < 50; index += 1) {
+    const code = manager.makeCode();
+    assert.match(code, /^[1-9][0-9]{4}$/);
+    assert.ok(!manager.rooms.has(code));
+    manager.rooms.set(code, {});
+  }
+  assert.match(manager.makeCode(), /^[1-9][0-9]{4}$/);
+  for (let index = 0; index < 50; index += 1) {
+    const uid = manager.makeUid();
+    assert.match(uid, /^[23456789A-HJ-KM-NP-Z]{8}$/);
+    assert.doesNotMatch(uid, /[01OIL]/);
+    manager.db.createPlayer(uid, '占位');
+  }
+  assert.equal(manager.makeUid().length, 8);
+});
+
+test('房号校验只接受 5 位数字，UID 校验只接受 8 位安全字符', () => {
+  assert.equal(validateCode('12345'), '12345');
+  assert.equal(validateCode('01234'), '01234');
+  assert.equal(validateCode(' １２３４５ '), '12345');
+  assert.throws(() => validateCode('ABCDE'), /5 位数字房号/);
+  assert.throws(() => validateCode('1234'), /5 位数字房号/);
+  assert.throws(() => validateCode('123456'), /5 位数字房号/);
+  assert.throws(() => validateCode(12345), /5 位数字房号/);
+
+  assert.equal(isValidUid('ABCD2345'), true);
+  assert.equal(isValidUid('abcd2345'), false);
+  assert.equal(isValidUid('ABCD234'), false);
+  assert.equal(isValidUid('ABCD23O5'), false);
+  assert.equal(isValidUid('ABCD23I5'), false);
+  assert.equal(isValidUid(undefined), false);
+});
+
+test('新连接拿到 8 位 UID，旧的长 UID 会被换成新的短 UID', () => {
+  const manager = new RoomManager({ db: createMemoryDb() });
+  const first = manager.connect();
+  assert.match(first.uid, /^[23456789A-HJ-KM-NP-Z]{8}$/);
+  const restored = manager.connect(first.uid);
+  assert.equal(restored.uid, first.uid);
+  const legacy = manager.connect('9d1c5f2a-7b3e-4c8d-9f10-2a3b4c5d6e7f');
+  assert.match(legacy.uid, /^[23456789A-HJ-KM-NP-Z]{8}$/);
+  assert.notEqual(legacy.uid, '9d1c5f2a-7b3e-4c8d-9f10-2a3b4c5d6e7f');
+});
+
+test('加入房间输入框只收数字并调起数字键盘', () => {
+  const home = homeMarkup(DEFAULT_SETTINGS, false);
+  assert.match(home, /id="room-code"[^>]*inputmode="numeric"/);
+  assert.match(home, /id="room-code"[^>]*pattern="\[0-9\]\{5\}"/);
+  assert.match(home, /id="room-code"[^>]*maxlength="5"/);
+  assert.match(home, /输入 5 位房号/);
+});
+
+test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐藏', () => {
+  const room = { code: '12345', hostUid: 'host', phase: 'lobby', round: 1, maxRounds: 4, players: [] };
+  const player = (uid, extra = {}) => ({ uid, name: uid, seat: 0, connected: true, ...extra });
+  for (const [p, key, label] of [
+    [player('host'), 'host', '房主'],
+    [player('a'), 'waiting', '未准备'],
+    [player('a', { ready: true }), 'done', '已准备'],
+    [player('a', { connected: false, ready: true }), 'away', '暂时离开']
+  ]) {
+    const html = playerItemMarkup(p, room, 'host');
+    assert.match(html, new RegExp(`status-${key}`));
+    assert.match(html, new RegExp(label));
+  }
+  for (const [phase, extra, key, label] of [
+    ['writing', {}, 'waiting', '未开始'],
+    ['writing', { typing: true }, 'active', '正在输入'],
+    ['writing', { submitted: true }, 'done', '已提交'],
+    ['voting', {}, 'waiting', '未投票'],
+    ['voting', { voted: true }, 'done', '已投票'],
+    ['prepare', {}, 'waiting', '未准备'],
+    ['prepare', { ready: true }, 'done', '已准备'],
+    ['prepare', { connected: false }, 'away', '暂时离开']
+  ]) {
+    const html = writingMarkup({ uid: 'other', room: { ...room, phase, players: [player('a', extra)] } });
+    assert.match(html, new RegExp(`game-status status-${key}`));
+    assert.match(html, new RegExp(label));
+    assert.match(html, /game-status-avatar/);
+    const expectedIcon = { waiting: 'clock', active: 'pen-line', done: 'check', away: 'log-out' }[key];
+    assert.match(html, new RegExp(`game-status-icon[^>]*><use href="/icons.svg#icon-${expectedIcon}"`));
+  }
+  const result = writingMarkup({ uid: 'other', room: { ...room, phase: 'result', players: [player('a')] } });
+  assert.doesNotMatch(result, /game-status status-/);
+});
+
+test('思考路径按轮次展示已揭晓词语，不泄露写词阶段当前轮', () => {
+  const players = [{ uid: 'a', name: '<甲>', seat: 0 }, { uid: 'b', name: '乙', seat: 1 }];
+  const history = [{ n: 1, words: { a: '苹果', b: '[未提交]' }, marks: { a: 'none', b: 'empty' } }];
+  assert.match(thoughtPathMarkup({ players, history: [], phase: 'writing' }), /还没有揭晓/);
+  const writing = thoughtPathMarkup({ players, history, phase: 'writing', round: 2, words: { a: '秘密' } });
+  assert.match(writing, /&lt;甲&gt;/);
+  assert.match(writing, /苹果/);
+  assert.match(writing, /\[未提交\]/);
+  assert.doesNotMatch(writing, /秘密/);
+  const voting = thoughtPathMarkup({ players, history, phase: 'voting', round: 2, words: { a: '香蕉', b: '[非法答案]' }, marks: { b: 'invalid' } });
+  assert.match(voting, /香蕉/);
+  assert.match(voting, /\[非法答案\]/);
+  assert.equal((voting.match(/第 2 轮/g) || []).length, 1);
+  assert.equal((voting.match(/class="path-answer"/g) || []).length, 4);
+  assert.equal((voting.match(/path-avatar/g) || []).length, 4);
+  assert.equal((voting.match(/data-player-count="2"/g) || []).length, 2);
+  assert.equal((voting.match(/class="path-connector"/g) || []).length, 1);
+  assert.match(voting, /path-connector[^]*?icons.svg#icon-arrow-down/);
+  assert.match(shellMarkup(true, { uid: 'a', name: '甲' }), /id="path-title"[^]*?icons.svg#icon-route/);
+  assert.ok(voting.indexOf('第 1 轮') < voting.indexOf('苹果'));
+  assert.ok(voting.indexOf('苹果') < voting.indexOf('第 2 轮'));
+  assert.ok(voting.indexOf('第 2 轮') < voting.indexOf('香蕉'));
+  const finished = thoughtPathMarkup({ players, history: [...history, { n: 2, words: { a: '香蕉' }, marks: {} }], phase: 'result', round: 2, words: { a: '香蕉' } });
+  assert.equal((finished.match(/第 2 轮/g) || []).length, 1);
+  for (const phase of ['writing', 'voting', 'prepare', 'result']) {
+    assert.match(writingMarkup({ uid: 'a', room: { phase, round: 2, players, code: '12345', history } }), /data-action="open-path"/);
+    if (phase !== 'writing') assert.equal((writingMarkup({ uid: 'a', room: { phase, players, code: '12345', history } }).match(/previous-word-avatar/g) || []).length, 2);
+  }
+});
+
+test('写词输入上方仅展示上一轮已揭晓的所有玩家词语', () => {
+  const players = [{ uid: 'a', name: '甲', seat: 0 }, { uid: 'b', name: '乙', seat: 1 }];
+  const history = [{ n: 1, words: { a: '苹果', b: '[未提交]' }, marks: { a: 'none', b: 'empty' } }];
+  const first = writingMarkup({ uid: 'a', room: { phase: 'writing', round: 1, players, history: [] } });
+  assert.doesNotMatch(first, /上一轮的词/);
+  const second = writingMarkup({ uid: 'a', room: { phase: 'writing', round: 2, players, history } });
+  assert.ok(second.indexOf('上一轮的词') < second.indexOf('id="word-form"'));
+  assert.match(second, /苹果/);
+  assert.match(second, /\[未提交\]/);
+  assert.match(second, /甲/);
+  assert.match(second, /乙/);
+  assert.equal((second.match(/class="word-card previous-word-card"/g) || []).length, 2);
+  assert.equal((second.match(/previous-word-avatar/g) || []).length, 2);
+  assert.match(second, /previous-word-player[^]*?previous-word-avatar[^]*?<span>甲<\/span>/);
+  const missing = writingMarkup({ uid: 'a', room: { phase: 'writing', round: 3, players, history } });
+  assert.doesNotMatch(missing, /上一轮的词/);
+});
+
+test('词卡按席位配色，仅标记部分玩家相同的有效词语', () => {
+  const players = ['a', 'b', 'c', 'd'].map((uid, seat) => ({ uid, seat, name: uid, connected: true }));
+  const room = { phase: 'voting', round: 1, players, words: { a: '臺灣', b: '台湾', c: '苹果', d: '[未提交]' }, marks: { a: 'none', b: 'none', c: 'none', d: 'empty' }, wordKeys: { a: '台湾', b: '台湾', c: '苹果' } };
+  const html = writingMarkup({ uid: 'a', room });
+  assert.equal((html.match(/class="word-duplicate"/g) || []).length, 2);
+  assert.match(html, /class="word-duplicate">臺灣/);
+  assert.match(html, /class="word-duplicate">台湾/);
+  for (let seat = 0; seat < 4; seat++) assert.match(html, new RegExp(`--player:var\\(--player-${seat}\\)`));
+  const all = writingMarkup({ uid: 'a', room: { ...room, words: { a: '雨', b: '雨', c: '雨', d: '雨' }, marks: {}, wordKeys: { a: '雨', b: '雨', c: '雨', d: '雨' } } });
+  assert.doesNotMatch(all, /word-duplicate/);
+  const empty = writingMarkup({ uid: 'a', room: { ...room, words: { a: '[未提交]', b: '[未提交]' }, marks: { a: 'empty', b: 'empty' }, wordKeys: {} } });
+  assert.doesNotMatch(empty, /word-duplicate/);
+});
+
+test('阶段进度居中区标记当前环节，思考路径入口位于词汇标题', () => {
+  const players = [{ uid: 'a', name: '甲', seat: 0 }];
+  const history = [{ n: 1, words: { a: '苹果' }, marks: { a: 'none' } }];
+  for (const [phase, label] of [['writing', '写词'], ['voting', '投票'], ['prepare', '准备']]) {
+    const html = writingMarkup({ uid: 'a', room: { phase, round: 2, maxRounds: 12, code: '12345', players, history } });
+    assert.match(html, new RegExp(`aria-current="step"[^]*?stage-step-label">${label}`));
+    for (const glyph of ['pen-line', 'check', 'play']) assert.match(html, new RegExp(`icons.svg#icon-${glyph}`));
+    assert.match(html, /class="stage-round"[^]*?class="stage-progress"[^]*?class="stage-room"/);
+    assert.match(html, /class="section-heading"><h2>(上一轮的词|本轮的词)<\/h2><button class="path-open"/);
+    assert.equal((html.match(/data-action="open-path"/g) || []).length, 1);
+  }
+  const first = writingMarkup({ uid: 'a', room: { phase: 'writing', round: 1, players, history: [] } });
+  assert.doesNotMatch(first, /data-action="open-path"/);
 });

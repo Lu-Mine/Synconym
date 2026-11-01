@@ -8,9 +8,21 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export function normalizeWord(word) {
-  return toSimplified(String(word).normalize('NFC').replace(/[＀-￯]/g,
+  return toSimplified(String(word).normalize('NFC').replace(/[！-～]/g,
     (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0)))
-    .replace(/\s/g, '').toLowerCase().trim();
+    .replace(/\s/gu, '').toLowerCase();
+}
+
+export function validateWord(word, history = [], banRepeat = true) {
+  if (typeof word !== 'string') throw new Error('词语无效');
+  const normalized = normalizeWord(word);
+  if (!normalized || [...normalized].length > 12 || !/^[\p{Script=Han}\p{L}\p{N}]+$/u.test(normalized)) {
+    throw new Error('请输入 1 到 12 个汉字、字母或数字');
+  }
+  if (banRepeat && history.some((old) => normalizeWord(old) === normalized)) {
+    throw new Error('这个词本局用过了');
+  }
+  return normalized;
 }
 
 export function validateSettings(settings) {
@@ -42,9 +54,19 @@ export function validateName(name) {
   return value;
 }
 
+// 身份 UID：数字 + 大写字母，去掉容易看错的 0/O、1/I/L
+export const UID_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+export const UID_LENGTH = 8;
+const UID_PATTERN = new RegExp(`^[${UID_CHARS}]{${UID_LENGTH}}$`);
+
+export function isValidUid(uid) {
+  return typeof uid === 'string' && UID_PATTERN.test(uid);
+}
+
 export function validateCode(code) {
-  if (typeof code !== 'string' || !/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/.test(code)) {
-    throw new Error('请输入有效的 4 位房号');
-  }
-  return code;
+  const value = typeof code === 'string'
+    ? code.replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0)).trim()
+    : '';
+  if (!/^[0-9]{5}$/.test(value)) throw new Error('请输入 5 位数字房号');
+  return value;
 }

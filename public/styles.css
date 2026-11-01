@@ -15,6 +15,7 @@
   --accent-hover: #2C47EA;
   --accent-soft: #EEF1FF;
   --vermilion: #FF5A46;
+  --vermilion-soft: #FFF1EF;
   --jade: #0E9F6E;
   --jade-soft: #ECFDF5;
   --player-0: #3D5AFE;
@@ -157,6 +158,9 @@ button svg {
   justify-content: space-between;
   gap: 12px;
   height: 36px;
+  /* 顶栏空间决定用户名 / 「改名」文字的取舍，见下方 @container */
+  container-type: inline-size;
+  container-name: site-header;
 }
 
 .header-actions,
@@ -205,6 +209,30 @@ button svg {
   height: 15px;
 }
 
+/* 顶栏按可用宽度取舍：窄时只留头像 + 笔，够宽才补名字，再够宽才补「改名」文字 */
+.header-user-name { display: none; }
+
+.header-rename-label {
+  display: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@container site-header (min-width: 400px) {
+  .header-user-name { display: block; }
+}
+
+@container site-header (min-width: 470px) {
+  /* 单独抬特异性：.icon-button 的 width/padding 在文件后面声明 */
+  .header-user .header-rename-trigger {
+    width: auto;
+    padding-inline: 9px 12px;
+    gap: 5px;
+  }
+
+  .header-rename-label { display: inline; }
+}
+
 /* 修改名字窗口 */
 .rename-modal {
   position: fixed;
@@ -216,13 +244,11 @@ button svg {
   place-items: center;
   padding: 20px;
   visibility: hidden;
-  opacity: 0;
-  transition: opacity var(--dur-2) var(--ease-out), visibility 0s linear var(--dur-2);
+  transition: visibility 0s linear var(--dur-2);
 }
 
 .rename-modal.is-open {
   visibility: visible;
-  opacity: 1;
   transition-delay: 0s;
 }
 
@@ -239,10 +265,22 @@ html:has(.rename-modal.is-open) {
   inset: -12px;
   padding: 0;
   border: 0;
+  background: rgba(22, 22, 26, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  transition:
+    background-color var(--dur-2) var(--ease-out),
+    backdrop-filter var(--dur-2) var(--ease-out),
+    -webkit-backdrop-filter var(--dur-2) var(--ease-out);
+  cursor: default;
+}
+
+/* 遮罩自身承担模糊过渡：父级若做 opacity 过渡会生成 backdrop root，
+   子元素的 backdrop-filter 在过渡期间会失效，模糊只能「瞬间出现」 */
+.rename-modal.is-open .rename-modal-backdrop {
   background: rgba(22, 22, 26, .3);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
-  cursor: default;
 }
 
 .rename-dialog {
@@ -253,11 +291,14 @@ html:has(.rename-modal.is-open) {
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: 0 20px 60px rgba(30, 34, 50, .18);
+  opacity: 0;
   transform: translateY(8px) scale(.98);
-  transition: transform var(--dur-2) var(--ease-out);
+  transition:
+    transform var(--dur-2) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out);
 }
 
-.rename-modal.is-open .rename-dialog { transform: translateY(0) scale(1); }
+.rename-modal.is-open .rename-dialog { opacity: 1; transform: translateY(0) scale(1); }
 
 .rename-dialog-heading {
   display: flex;
@@ -494,7 +535,7 @@ p {
   width: calc(100% - 16px);
   margin-inline: 8px;
   min-height: 56px;
-  padding: 14px 16px 14px 18px;
+  padding: 14px 16px;
   border: 4px solid var(--card);
   justify-content: stretch;
   color: #FFFFFF;
@@ -511,7 +552,7 @@ p {
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding-inline: 10px;
+  padding-inline: 16px;
 }
 
 .create-submit-arrow {
@@ -539,7 +580,9 @@ p {
 }
 
 .drawer-trigger {
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
   min-height: 44px;
   padding: 10px 12px;
   border: 0;
@@ -576,6 +619,10 @@ p {
 }
 
 .drawer-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   line-height: 21px;
   color: var(--muted);
@@ -608,7 +655,6 @@ p {
 
 .drawer-grid .settings {
   margin: 4px 8px 4px;
-  border-top: 1px solid var(--line);
 }
 
 /* === 宽屏：创建占左侧 40%，设置占右侧 60%，展开面板横跨整行 === */
@@ -631,14 +677,17 @@ p {
     grid-area: 1 / 2 / 2 / 3;
     margin-top: 0;
     display: flex;
+    align-items: center;
+    justify-content: center;
     min-width: 0;
   }
 
   .drawer-trigger {
-    width: 100%;
-    height: 100%;
-    min-height: 56px;
-    padding: 0 18px;
+    width: auto;
+    height: auto;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 8px 16px;
     justify-content: center;
     overflow: hidden;
   }
@@ -737,7 +786,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
   min-height: 60px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
@@ -806,8 +855,13 @@ p {
 
 /* 分段选择器（平滑滑块） */
 .segmented {
+  /* 宽屏单档基准 52px，×1.2 = 62.4px，作为全模式（含宽屏）的每档标准宽度与上限；
+     空间不足时（小屏）才压缩到更窄 */
+  --segment-base: 52px;
+  --segment-w: calc(var(--segment-base) * 1.2);
   display: grid;
-  grid-template-columns: repeat(var(--count), minmax(52px, 1fr));
+  grid-template-columns: repeat(var(--count), minmax(var(--segment-w), 1fr));
+  max-width: calc(var(--count) * var(--segment-w) + 6px);
   position: relative;
   isolation: isolate;
   background: var(--bg-subtle);
@@ -1058,9 +1112,16 @@ p {
   justify-content: center;
 }
 
-.room-heading-copy h1 {
-  font-size: 28px;
+.room-heading-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   margin-bottom: 6px;
+}
+
+.room-heading-row h1 {
+  font-size: 28px;
 }
 
 .room-heading-copy p {
@@ -1080,6 +1141,9 @@ p {
   font-size: 13px;
   font-weight: 550;
   font-variant-numeric: tabular-nums;
+  /* 有活动顺延倒计时时的一次轻微发光（见 .is-pulsing） */
+  --idle-glow-tint: rgba(61, 90, 254, .16);
+  --idle-glow-ring: rgba(61, 90, 254, .30);
   transition:
     color var(--dur-2) var(--ease-out),
     border-color var(--dur-2) var(--ease-out),
@@ -1092,9 +1156,68 @@ p {
 }
 
 .idle-clock.urgent {
+  --idle-glow-tint: rgba(255, 90, 70, .18);
+  --idle-glow-ring: rgba(255, 90, 70, .34);
   border-color: transparent;
   background: #FFF1EF;
   color: var(--vermilion);
+}
+
+.idle-clock.is-pulsing {
+  animation: idle-clock-glow 900ms var(--ease-out);
+}
+
+@keyframes idle-clock-glow {
+  0% { box-shadow: 0 0 0 0 var(--idle-glow-tint); }
+  40% { box-shadow: 0 0 0 4px var(--idle-glow-tint), 0 0 18px var(--idle-glow-ring); }
+  100% { box-shadow: 0 0 0 0 var(--idle-glow-tint); }
+}
+
+/* 与右侧标题同一个视觉大小：胶囊总高度对齐 h1 的 28px 字号 */
+/* 与右侧标题同一个视觉大小：胶囊总高度对齐 h1 的 28px 字号；
+   行盒里还有字体的下伸空间，居中后胶囊会比字面偏高约 1.5px，往下补回来 */
+.room-heading-row .idle-clock {
+  height: 28px;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 13px;
+  translate: 0 1.5px;
+}
+
+.room-heading-row .idle-clock .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* 活动顺延时逐位回滚：每位数字各是一条 0-9 轮盘，在窗口内滚动（滚动由 JS 驱动） */
+.idle-clock #idle-countdown {
+  --idle-digit-h: 18px;
+  display: inline-flex;
+  align-items: center;
+  height: var(--idle-digit-h);
+}
+
+.idle-digit {
+  display: inline-block;
+  height: var(--idle-digit-h);
+  overflow: hidden;
+}
+
+.idle-digit-strip {
+  display: block;
+  will-change: transform;
+}
+
+.idle-digit-strip > span {
+  display: block;
+  height: var(--idle-digit-h);
+  line-height: var(--idle-digit-h);
+  text-align: center;
+}
+
+.idle-sep {
+  display: inline-block;
+  line-height: var(--idle-digit-h);
 }
 
 .room-code-ticket {
@@ -1244,8 +1367,8 @@ p {
 }
 
 .player.is-host {
-  background: color-mix(in srgb, var(--accent) 5%, var(--card));
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  background: color-mix(in srgb, var(--vermilion) 8%, var(--card));
+  border-color: color-mix(in srgb, var(--vermilion) 38%, var(--line));
 }
 
 .player.is-transferable {
@@ -1346,8 +1469,8 @@ p {
 }
 
 .ready-state.host-state {
-  color: var(--accent);
-  background: var(--accent-soft);
+  color: #C83E2B; /* 与 .offline-label 同一个可读红，直接上 --vermilion 对比度不足 */
+  background: var(--vermilion-soft);
 }
 
 .rename-form {
@@ -1396,36 +1519,50 @@ p {
 
 /* === 写词轮次舞台 === */
 .writing-stage {
-  margin-top: 48px;
-  padding: 40px 28px;
+  margin-top: 24px;
+  padding: 18px 24px 22px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  text-align: center;
+  text-align: left;
 }
 
-.round-pill {
-  display: inline-flex;
+.stage-meta {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 28px;
-  padding: 0 12px;
-  margin-bottom: 16px;
-  border-radius: 999px;
-  background: var(--bg-subtle);
+  gap: 8px;
+  margin-bottom: 12px;
   color: var(--ink-secondary);
   font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.stage-room { text-align: right; }
+.stage-progress { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.stage-step { display: inline-flex; align-items: center; gap: 3px; font-weight: 500; }
+.stage-step .icon { width: 13px; height: 13px; flex-shrink: 0; }
+@media (max-width: 420px) { .stage-step:not(.is-current) .stage-step-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .stage-meta { gap: 4px; font-size: 12px; } .stage-progress { gap: 3px; } }
+.stage-step.is-current { color: var(--accent); font-weight: 700; }
+.stage-step-divider { color: var(--line-strong); }
+
+.stage-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stage-copy { min-width: 0; }
 
 .writing-stage h1 {
-  font-size: 26px;
-  margin-bottom: 8px;
+  font-size: 22px;
+  margin-bottom: 4px;
 }
 
 .writing-stage p {
   font-size: 14px;
-  margin-bottom: 28px;
+  margin-bottom: 0;
 }
 
 .writing-clock {
@@ -1433,9 +1570,9 @@ p {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 22px;
-  border-radius: 999px;
-  background: var(--bg-subtle);
+  flex-shrink: 0;
+  padding: 2px 0;
+  background: transparent;
   color: var(--ink);
   font-size: 24px;
   font-weight: 650;
@@ -1448,8 +1585,12 @@ p {
   height: 20px;
 }
 
+.writing-clock #countdown {
+  width: calc(2ch + 1.3em);
+  text-align: left;
+}
+
 .writing-clock.urgent {
-  background: #FFF1EF;
   color: var(--vermilion);
 }
 
@@ -1569,28 +1710,41 @@ p {
     offset-path: ellipse(16px 9px at 30px 25px);
   }
 
+  /* 窄屏也和宽屏同一行：输入框可压缩，按钮保持内容宽度不换行 */
   .join-form {
-    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .join-submit {
-    width: 100%;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding-inline: 16px;
+    white-space: nowrap;
   }
 
   .setting-row {
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-wrap: nowrap;
     padding: 12px 0;
   }
 
-  .setting-row > .segmented {
-    width: 100%;
+  /* 小屏也不换行：标签不折行、不参与压缩 */
+  .setting-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
-  /* 只读取值对齐分段选择器换行后的行高 */
-  .setting-row > .setting-value[data-control="segmented"] {
-    width: 100%;
-    justify-content: flex-start;
+  /* 小屏控件仍在行内：宽度上限沿用 .segmented 的全局每档最大值，
+     空间不足时靠可压缩列宽让位，行内 gap 保证与文字的固定间距 */
+  .setting-row > .segmented {
+    flex: 1 1 auto;
+    grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .segment {
+    padding: 6px 6px;
   }
 
   .room-banner {
@@ -1604,10 +1758,6 @@ p {
     align-items: center;
     justify-content: space-between;
     margin-left: 0;
-  }
-
-  .idle-clock {
-    align-self: flex-start;
   }
 
   .surface-block {
@@ -1633,6 +1783,12 @@ p {
   .player.player-enter {
     animation: none !important;
     transform: none !important;
+  }
+
+  /* 减少动效时用静态描边代替发光脉冲，保留"有活动"的反馈 */
+  .idle-clock.is-pulsing {
+    animation: none !important;
+    box-shadow: 0 0 0 3px var(--idle-glow-tint);
   }
 
   *, *::before, *::after {
@@ -1664,3 +1820,72 @@ p {
 
 
 }
+
+/* 对局主循环沿用大厅卡片、按钮和颜色令牌 */
+body[data-scene="voting"] { --bg-a: #FFD0BF; --bg-b: #E0CFFF; --bg-c: #FFE7B3; }
+body[data-scene="prepare"] { --bg-a: #BCEBD6; --bg-b: #C6E0FF; --bg-c: #DAF0BF; }
+body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
+.writing-stage { margin-bottom: 16px; }
+.game-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.game-form label { font-size: 14px; font-weight: 600; }
+.game-form .button { width: 100%; }
+.game-hint { color: var(--muted); font-size: 13px; }
+.game-center { text-align: center; margin: 10px 0; }
+.game-status-list, .word-grid { list-style: none; padding: 0; margin: 0; }
+.game-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.game-status:last-child { border-bottom: 0; }
+.player, .game-status { --status-color: #657080; --status-bg: #eef1f5; }
+.player.status-active, .game-status.status-active { --status-color: #9a5b08; --status-bg: #fff0d3; }
+.player.status-done, .game-status.status-done { --status-color: #14704d; --status-bg: #def5e9; }
+.player.status-away, .game-status.status-away { --status-color: #a04449; --status-bg: #fce8e8; }
+.player.status-host { --status-color: #a54a27; --status-bg: #ffede3; }
+.player .player-name { color: var(--status-color); font-weight: 600; }
+.game-status-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--ink); font-weight: 600; }
+.game-status-name > span { overflow-wrap: anywhere; }
+.game-status-name .game-status-avatar { width: 28px; height: 28px; border-radius: 8px; }
+.game-status .ready-state .game-status-icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--status-color); }
+.player .ready-state, .game-status .ready-state { color: var(--status-color); background: var(--status-bg); }
+.word-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.word-card { min-width: 0; padding: 10px; border: 2px solid var(--player); border-radius: var(--radius-md); background: var(--card-hover); }
+.word-card span { display: block; color: var(--ink-secondary); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.word-card strong { display: block; margin-top: 4px; color: #16161a; font-size: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.word-card strong.word-duplicate { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.previous-word-card { display: flex; flex-direction: column; justify-content: center; min-height: 88px; padding-block: 12px; }
+.previous-word-card .previous-word-player { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; transform: translateX(-4px); }
+.previous-word-card .previous-word-avatar { width: 24px; height: 24px; border-radius: 7px; }
+.previous-word-card .previous-word-player span { min-width: 0; text-align: center; }
+.previous-word-card strong { display: block; text-align: center; }
+.previous-word-card strong.word-duplicate { display: block; }
+.game-actions { display: flex; gap: 10px; }
+.game-actions .button { flex: 1; }
+.game-wide { width: 100%; }
+.game-leave { margin-top: 12px; }
+@media (max-width: 560px) { .writing-stage { margin-top: 16px; padding: 16px 18px 18px; } .word-card { padding: 12px 8px; } }
+
+/* 思考路径 */
+.path-open { display: inline-flex; align-items: center; gap: 4px; padding: 4px 0 4px 8px; border: 0; background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.path-open .icon { width: 15px; height: 15px; }
+.path-open:hover { color: var(--accent-hover); }
+.path-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.path-dialog { width: min(100%, 640px); max-height: min(80dvh, 720px); display: flex; flex-direction: column; }
+.path-dialog .rename-dialog-heading { flex-shrink: 0; }
+.path-dialog .rename-dialog-heading h2 { display: inline-flex; align-items: center; gap: 8px; }
+.path-dialog .rename-dialog-heading h2 .icon { width: 19px; height: 19px; color: var(--accent); }
+#path-content { overflow-y: auto; overscroll-behavior: contain; }
+.path-hint, .path-empty { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.path-empty { padding: 16px 0; }
+.path-rounds { list-style: none; padding: 0; margin: 10px 0 0; }
+.path-round-group { container-type: inline-size; }
+.path-round-group h3 { margin: 0 0 5px; color: var(--ink-secondary); font-size: 15px; font-weight: 600; text-align: center; }
+.path-answers { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; list-style: none; padding: 0; margin: 0; }
+.path-answer { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; padding: 12px 8px; border: 2px solid var(--player); border-radius: 8px; background: var(--card-hover); }
+.path-player-heading { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; transform: translateX(-4px); }
+.path-avatar.avatar { width: 20px; height: 20px; border-radius: 6px; }
+.path-name { min-width: 0; color: var(--ink-secondary); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; text-align: center; }
+.path-word { min-width: 0; color: #16161a; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; text-align: center; }
+.path-connector { height: 38px; display: grid; place-items: center; color: var(--muted); }
+.path-connector .icon { width: 18px; height: 18px; }
+@container (min-width: 240px) { .path-answers[data-player-count="2"], .path-answers[data-player-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 390px) { .path-answers[data-player-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 520px) { .path-answers[data-player-count="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .path-dialog { max-height: 85dvh; padding: 16px; } }

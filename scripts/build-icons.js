@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 const names = [
   'plus', 'minus', 'check', 'x', 'copy', 'settings', 'user', 'log-out',
   'clock', 'play', 'users', 'chevron-down', 'rotate-ccw',
-  'arrow-right', 'pen-line', 'sliders-horizontal'
+  'arrow-right', 'arrow-down', 'route', 'pen-line', 'sliders-horizontal'
 ];
 const symbols = await Promise.all(names.map(async (name) => {
   const svg = await readFile(resolve('node_modules/lucide-static/icons', `${name}.svg`), 'utf8');
