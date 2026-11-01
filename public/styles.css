@@ -1190,11 +1190,6 @@ p {
   line-height: 1;
 }
 
-.host-label {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .me-label {
   background: var(--bg-subtle);
   color: var(--ink-secondary);
@@ -1230,6 +1225,11 @@ p {
 .ready-state.ready {
   color: var(--jade);
   background: var(--jade-soft);
+}
+
+.ready-state.host-state {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .rename-form {

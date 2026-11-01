@@ -146,7 +146,7 @@ export function homeMarkup(settings, settingsOpen = false) {
 export function playerItemMarkup(player, room, uid) {
   const isMe = player.uid === uid;
   const isHost = player.uid === room.hostUid;
-  const isReady = isHost || player.ready;
+  const isReady = !isHost && player.ready;
   return `<li class="player ${isReady ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
     ${avatarMarkup(player.name)}
     <div class="player-meta">
@@ -154,11 +154,12 @@ export function playerItemMarkup(player, room, uid) {
         <span class="player-name">${escapeHtml(player.name)}</span>
         ${isMe ? `<button class="icon-button rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>` : ''}
         ${isMe ? '<span class="badge me-label">你</span>' : ''}
-        ${isHost ? '<span class="badge host-label">房主</span>' : ''}
         ${!player.connected ? '<span class="badge offline-label">暂时离开</span>' : ''}
       </div>
     </div>
-    <span class="ready-state ${isReady ? 'ready' : ''}">${isReady ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>
+    ${isHost
+      ? '<span class="ready-state host-state"><span>房主</span></span>'
+      : `<span class="ready-state ${isReady ? 'ready' : ''}">${isReady ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>`}
   </li>`;
 }
 
