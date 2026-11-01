@@ -85,14 +85,14 @@ body::before {
   background:
     radial-gradient(45% 40% at 20% 20%, var(--bg-a), transparent 70%),
     radial-gradient(40% 45% at 85% 25%, var(--bg-b), transparent 70%);
-  opacity: .45;
+  opacity: .68;
   animation: bg-drift-a 28s ease-in-out infinite alternate;
 }
 body::after {
   background:
     radial-gradient(45% 45% at 75% 85%, var(--bg-c), transparent 70%),
     radial-gradient(35% 35% at 15% 80%, var(--bg-b), transparent 70%);
-  opacity: .38;
+  opacity: .58;
   animation: bg-drift-b 36s ease-in-out infinite alternate;
 }
 @keyframes bg-drift-a {
@@ -100,8 +100,8 @@ body::after {
   to { transform: translate3d(4%, 3%, 0) scale(1.1); }
 }
 @keyframes bg-drift-b {
-  from { transform: translate3d(3%, 2%, 0) scale(1.08); opacity: .25; }
-  to { transform: translate3d(-4%, -3%, 0) scale(1); opacity: .42; }
+  from { transform: translate3d(3%, 2%, 0) scale(1.08); opacity: .4; }
+  to { transform: translate3d(-4%, -3%, 0) scale(1); opacity: .64; }
 }
 @media (prefers-reduced-motion: reduce) {
   body::before, body::after { animation: none; }
