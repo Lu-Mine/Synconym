@@ -131,9 +131,6 @@ button svg {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
   font-size: 13px;
 }
 
@@ -1098,6 +1095,9 @@ p {
 }
 
 .avatar {
+  --avatar-ink: #3154C7;
+  --avatar-bg: #E8EEFF;
+  --avatar-line: #CCD8FF;
   width: 38px;
   height: 38px;
   display: flex;
@@ -1105,11 +1105,31 @@ p {
   justify-content: center;
   flex-shrink: 0;
   border-radius: 11px;
-  color: var(--player);
-  background: color-mix(in srgb, var(--player) 12%, white);
-  border: 1px solid color-mix(in srgb, var(--player) 22%, transparent);
+  color: var(--avatar-ink);
+  background: var(--avatar-bg);
+  border: 1px solid var(--avatar-line);
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 680;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.avatar[data-avatar-tone="1"] {
+  --avatar-ink: #B94735;
+  --avatar-bg: #FFF0EC;
+  --avatar-line: #FFD4CA;
+}
+
+.avatar[data-avatar-tone="2"] {
+  --avatar-ink: #187A61;
+  --avatar-bg: #E8F8F1;
+  --avatar-line: #C4ECDC;
+}
+
+.avatar[data-avatar-tone="3"] {
+  --avatar-ink: #7447B8;
+  --avatar-bg: #F3ECFF;
+  --avatar-line: #DFD0FA;
 }
 
 .player-meta {

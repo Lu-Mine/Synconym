@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
 import { DEFAULT_SETTINGS, normalizeWord, validateName, validateSettings } from '../server/rules.js';
-import { homeMarkup, lobbyMarkup, shellMarkup, writingMarkup } from '../public/render.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, shellMarkup, writingMarkup } from '../public/render.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -171,4 +171,18 @@ test('header 展示用户与 UID，玩家改名按钮位于名字右侧', () => 
   };
   const lobby = lobbyMarkup({ room, uid: 'u1', user: { uid: 'u1', name: '甲' } });
   assert.match(lobby, /player-name-row[\s\S]*player-name[^>]*>甲<[\s\S]*rename-trigger[\s\S]*<\/div>/);
+});
+
+test('文字头像按完整名字稳定映射四种配色', () => {
+  const first = avatarDetails('随和的荔枝');
+  assert.deepEqual(avatarDetails('随和的荔枝'), first);
+  assert.equal(first.initial, '随');
+  assert.equal(avatarDetails('Alice').initial, 'A');
+
+  const tones = new Set(Array.from({ length: 64 }, (_, index) => `用户${index}`)
+    .map((name) => avatarDetails(name).tone));
+  assert.deepEqual([...tones].sort(), [0, 1, 2, 3]);
+
+  const shell = shellMarkup(false, { uid: 'u1', name: '随和的荔枝' });
+  assert.match(shell, new RegExp(`data-avatar-tone="${first.tone}"[^>]*>随<`));
 });

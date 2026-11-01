@@ -2,6 +2,23 @@ export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
+export function avatarDetails(name) {
+  const normalizedName = String(name || '').trim();
+  const initial = [...normalizedName][0] || '?';
+  let hash = 2166136261;
+  for (const char of normalizedName) {
+    hash ^= char.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  hash ^= hash >>> 16;
+  return { initial, tone: hash >>> 0 & 3 };
+}
+
+export function avatarMarkup(name, className = '') {
+  const { initial, tone } = avatarDetails(name);
+  return `<span class="avatar ${className}" data-avatar-tone="${tone}" aria-hidden="true">${escapeHtml(initial)}</span>`;
+}
+
 export function icon(name, className = '') {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="/icons.svg#icon-${name}"></use></svg>`;
 }
@@ -63,7 +80,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
         ${icon('log-out')}<span>退出</span>
       </button>
       <div class="header-user ${user ? 'is-visible' : ''}" id="header-user">
-        <span class="avatar header-avatar" aria-hidden="true">${escapeHtml([...name][0] || '')}</span>
+        ${avatarMarkup(name, 'header-avatar')}
         <span class="header-user-name" id="header-user-name">${escapeHtml(name)}</span>
         <button class="icon-button header-rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}</button>
       </div>
@@ -130,7 +147,7 @@ export function playerItemMarkup(player, room, uid) {
   const isMe = player.uid === uid;
   const isHost = player.uid === room.hostUid;
   return `<li class="player ${player.ready ? 'is-ready' : ''} ${isMe ? 'is-me' : ''}" data-uid="${escapeHtml(player.uid)}" style="--player:var(--player-${player.seat})">
-    <span class="avatar" aria-hidden="true">${escapeHtml([...player.name][0] || '')}</span>
+    ${avatarMarkup(player.name)}
     <div class="player-meta">
       <div class="player-name-row">
         <span class="player-name">${escapeHtml(player.name)}</span>

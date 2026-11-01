@@ -1,5 +1,6 @@
 import { Socket } from './ws.js';
 import {
+  avatarDetails,
   homeMarkup,
   icon,
   lobbyMarkup,
@@ -164,7 +165,11 @@ function patchHeaderDOM(inRoom) {
     headerUser.classList.toggle('is-visible', Boolean(user));
     const avatar = headerUser.querySelector('.header-avatar');
     const name = headerUser.querySelector('#header-user-name');
-    if (avatar) avatar.textContent = [...(user?.name || '')][0] || '';
+    if (avatar) {
+      const details = avatarDetails(user?.name);
+      avatar.textContent = details.initial;
+      avatar.dataset.avatarTone = String(details.tone);
+    }
     if (name) name.textContent = user?.name || '';
   }
   const leaveBtn = app.querySelector('#header-leave');
