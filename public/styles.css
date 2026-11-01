@@ -388,8 +388,6 @@ p {
     grid-template-columns: calc(var(--split) * 1%) calc((100 - var(--split)) * 1%);
     gap: 0;
     align-items: stretch;
-    /* 外圆角 = 胶囊半径 + 卡片内边距，与内部胶囊同心 */
-    border-radius: 36px;
   }
 
   /* 两块各自把整枚胶囊宽度的渐变拉伸后截取自己那一段，接缝处颜色连续；
@@ -405,14 +403,34 @@ p {
     background-image: linear-gradient(90deg, var(--accent), calc(var(--split) * 1%), var(--vermilion));
     background-image: linear-gradient(90deg in oklab, var(--accent), calc(var(--split) * 1%), var(--vermilion));
     background-repeat: no-repeat;
-    transition:
-      box-shadow var(--dur-1) var(--ease-out),
-      color var(--dur-1) var(--ease-out);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transition: color var(--dur-1) var(--ease-out);
+  }
+
+  /* 压暗叠加层：只改透明度，渐变本身保持连续；内容在叠加层之上 */
+  .create-submit::after,
+  .drawer-trigger::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: #000000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease-out);
+  }
+
+  .create-submit > *,
+  .drawer-trigger > * {
+    position: relative;
+    z-index: 1;
   }
 
   .create-submit {
     grid-area: 1 / 1 / 2 / 2;
-    border-radius: 999px 0 0 999px;
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
   }
 
   .create-submit,
@@ -436,9 +454,19 @@ p {
   .drawer-trigger {
     height: 100%;
     min-height: 56px;
-    padding: 0 20px 0 14px;
-    border-radius: 0 999px 999px 0;
-    overflow: hidden;
+    padding: 0 16px;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    /* 内容整体左右镜像：箭头、摘要在左，标题在右 */
+    flex-direction: row-reverse;
+  }
+
+  .drawer-trigger-title {
+    flex-direction: row-reverse;
+  }
+
+  .drawer-summary {
+    margin-left: 0;
+    margin-right: auto;
   }
 
   .drawer-trigger,
@@ -447,11 +475,18 @@ p {
     background-position: right center;
   }
 
-  /* 悬停只压暗当前热区，渐变本身保持连续 */
-  .create-submit:hover:not(:disabled),
-  .drawer-trigger:hover {
-    color: #FFFFFF;
-    box-shadow: inset 0 0 0 999px rgba(0, 0, 0, .10);
+  /* 悬停压暗只在支持悬停的指针下生效，避免触屏点按后 :hover 粘住不恢复 */
+  @media (hover: hover) {
+    .create-submit:hover:not(:disabled)::after,
+    .drawer-trigger:hover::after {
+      opacity: .10;
+    }
+  }
+
+  /* 按压更深一档，松手即恢复 */
+  .create-submit:active:not(:disabled)::after,
+  .drawer-trigger:active::after {
+    opacity: .18;
   }
 
   .create-submit:focus-visible,
