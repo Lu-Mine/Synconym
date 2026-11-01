@@ -36,9 +36,16 @@ button svg { flex: 0 0 auto; }
 .app { width: min(100% - 48px, 640px); margin: 0 auto; }
 .page { padding: 40px 0 64px; opacity: 1; transform: translateY(0); transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out); }
 @starting-style { .page { opacity: 0; transform: translateY(8px); } }
-.brand { display: flex; align-items: center; gap: 16px; }
-.brand-word { font-size: 19px; font-weight: 600; letter-spacing: -.04em; }
-.brand-line { height: 2px; width: 36px; background: var(--accent); }
+.brand { display: inline-flex; align-items: center; gap: 10px; user-select: none; }
+.brand-mark { position: relative; width: 26px; height: 18px; flex-shrink: 0; isolation: isolate; }
+.brand-mark .orb { position: absolute; top: 1px; width: 16px; height: 16px; border-radius: 50%; transition: transform var(--dur-2) var(--ease-out); }
+.brand-mark .orb-a { left: 0; background: var(--player-0); }
+.brand-mark .orb-b { right: 0; background: var(--player-1); mix-blend-mode: multiply; opacity: .92; }
+.brand:hover .orb-a { transform: translateX(2px); }
+.brand:hover .orb-b { transform: translateX(-2px); }
+.brand-cn { font-size: 20px; font-weight: 600; letter-spacing: .02em; line-height: 1; color: var(--ink); }
+.brand-accent { color: var(--accent); }
+.brand-en { font-size: 13px; font-weight: 500; letter-spacing: -.01em; line-height: 1; color: var(--muted); padding-left: 10px; border-left: 1px solid var(--line); }
 .intro { padding: 80px 0 48px; }
 h1 { margin: 0 0 16px; font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.03em; }
 h2 { font-size: 16px; font-weight: 500; margin: 0; }

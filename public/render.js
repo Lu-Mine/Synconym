@@ -6,6 +6,10 @@ export function icon(name, className = '') {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="/icons.svg#icon-${name}"></use></svg>`;
 }
 
+export function brandMarkup() {
+  return `<div class="brand"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn">近<span class="brand-accent">意</span>词</span><span class="brand-en">Synconym</span></div>`;
+}
+
 export function segmented(name, value, options, disabled = false) {
   return `<div class="segmented" role="group" style="--selected:${options.findIndex((option) => String(option.value) === String(value))};--count:${options.length}">${options.map((option) =>
     `<button class="segment ${String(option.value) === String(value) ? 'selected' : ''}" type="button" data-setting="${name}" data-value="${option.value}" aria-pressed="${String(option.value) === String(value)}" ${disabled ? 'disabled' : ''}>${option.label}</button>`).join('')}</div>`;
@@ -26,7 +30,7 @@ export function settingsMarkup(settings, editable) {
 }
 
 export function homeMarkup(settings) {
-  return `<div class="page home-page"><header class="brand"><span class="brand-word">Synconym</span><span class="brand-line" aria-hidden="true"></span></header>
+  return `<div class="page home-page"><header class="home-header">${brandMarkup()}</header>
     <section class="intro"><h1>各自想一个，<br>直到想到一起。</h1><p>两个词之间，藏着我们想到的同一个东西。</p></section>
     <form id="create-form"><button class="button primary" type="submit">${icon('plus')}创建房间</button></form>
     <div class="join-heading">或者加入朋友的房间</div>
@@ -40,7 +44,7 @@ export function lobbyMarkup(state) {
   const me = room.players.find((player) => player.uid === uid);
   const host = room.hostUid === uid;
   const canStart = host && room.players.length >= 2 && room.players.every((player) => player.ready && player.connected);
-  return `<div class="page lobby-page"><header class="lobby-header"><span class="brand-word">Synconym</span><button class="icon-button leave-button" data-action="leave" aria-label="退出房间" title="退出房间">${icon('log-out')}</button></header>
+  return `<div class="page lobby-page"><header class="lobby-header">${brandMarkup()}<button class="icon-button leave-button" data-action="leave" aria-label="退出房间" title="退出房间">${icon('log-out')}</button></header>
     <section class="room-heading"><div><h1>等待大家准备</h1><p>邀请朋友，准备好后由房主开始。</p></div><button class="room-code" data-action="copy" aria-label="复制邀请链接" title="复制邀请链接"><span>${escapeHtml(room.code)}</span>${icon('copy')}</button></section>
     <section class="players" aria-label="房间玩家"><div class="section-heading"><h2>${icon('users')}玩家</h2><span>${room.players.length} / 4</span></div><ul class="player-list">${room.players.map((player) => `<li class="player" style="--player:var(--player-${player.seat})">
       <span class="avatar">${escapeHtml([...player.name][0] || '')}</span><div class="player-name">${escapeHtml(player.name)}${player.uid === room.hostUid ? '<span class="host-label">房主</span>' : ''}${!player.connected ? '<span class="offline-label">暂时离开</span>' : ''}</div>
@@ -53,5 +57,5 @@ export function lobbyMarkup(state) {
 }
 
 export function writingMarkup(state) {
-  return `<div class="page"><header class="lobby-header"><span class="brand-word">Synconym</span></header><section class="intro"><h1>第 ${state.room.round} 轮</h1><p>房间 ${escapeHtml(state.room.code)} · ${state.room.players.length} 位玩家</p></section><div class="writing-clock">${icon('clock')}<span id="countdown"></span></div></div>`;
+  return `<div class="page"><header class="lobby-header">${brandMarkup()}</header><section class="intro"><h1>第 ${state.room.round} 轮</h1><p>房间 ${escapeHtml(state.room.code)} · ${state.room.players.length} 位玩家</p></section><div class="writing-clock">${icon('clock')}<span id="countdown"></span></div></div>`;
 }
