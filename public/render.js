@@ -82,10 +82,10 @@ export function homeMarkup(settings, settingsOpen = false) {
             <span class="drawer-summary" id="settings-summary">${escapeHtml(settingsSummaryText(settings))}</span>
             ${icon('chevron-down', 'chevron')}
           </button>
-          <div class="drawer-grid" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
-            <div class="drawer-inner">
-              ${settingsMarkup(settings, true)}
-            </div>
+        </div>
+        <div class="drawer-grid ${settingsOpen ? 'is-open' : ''}" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
+          <div class="drawer-inner">
+            ${settingsMarkup(settings, true)}
           </div>
         </div>
       </form>

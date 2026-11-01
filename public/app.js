@@ -137,6 +137,7 @@ function syncHomeDrawerDOM() {
   const panel = app.querySelector('#home-settings-panel');
   if (!drawer || !trigger || !panel) return;
   drawer.classList.toggle('is-open', homeSettingsOpen);
+  panel.classList.toggle('is-open', homeSettingsOpen);
   trigger.setAttribute('aria-expanded', String(homeSettingsOpen));
   panel.toggleAttribute('inert', !homeSettingsOpen);
 }
