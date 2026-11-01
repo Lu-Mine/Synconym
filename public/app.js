@@ -12,6 +12,61 @@ import {
 
 const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
 const WRITE_COOLDOWN_MS = 520;
+const AVATAR_PALETTE = [
+  { ink: '#3154C7', bg: '#E8EEFF', line: '#CCD8FF' },
+  { ink: '#B94735', bg: '#FFF0EC', line: '#FFD4CA' },
+  { ink: '#187A61', bg: '#E8F8F1', line: '#C4ECDC' },
+  { ink: '#7447B8', bg: '#F3ECFF', line: '#DFD0FA' }
+];
+const avatarImageCache = new Map();
+
+function avatarImageUrl(name) {
+  const normalizedName = String(name || '').trim();
+  if (avatarImageCache.has(normalizedName)) return avatarImageCache.get(normalizedName);
+  const { initial, tone } = avatarDetails(normalizedName);
+  const palette = AVATAR_PALETTE[tone];
+  const canvas = document.createElement('canvas');
+  const size = 152;
+  const radius = 44;
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+
+  context.beginPath();
+  context.roundRect(2, 2, size - 4, size - 4, radius);
+  context.fillStyle = palette.bg;
+  context.fill();
+  context.lineWidth = 4;
+  context.strokeStyle = palette.line;
+  context.stroke();
+
+  context.fillStyle = palette.ink;
+  context.font = '680 60px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+  context.textAlign = 'left';
+  context.textBaseline = 'alphabetic';
+  const glyph = initial.toUpperCase();
+  const metrics = context.measureText(glyph);
+  const inkLeft = metrics.actualBoundingBoxLeft;
+  const inkRight = metrics.actualBoundingBoxRight;
+  const inkTop = metrics.actualBoundingBoxAscent;
+  const inkBottom = metrics.actualBoundingBoxDescent;
+  const x = (size + inkLeft - inkRight) / 2;
+  const y = (size + inkTop - inkBottom) / 2;
+  context.fillText(glyph, x, y);
+
+  const url = canvas.toDataURL('image/png');
+  avatarImageCache.set(normalizedName, url);
+  return url;
+}
+
+function hydrateAvatars(root = app) {
+  for (const avatar of root.querySelectorAll('img.avatar[data-avatar-name]')) {
+    const name = avatar.dataset.avatarName || '';
+    if (avatar.dataset.renderedName === name) continue;
+    avatar.src = avatarImageUrl(name);
+    avatar.dataset.renderedName = name;
+  }
+}
 
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
@@ -166,13 +221,14 @@ function patchHeaderDOM(inRoom) {
     const avatar = headerUser.querySelector('.header-avatar');
     const name = headerUser.querySelector('#header-user-name');
     if (avatar) {
-      const details = avatarDetails(user?.name);
-      const glyph = avatar.querySelector('.avatar-glyph text');
-      if (glyph) {
-        glyph.textContent = details.initial;
-        glyph.setAttribute('dy', details.glyphDy);
+      const userName = user?.name || '';
+      const details = avatarDetails(userName);
+      if (avatar.dataset.avatarName !== userName) {
+        avatar.dataset.avatarName = userName;
+        avatar.removeAttribute('data-rendered-name');
       }
       avatar.dataset.avatarTone = String(details.tone);
+      hydrateAvatars(headerUser);
     }
     if (name) name.textContent = user?.name || '';
   }
@@ -212,6 +268,7 @@ function patchLobbyDOM(nextState) {
 
     const activeElementId = document.activeElement?.id;
     list.innerHTML = room.players.map((player) => playerItemMarkup(player, room, uid)).join('');
+    hydrateAvatars(list);
 
     for (const item of list.querySelectorAll('.player[data-uid]')) {
       const prev = firstRects.get(item.dataset.uid);
@@ -322,6 +379,7 @@ function render({ forceFull = false } = {}) {
 
   const applyDOM = () => {
     stage.innerHTML = html;
+    hydrateAvatars(stage);
     if (shouldTransition) {
       stage.firstElementChild?.classList.add('vt-managed');
     }

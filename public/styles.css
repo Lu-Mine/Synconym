@@ -1095,55 +1095,14 @@ p {
 }
 
 .avatar {
-  --avatar-ink: #3154C7;
-  --avatar-bg: #E8EEFF;
-  --avatar-line: #CCD8FF;
   width: 38px;
   height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 11px;
-  color: var(--avatar-ink);
-  background: var(--avatar-bg);
-  border: 1px solid var(--avatar-line);
-  font-size: 15px;
-  font-weight: 680;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.avatar-glyph {
   display: block;
-  width: 1em;
-  height: 1em;
-  overflow: visible;
-}
-
-.avatar-glyph text {
-  fill: currentColor;
-  font: inherit;
-  font-size: 100px;
-  text-transform: uppercase;
-}
-
-.avatar[data-avatar-tone="1"] {
-  --avatar-ink: #B94735;
-  --avatar-bg: #FFF0EC;
-  --avatar-line: #FFD4CA;
-}
-
-.avatar[data-avatar-tone="2"] {
-  --avatar-ink: #187A61;
-  --avatar-bg: #E8F8F1;
-  --avatar-line: #C4ECDC;
-}
-
-.avatar[data-avatar-tone="3"] {
-  --avatar-ink: #7447B8;
-  --avatar-bg: #F3ECFF;
-  --avatar-line: #DFD0FA;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  object-fit: contain;
 }
 
 .player-meta {
