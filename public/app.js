@@ -232,7 +232,12 @@ function syncHomeDrawerDOM() {
   panel.toggleAttribute('inert', !homeSettingsOpen);
 }
 
+function syncModalScrollLock() {
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer));
+}
+
 function syncRenameModalDOM(focusInput = false) {
+  syncModalScrollLock();
   const modal = app.querySelector('#rename-modal');
   if (!modal) return;
   modal.classList.toggle('is-open', renameOpen);
@@ -248,6 +253,7 @@ function syncRenameModalDOM(focusInput = false) {
 }
 
 function syncTransferModalDOM() {
+  syncModalScrollLock();
   const modal = app.querySelector('#transfer-modal');
   if (!modal) return;
   modal.classList.toggle('is-open', Boolean(pendingTransfer));
@@ -400,6 +406,7 @@ function ensureShell(inRoom) {
 
 function render({ forceFull = false } = {}) {
   const nextScreen = screenKeyFor(state);
+  syncModalScrollLock();
   const inRoom = Boolean(state.room);
   const stage = ensureShell(inRoom);
   document.body.dataset.scene = nextScreen;

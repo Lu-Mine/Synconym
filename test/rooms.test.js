@@ -254,8 +254,8 @@ test('header 展示用户与 UID，玩家改名按钮位于名字右侧', () => 
   };
   const lobby = lobbyMarkup({ room, uid: 'u1', user: { uid: 'u1', name: '甲' } });
   assert.match(lobby, /player-name-row[\s\S]*player-name[^>]*>甲<[\s\S]*rename-trigger[\s\S]*<\/div>/);
-  assert.match(lobby, /id="transfer-modal" inert[\s\S]*id="transfer-target-name"[\s\S]*data-action="confirm-transfer"/);
-  assert.match(lobby, /data-action="cancel-transfer"[\s\S]*data-action="confirm-transfer"/);
+  assert.match(shell, /id="transfer-modal" inert[\s\S]*id="transfer-target-name"[\s\S]*data-action="confirm-transfer"/);
+  assert.match(shell, /data-action="cancel-transfer"[\s\S]*data-action="confirm-transfer"/);
 });
 
 test('文字头像按完整名字稳定映射四种配色', () => {

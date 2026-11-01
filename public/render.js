@@ -137,6 +137,20 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </form>
     </section>
   </div>
+  <div class="rename-modal transfer-modal" id="transfer-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="cancel-transfer" aria-label="取消转让房主"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
+      <div class="rename-dialog-heading">
+        <h2 id="transfer-title">转让房主</h2>
+        <button class="icon-button" type="button" data-action="cancel-transfer" aria-label="取消">${icon('x')}</button>
+      </div>
+      <p class="transfer-hint">把房主转给 <strong id="transfer-target-name"></strong> 后，你会变成普通玩家，需要准备后才能开始。</p>
+      <div class="rename-dialog-actions">
+        <button class="button secondary" type="button" data-action="cancel-transfer">取消</button>
+        <button class="button primary" type="button" data-action="confirm-transfer">转让房主</button>
+      </div>
+    </section>
+  </div>
   <div id="stage" class="stage"></div>`;
 }
 
@@ -255,21 +269,6 @@ export function lobbyMarkup(state) {
         ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
         : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`}
       <button class="button secondary lobby-leave-button" type="button" data-action="leave">${icon('log-out')}<span>退出</span></button>
-    </div>
-
-    <div class="rename-modal transfer-modal" id="transfer-modal" inert>
-      <button class="rename-modal-backdrop" type="button" data-action="cancel-transfer" aria-label="取消转让房主"></button>
-      <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="transfer-title">
-        <div class="rename-dialog-heading">
-          <h2 id="transfer-title">转让房主</h2>
-          <button class="icon-button" type="button" data-action="cancel-transfer" aria-label="取消">${icon('x')}</button>
-        </div>
-        <p class="transfer-hint">把房主转给 <strong id="transfer-target-name"></strong> 后，你会变成普通玩家，需要准备后才能开始。</p>
-        <div class="rename-dialog-actions">
-          <button class="button secondary" type="button" data-action="cancel-transfer">取消</button>
-          <button class="button primary" type="button" data-action="confirm-transfer">转让房主</button>
-        </div>
-      </section>
     </div>
   </div>`;
 }
