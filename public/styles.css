@@ -1144,6 +1144,11 @@ p {
   border-color: color-mix(in srgb, var(--jade) 22%, var(--line));
 }
 
+.player.is-host {
+  background: color-mix(in srgb, var(--accent) 5%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+}
+
 .player.player-enter {
   opacity: 0;
   transform: translateY(8px);
