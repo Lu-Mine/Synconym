@@ -123,7 +123,7 @@ export function homeMarkup(settings, settingsOpen = false) {
           </button>
         </div>
         <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label"><span>创建房间</span>${icon('plus')}</span>
+          <span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span>
         </button>
         <div class="drawer-grid ${settingsOpen ? 'is-open' : ''}" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
           <div class="drawer-inner">
