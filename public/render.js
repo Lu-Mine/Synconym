@@ -74,13 +74,11 @@ export function homeMarkup(settings, settingsOpen = false) {
       <form id="create-form" class="create-card">
         <button class="button primary create-submit" type="submit">
           <span class="create-submit-label">${icon('plus')}<span>创建房间</span></span>
-          ${icon('arrow-right', 'button-trail')}
         </button>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
             <span class="drawer-trigger-title">${icon('sliders-horizontal')}<span>房间设置</span></span>
             <span class="drawer-summary" id="settings-summary">${escapeHtml(settingsSummaryText(settings))}</span>
-            ${icon('chevron-down', 'chevron')}
           </button>
         </div>
         <div class="drawer-grid ${settingsOpen ? 'is-open' : ''}" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
