@@ -14,6 +14,7 @@ import {
   settingsSummaryText,
   shellMarkup,
   thoughtPathMarkup,
+  themeMarkup,
   writingMarkup
 } from './render.js';
 
@@ -447,6 +448,9 @@ function patchSettingsDOM(values, editable) {
     if (node.outerHTML !== markup) node.outerHTML = markup;
   }
 
+  const themeHint = section.querySelector('[data-theme-setting-hint]');
+  if (themeHint) themeHint.hidden = values.mode !== 'theme';
+
   const summary = app.querySelector('#settings-summary');
   if (summary) summary.textContent = settingsSummaryText(values);
   return true;
@@ -658,6 +662,8 @@ function ensureShell(inRoom) {
 function patchSameScene(stage, nextScreen) {
   const resultPage = stage.querySelector('.result-page');
   if (['result', 'rematch'].includes(nextScreen) && resultPage?.dataset.room === state.room?.code) {
+    const theme = resultPage.querySelector('#current-theme');
+    if (theme) patchMarkup(theme, themeMarkup(state.room));
     const panel = resultPage.querySelector('#result-rematch');
     if (panel) {
       const focusedAction = panel.contains(document.activeElement) ? document.activeElement.dataset.action : null;
@@ -689,6 +695,8 @@ function patchSameScene(stage, nextScreen) {
     const template = document.createElement('template');
     template.innerHTML = writingMarkup(state, gameUi);
     const fresh = template.content;
+    const theme = page?.querySelector('#current-theme');
+    if (theme) patchMarkup(theme, themeMarkup(state.room));
     const oldStatus = page?.querySelector('#game-status');
     const newStatus = fresh.querySelector('#game-status');
     if (oldStatus && newStatus) { patchMarkup(oldStatus, newStatus.innerHTML); hydrateAvatars(oldStatus); }

@@ -1,0 +1,22 @@
+[
+  { "id": "honor-of-kings", "name": "王者荣耀" },
+  { "id": "bilibili-creators", "name": "B站UP主" },
+  { "id": "western-music", "name": "欧美音乐" },
+  { "id": "mandarin-music", "name": "国语音乐" },
+  { "id": "spring-festival", "name": "春节" },
+  { "id": "hotpot", "name": "火锅" },
+  { "id": "high-speed-rail", "name": "高铁出行" },
+  { "id": "campus", "name": "校园" },
+  { "id": "forbidden-city", "name": "故宫" },
+  { "id": "panda", "name": "熊猫" },
+  { "id": "ocean", "name": "海洋" },
+  { "id": "weather-forecast", "name": "天气预报" },
+  { "id": "short-video", "name": "短视频" },
+  { "id": "online-shopping", "name": "网购" },
+  { "id": "mobile-phone", "name": "手机" },
+  { "id": "home-renovation", "name": "装修" },
+  { "id": "camping", "name": "露营" },
+  { "id": "coffee", "name": "咖啡" },
+  { "id": "traditional-chinese-medicine", "name": "传统中医" },
+  { "id": "pets", "name": "宠物" }
+]

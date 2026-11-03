@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { buildChart } from './similarity.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
@@ -6,6 +7,7 @@ import { createName } from './names.js';
 import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord } from './rules.js';
 
 const ROOM_IDLE_MS = 5 * 60 * 1000;
+const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
 
 function wordKeys(record) {
   return Object.fromEntries(Object.entries(record?.words || {})
@@ -91,7 +93,7 @@ export class RoomManager {
       type: 'state', uid: connection.uid, user: { uid: user.uid, name: user.name },
       publicUrl: process.env.PUBLIC_URL?.replace(/\/$/, ''),
       room: room ? {
-        code: room.code, mode: room.mode,
+        code: room.code, mode: room.mode, themeId: room.themeId ?? null, themeName: room.themeName ?? null,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
@@ -187,6 +189,11 @@ export class RoomManager {
   }
 
   active(room) { return room.players.filter((p) => p.connected); }
+  selectTheme(room) {
+    const theme = room.mode === 'theme' ? THEMES[Math.floor(this.random() * THEMES.length)] : null;
+    room.themeId = theme?.id ?? null;
+    room.themeName = theme?.name ?? null;
+  }
 
   startWriting(room) {
     room.round += 1;
@@ -351,11 +358,13 @@ export class RoomManager {
     for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'chart', 'outcome',
       'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
     room.history = []; room.round = 0; room.dropped = false;
+    room.themeId = null; room.themeName = null;
     this.sortPlayers(room);
     if (restart) {
       room.matchId = randomUUID();
       room.startedAt = Date.now();
       room.matchPlayers = room.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
+      this.selectTheme(room);
       this.startWriting(room);
     } else this.setPhase(room, 'lobby', null);
     this.touch(room);
@@ -502,6 +511,7 @@ export class RoomManager {
         if (current.hostUid !== connection.uid) throw new Error('只有房主可以修改设置');
         if (current.phase !== 'lobby') throw new Error('开局后不能修改设置');
         Object.assign(current, validateSettings(message));
+        current.themeId = null; current.themeName = null;
         break;
       }
       case 'rename': {
@@ -588,6 +598,7 @@ export class RoomManager {
         current.matchId = randomUUID();
         current.startedAt = Date.now();
         current.matchPlayers = current.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
+        this.selectTheme(current);
         this.startWriting(current);
         break;
       }

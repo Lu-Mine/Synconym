@@ -1955,6 +1955,24 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .stage-copy .prepare-grace-hint { color: #3D5AFE; font-size: 13px; }
 .prepare-grace-hint[hidden] { display: none; }
 
+/* 主题说明与当前主题允许长文本在窄屏换行。 */
+.theme-setting-hint { padding: 8px 0; color: var(--ink-secondary); font-size: 13px; }
+.theme-setting-hint[hidden] { display: none; }
+.current-theme { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 18px; color: var(--ink); text-align: center; }
+.current-theme span { font-size: 13px; font-weight: 600; }
+.current-theme strong { max-width: 100%; overflow-wrap: anywhere; font-size: 17px; }
 .result-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .result-heading-copy { min-width: 0; flex: 1; }
-@media (max-width: 420px) { .result-heading { gap: 12px; } }
+.result-heading #current-theme { flex: 0 1 30%; min-width: 0; padding-right: 16px; }
+.result-heading #current-theme:empty { display: none; }
+.result-heading .current-theme { flex-direction: column-reverse; align-items: flex-end; margin: 0; color: var(--ink); text-align: right; }
+.result-heading .current-theme span { font-size: 14px; }
+.result-heading .current-theme strong { font-size: 20px; }
+@media (max-width: 420px) { .result-heading { gap: 12px; } .result-heading #current-theme { flex-basis: 30%; padding-right: 4px; } }
+.writing-stage:has(.stage-theme .current-theme) { padding-bottom: 52px; }
+.stage-theme { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); pointer-events: none; }
+.writing-stage .stage-theme .current-theme { display: flex; flex-direction: row; justify-content: center; gap: 8px; margin: 0; color: var(--ink); white-space: nowrap; line-height: 1.4; }
+.stage-theme .current-theme span { color: var(--ink-secondary); font-size: 14px; font-weight: 500; }
+.stage-theme .current-theme strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+.writing-page:is([data-screen="writing"], [data-screen="voting"], [data-screen="prepare"]) .writing-stage:has(.stage-theme .current-theme) { background: linear-gradient(to top, #e5ebff 0, #f7f9ff 48px, var(--card) 120px); }
+body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-stage:has(.stage-theme .current-theme) { background: linear-gradient(to top, #ffd7cd 0, #ffede9 48px, #fff1ec 120px); }

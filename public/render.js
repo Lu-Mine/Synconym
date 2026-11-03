@@ -79,6 +79,7 @@ export function settingsMarkup(settings, editable) {
       <span class="setting-label">模式</span>
       ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
     </div>
+    <p class="theme-setting-hint" data-theme-setting-hint ${settings.mode === 'theme' ? '' : 'hidden'}>开始后随机抽取主题。</p>
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
       ${control('maxRounds', 'stepper', `<div class="stepper" role="group" aria-label="轮次上限">
@@ -100,6 +101,10 @@ export function settingsMarkup(settings, editable) {
       ${control('banRepeat', 'switch', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
     </div>
   </section>`;
+}
+
+export function themeMarkup(room) {
+  return room.mode === 'theme' ? `<p class="current-theme"><span>${['result', 'rematch', 'interrupted'].includes(room.phase) ? '本局主题' : '当前主题'}</span><strong>${escapeHtml(room.themeName || '等待抽取')}</strong></p>` : '';
 }
 
 export function settingsSummaryText(settings) {
@@ -366,6 +371,7 @@ export function writingMarkup(state, ui = {}) {
         </div>
         ${phase !== 'result' ? `<div class="writing-clock" role="timer" aria-live="off">${icon('clock')}<span id="countdown">–</span></div>` : ''}
       </div>
+      <div id="current-theme" class="stage-theme">${themeMarkup(room)}</div>
     </section>
     ${phase === 'writing' ? `<div id="previous-words">${previousRound ? `<section class="surface-block"><div class="section-heading"><h2>上一轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}</div>` : ''}
     ${phase === 'writing' ? `<form id="word-form" class="surface-block game-form"><label for="word-input">你的词</label><input id="word-input" class="input" value="${escapeHtml(ui.draft || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字" ${submitted ? 'disabled' : ''}><p class="game-hint">可使用空格；超时将提交输入框中的内容</p><button class="button primary" type="submit" ${submitted ? 'disabled' : ''}><span>${submitted ? '已提交，等待其他玩家' : '提交'}</span>${icon('check')}</button></form><section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list" id="game-status">${statuses}</ul></section>` : ''}
@@ -429,7 +435,7 @@ export function rematchMarkup(state) {
 export function resultMarkup(state) {
   const { room, uid } = state;
   if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)}</p><h1>本局已中断</h1><p>房间只剩一位玩家，本局不会记录。</p></div></section>
+    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)}</p><h1>本局已中断</h1><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <section class="surface-block result-rematch" aria-label="下一步"><div class="rematch-actions">
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
@@ -440,7 +446,7 @@ export function resultMarkup(state) {
   const voting = room.phase === 'rematch';
   const voteRecords = history.map((round) => `<li class="result-vote-round"><h3>第 ${escapeHtml(round.n)} 轮 · ${round.outcome === 'exact' ? '精确相遇（无需投票）' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('');
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)} · 本局回顾</p><h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div></section>
+    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)} · 本局回顾</p><h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
     <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词簇估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>
