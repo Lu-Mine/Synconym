@@ -97,7 +97,7 @@ export class RoomManager {
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
         prepareGraceDeadline: room.prepareGraceDeadline ?? null,
         hostUid: room.hostUid, idleDeadline: room.lastActiveAt + ROOM_IDLE_MS,
-        players: room.players.map(({ uid, name, seat, connected, ready, draft, submittedWord, vote, disconnectedAt }) =>
+        players: room.players.map(({ uid, name, seat, connected, ready, draft, submittedWord, vote, breakVote, disconnectedAt }) =>
           ({ uid, name, seat, connected, ready, connectionState: connected ? 'connected' : 'disconnected',
             disconnectedAt: connected ? null : disconnectedAt ?? null,
             reconnectDeadline: connected ? null : ['result', 'rematch'].includes(room.phase)
@@ -105,7 +105,7 @@ export class RoomManager {
             typing: room.phase === 'writing' && !!draft && submittedWord === undefined,
             submitted: room.phase === 'writing' && submittedWord !== undefined,
             voted: room.phase === 'voting' && vote !== undefined,
-            voted: room.phase === 'voting' && vote !== undefined })),
+            breakVoted: room.phase === 'breakVote' && breakVote !== undefined })),
         words: room.phase === 'writing' || room.phase === 'lobby' ? null : room.currentRecord?.words ?? null,
         marks: room.phase === 'writing' || room.phase === 'lobby' ? null : room.currentRecord?.marks ?? null,
         votes: room.phase === 'voting' ? null : room.currentRecord?.votes ?? null,
@@ -191,7 +191,7 @@ export class RoomManager {
   startWriting(room) {
     room.round += 1;
     room.currentRecord = null;
-    for (const p of room.players) { p.draft = ''; p.submittedWord = undefined; p.vote = undefined; p.ready = false; }
+    for (const p of room.players) { p.draft = ''; p.submittedWord = undefined; p.vote = undefined; p.breakVote = undefined; p.ready = false; }
     this.setPhase(room, 'writing', room.writeSeconds);
   }
 
@@ -221,6 +221,9 @@ export class RoomManager {
       room.outcome = outcome === 'miss' ? 'none' : outcome;
       this.setPhase(room, 'result', null);
       this.settle(room);
+    } else if (room.maxRounds >= 8 && room.round % 5 === 0) {
+      for (const p of room.players) p.breakVote = undefined;
+      this.setPhase(room, 'breakVote', room.prepareSeconds);
     } else {
       for (const p of room.players) p.ready = false;
       const plan = preparePlan(room);
@@ -250,12 +253,29 @@ export class RoomManager {
     this.finishRound(room, passed ? 'voted' : 'miss');
   }
 
+  finishBreakVote(room) {
+    if (room.phase !== 'breakVote') return;
+    const players = room.players;
+    const yes = players.filter((p) => p.breakVote === true).length;
+    if (yes * 2 >= players.length) {
+      room.outcome = 'break';
+      room.dropped = true;
+      this.settle(room);
+    } else this.startWriting(room);
+  }
+
   checkProgress(room) {
-    if (['writing', 'voting', 'prepare'].includes(room.phase) && room.players.length === 1) {
+    if (['writing', 'voting', 'prepare', 'breakVote'].includes(room.phase) && room.players.length === 1) {
       room.history = [];
       room.currentRecord = null;
       room.outcome = 'interrupted';
       this.setPhase(room, 'interrupted', null);
+      return;
+    }
+    if (room.phase === 'breakVote') {
+      const yes = room.players.filter((p) => p.breakVote === true).length;
+      const undecided = room.players.filter((p) => p.breakVote === undefined).length;
+      if (yes * 2 >= room.players.length || (yes + undecided) * 2 < room.players.length) this.finishBreakVote(room);
       return;
     }
     const active = this.active(room);
@@ -326,7 +346,7 @@ export class RoomManager {
     if (!room.players.some((player) => player.uid === room.hostUid)) room.hostUid = room.players[0].uid;
     for (const player of room.players) {
       player.ready = false; player.draft = '';
-      delete player.submittedWord; delete player.vote; delete player.disconnectedAt; delete player.leftReason;
+      delete player.submittedWord; delete player.vote; delete player.breakVote; delete player.disconnectedAt; delete player.leftReason;
     }
     for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'chart', 'outcome',
       'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
@@ -345,6 +365,7 @@ export class RoomManager {
     if (room.phase === 'writing') this.reveal(room);
     else if (room.phase === 'voting') this.finishVote(room);
     else if (room.phase === 'prepare') this.startWriting(room);
+    else if (room.phase === 'breakVote') this.finishBreakVote(room);
     else if (['result', 'rematch'].includes(room.phase)) this.finishRematch(room, true);
   }
   close() { for (const room of this.rooms.values()) { clearTimeout(room.timer); clearTimeout(room.prepareGraceTimer); } }
@@ -512,6 +533,13 @@ export class RoomManager {
         const yes = type === 'vote' ? message.yes : message.agree;
         if (typeof yes !== 'boolean') throw new Error('投票无效');
         player.vote = yes;
+        this.checkProgress(current);
+        break;
+      }
+      case 'breakVote': {
+        if (current.phase !== 'breakVote' || player.breakVote !== undefined) throw new Error('当前不能投票');
+        if (typeof message.yes !== 'boolean') throw new Error('投票无效');
+        player.breakVote = message.yes;
         this.checkProgress(current);
         break;
       }

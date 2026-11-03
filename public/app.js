@@ -164,6 +164,7 @@ function confirmAction(kind) {
 }
 
 function confirmLeave() { return confirmAction('leave'); }
+function confirmBreakVote() { return confirmAction('break'); }
 
 window.addEventListener('popstate', async () => {
   if (!state.room || !roomHistoryGuard) return;
@@ -820,7 +821,7 @@ const socket = new Socket({
     if (phaseChanged) {
       closeConfirm(false);
       clearTimeout(typingTimer);
-      writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'ready', 'setReady'].includes(item.type)));
+      writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady'].includes(item.type)));
       gameUi = { draft: '', submitted: false, voted: false, ready: false };
       finalTypingSent = false;
       if (previous?.phase === 'voting' && nextRoom && nextRoom.phase !== 'voting') {
@@ -1042,6 +1043,19 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (button.dataset.action === 'break-yes' || button.dataset.action === 'break-no') {
+    event.preventDefault();
+    if (state.room?.phase !== 'breakVote' || gameUi.voted) return;
+    const yes = button.dataset.action === 'break-yes';
+    const room = state.room;
+    if (yes && !(await confirmBreakVote())) return;
+    if (state.room?.phase !== 'breakVote' || state.room.code !== room.code || state.room.round !== room.round
+      || state.room.phaseDeadline !== room.phaseDeadline || Date.now() + timeOffset >= room.phaseDeadline || !socket.ready || gameUi.voted) return;
+    gameUi.voted = true;
+    enqueueWrite({ type: 'breakVote', yes });
+    render();
+    return;
+  }
   if (button.dataset.action === 'vote-yes' || button.dataset.action === 'vote-no') {
     event.preventDefault();
     if (state.room?.phase !== 'voting' || gameUi.voted) return;

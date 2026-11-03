@@ -3,7 +3,7 @@ export const PREPARE_GRACE_MS = 10_000;
 export const REMATCH_SECONDS = 30;
 
 export function isTimedPhase(phase) {
-  return ['writing', 'voting', 'prepare', 'result', 'rematch'].includes(phase);
+  return ['writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch'].includes(phase);
 }
 
 export function hasDisconnectedPlayer(room) {

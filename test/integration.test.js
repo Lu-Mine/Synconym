@@ -290,3 +290,45 @@ test('主动退出意图握手不先恢复在线或触发全员重赛', async (t
   assert.equal(leaving.states.some(s => s.room), false);
 });
 
+test('真实 WebSocket 完整五轮进入崩局投票，提前结束且不保存，可重赛', async (t) => {
+  const db = createDatabase(':memory:');
+  const { server, wss, manager } = createSynconymServer({ db });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
+  const port = server.address().port;
+  const host = await openClient(port); await nextState(host, (s) => s.room === null);
+  host.ws.send(JSON.stringify({ type: 'createRoom', maxRounds: 8, banRepeat: false }));
+  const code = (await nextState(host, (s) => s.room)).room.code;
+  const guest = await openClient(port); await nextState(guest, (s) => s.room === null);
+  guest.ws.send(JSON.stringify({ type: 'joinRoom', code }));
+  await nextState(guest, (s) => s.room?.players.length === 2);
+  await sleep(520); guest.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
+  await nextState(host, (s) => s.room?.players.some((p) => p.uid === guest.uid && p.ready));
+  host.ws.send(JSON.stringify({ type: 'start' }));
+  for (let round = 1; round <= 5; round++) {
+    await nextState(host, (s) => s.room?.phase === 'writing' && s.room.round === round);
+    await sleep(520);
+    host.ws.send(JSON.stringify({ type: 'submitWord', word: '苹果' }));
+    guest.ws.send(JSON.stringify({ type: 'submitWord', word: '香蕉' }));
+    await nextState(host, (s) => s.room?.phase === 'voting' && s.room.round === round);
+    await sleep(520); host.ws.send(JSON.stringify({ type: 'vote', yes: false }));
+    if (round < 5) {
+      await nextState(host, (s) => s.room?.phase === 'prepare' && s.room.round === round);
+      await sleep(520);
+      host.ws.send(JSON.stringify({ type: 'ready' }));
+      guest.ws.send(JSON.stringify({ type: 'ready' }));
+    }
+  }
+  const phase = await nextState(guest, (s) => s.room?.phase === 'breakVote');
+  assert.equal(phase.room.round, 5); assert.equal(phase.room.history.length, 5);
+  const id = manager.rooms.get(code).matchId;
+  await sleep(520); host.ws.send(JSON.stringify({ type: 'breakVote', yes: true }));
+  const result = await nextState(guest, (s) => s.room?.phase === 'result');
+  assert.equal(result.room.outcome, 'break'); assert.equal(result.room.history.length, 5);
+  assert.equal(db.getMatch(id), undefined);
+  await sleep(520);
+  host.ws.send(JSON.stringify({ type: 'rematch', choice: 'rematch' }));
+  guest.ws.send(JSON.stringify({ type: 'rematch', choice: 'rematch' }));
+  await nextState(guest, (s) => s.serverNow > result.serverNow && s.room?.phase === 'writing' && s.room.round === 1 && s.room.history.length === 0);
+  assert.deepEqual(host.errors, []); assert.deepEqual(guest.errors, []);
+});

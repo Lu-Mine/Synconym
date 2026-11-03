@@ -1825,6 +1825,14 @@ p {
 /* 对局主循环沿用大厅卡片、按钮和颜色令牌 */
 body[data-scene="voting"] { --bg-a: #FFD0BF; --bg-b: #E0CFFF; --bg-c: #FFE7B3; }
 body[data-scene="prepare"] { --bg-a: #BCEBD6; --bg-b: #C6E0FF; --bg-c: #DAF0BF; }
+/* 崩局阶段使用暖红警示底色，与普通准备/投票明显区分。 */
+body[data-scene="breakVote"] { --bg-a: #FFAB9E; --bg-b: #FFC4A9; --bg-c: #F2A8AF; }
+body[data-scene="breakVote"] .writing-stage { background: #FFF1EC; border-color: #D89788; }
+body[data-scene="breakVote"] .writing-stage h1,
+body[data-scene="breakVote"] .stage-step.is-current { color: #852D20; }
+body[data-scene="breakVote"] .writing-stage p:not(.current-theme) { color: #713B30; }
+body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled) { background: #B83225; }
+body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled) { background: #94261C; }
 body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .writing-stage { margin-bottom: 16px; }
 .game-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
