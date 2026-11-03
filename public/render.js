@@ -116,12 +116,16 @@ export function settingsSummaryText(settings) {
 export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
   const name = user?.name || '';
   const uid = user?.uid || '';
-  return `<header class="site-header" id="site-header">
+  const identity = `${avatarMarkup(name, 'header-avatar')}<span class="header-user-name" id="header-user-name">${escapeHtml(name)}</span>`;
+  // 只在首页让名字与头像整块可点进档案；房间里保持纯展示，避免误触打断对局
+  const identityBlock = !inRoom
+    ? `<button class="header-profile-trigger" type="button" data-action="open-profile" aria-label="查看我的档案" title="查看我的档案">${identity}</button>`
+    : identity;
+  return `<header class="site-header" id="site-header" data-in-room="${inRoom}">
     ${brandMarkup()}
     <div class="header-actions">
       <div class="header-user ${user ? 'is-visible' : ''}" id="header-user">
-        ${avatarMarkup(name, 'header-avatar')}
-        <span class="header-user-name" id="header-user-name">${escapeHtml(name)}</span>
+        ${identityBlock}
         <button class="icon-button header-rename-trigger" type="button" data-action="rename" aria-label="修改名字" title="修改名字">${icon('pen-line')}<span class="header-rename-label">改名</span></button>
       </div>
     </div>
@@ -217,6 +221,67 @@ export function homeMarkup(settings, settingsOpen = false) {
         <input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" pattern="[0-9]{5}" placeholder="输入 5 位房号" maxlength="5" autocomplete="off" spellcheck="false" required>
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
+    </div>
+  </div>`;
+}
+
+function profileDate(timestamp) {
+  const date = new Date(timestamp);
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function profileMatchMarkup(match) {
+  const outcome = match.outcome === 'none'
+    ? `打满 ${match.totalRounds} 轮未相遇`
+    : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
+  const details = [`房号 ${match.roomCode}`, match.themeName ? `主题 · ${match.themeName}` : '自由模式',
+    match.players.join('、')];
+  return `<li class="profile-match">
+        <span class="profile-match-outcome" data-outcome="${escapeHtml(match.outcome)}">${escapeHtml(outcome)}</span>
+        <span class="profile-match-date">${escapeHtml(profileDate(match.startedAt))}</span>
+        <span class="profile-match-meta">${escapeHtml(details.join(' · '))}</span>
+      </li>`;
+}
+
+// 档案：只展示自己的身份与对局，每页 10 局，可翻完全部记录。
+export function profileMarkup(state) {
+  const profile = state.profile;
+  if (!profile) {
+    return `<div class="page profile-page" data-screen="profile"><p class="profile-empty">正在读取档案…</p></div>`;
+  }
+  const { user } = profile;
+  const matches = profile.matches || [];
+  const page = profile.page || 1;
+  const pages = Math.max(1, Math.ceil((profile.total || 0) / (profile.pageSize || 10)));
+  const former = (profile.nameHistory || []).map((item) => item.name).filter((name) => name !== user.name);
+  const pager = pages > 1
+    ? `<div class="profile-pager">
+        <button class="button secondary" type="button" data-action="profile-prev" ${page <= 1 ? 'disabled' : ''}><span>上一页</span></button>
+        <span class="profile-page-count">第 ${page} / ${pages} 页</span>
+        <button class="button secondary" type="button" data-action="profile-next" ${page >= pages ? 'disabled' : ''}><span>下一页</span></button>
+      </div>`
+    : '';
+  return `<div class="page profile-page" data-screen="profile">
+    <section class="surface-block profile-identity">
+      ${avatarMarkup(user.name, 'profile-avatar')}
+      <div class="profile-identity-text">
+        <h1 class="profile-name">${escapeHtml(user.name)}</h1>
+        <p class="profile-uid">UID：${escapeHtml(user.uid)}<button class="icon-button profile-uid-copy" type="button" data-action="copy-uid" aria-label="复制 UID" title="复制 UID">${icon('copy')}</button></p>
+        <p class="profile-meta">${icon('clock')}<span>加入于 ${escapeHtml(profileDate(user.createdAt))}${former.length ? ` · 曾用名 ${escapeHtml(former.join('、'))}` : ''}</span></p>
+      </div>
+    </section>
+    <section class="surface-block profile-history">
+      <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span></div>
+      ${matches.length
+        ? `<ol class="profile-matches">${matches.map(profileMatchMarkup).join('')}</ol>`
+        : '<p class="profile-empty">还没有完成的对局。开一局，回来就能看到。</p>'}
+      ${pager}
+    </section>
+    <p class="profile-privacy">本设备保存随机 UID；服务器保存名字和完成过的对局记录。</p>
+    <div class="profile-actions">
+      <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
+      <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
     </div>
   </div>`;
 }

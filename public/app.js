@@ -7,6 +7,7 @@ import {
   icon,
   lobbyMarkup,
   playerItemMarkup,
+  profileMarkup,
   rematchMarkup,
   resultMarkup,
   settingValueMarkup,
@@ -79,7 +80,7 @@ function hydrateAvatars(root = app) {
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
 
-let state = { room: null };
+let state = { room: null, profile: null };
 let settings = {
   mode: 'free',
   maxRounds: 12,
@@ -89,6 +90,7 @@ let settings = {
 };
 let homeSettingsOpen = false;
 let renameOpen = false;
+let profileOpen = new URLSearchParams(location.search).has('me');
 let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
@@ -140,19 +142,24 @@ function closeConfirm(accepted = false) {
 
 function confirmAction(kind) {
   if (pendingConfirm) return Promise.resolve(false);
-  if (!state.room) return Promise.resolve(false);
+  const resetting = kind === 'reset';
+  if (!state.room && !resetting) return Promise.resolve(false);
   const modal = app.querySelector('#confirm-modal');
   if (!modal) return Promise.resolve(false);
-  const result = ['result', 'rematch'].includes(state.room.phase);
-  const lobby = state.room.phase === 'lobby';
+  const result = state.room ? ['result', 'rematch'].includes(state.room.phase) : false;
+  const lobby = state.room?.phase === 'lobby';
   const breaking = kind === 'break';
-  modal.querySelector('#confirm-title').textContent = breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
-  modal.querySelector('#confirm-description').textContent = breaking
-    ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
-    : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
-    : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
-    : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
-  modal.querySelector('[data-action="accept-confirm"] span').textContent = breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
+  modal.querySelector('#confirm-title').textContent = resetting ? '换一个新身份？'
+    : breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
+  modal.querySelector('#confirm-description').textContent = resetting
+    ? '会生成新的 UID 和随机名字。当前的改名记录与对局记录不会跟着新身份，也不会删除已有数据。'
+    : breaking
+      ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
+      : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
+      : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
+      : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
+  modal.querySelector('[data-action="accept-confirm"] span').textContent = resetting ? '换新身份'
+    : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
   const trigger = document.activeElement;
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
@@ -168,7 +175,14 @@ function confirmLeave() { return confirmAction('leave'); }
 function confirmBreakVote() { return confirmAction('break'); }
 
 window.addEventListener('popstate', async () => {
-  if (!state.room || !roomHistoryGuard) return;
+  if (!state.room) {
+    profileOpen = new URLSearchParams(location.search).has('me');
+    state.profile = null;
+    if (profileOpen && socket.ready) requestProfile(1);
+    render();
+    return;
+  }
+  if (!roomHistoryGuard) return;
   // 先恢复当前历史保护项，再异步确认；取消不导航，确认通过服务端退出。
   history.pushState({ roomGuard: true }, '', location.href);
   if (await confirmLeave()) enqueueWrite({ type: 'leave' });
@@ -519,6 +533,19 @@ function closePath() {
   pathTrigger = null;
 }
 
+function requestProfile(page = 1) {
+  socket.send({ type: 'openProfile', page }, true);
+}
+
+function openProfile() {
+  if (state.room) return;
+  profileOpen = true;
+  state.profile = null;
+  history.pushState({ profile: true }, '', '/?me');
+  requestProfile(1);
+  render();
+}
+
 function requestTransfer(player) {
   if (!player || !state.room || state.room.hostUid !== state.uid) return;
   pendingTransfer = { uid: player.uid, name: player.name };
@@ -638,12 +665,13 @@ function patchLobbyDOM(nextState) {
 }
 
 function screenKeyFor(nextState) {
-  if (!nextState.room) return 'home';
+  if (!nextState.room) return profileOpen ? 'profile' : 'home';
   return nextState.room.phase || 'writing';
 }
 
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
+  if (screen === 'profile') return profileMarkup(state);
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
   return writingMarkup(state, gameUi);
@@ -651,7 +679,8 @@ function buildScreenMarkup(screen) {
 
 function ensureShell(inRoom) {
   let stage = app.querySelector('#stage');
-  if (!stage) {
+  // 顶栏的可点区域只在首页出现：进出房间时整块外壳跟着重建一次
+  if (!stage || app.querySelector('#site-header')?.dataset.inRoom !== String(inRoom)) {
     app.innerHTML = shellMarkup(inRoom, state.user, renameOpen);
     stage = app.querySelector('#stage');
   }
@@ -672,6 +701,11 @@ function patchSameScene(stage, nextScreen) {
       resultPage.dataset.screen = nextScreen;
       return true;
     }
+  }
+  if (nextScreen === 'profile' && stage.querySelector('.profile-page')) {
+    patchMarkup(stage, profileMarkup(state));
+    hydrateAvatars(stage);
+    return true;
   }
   if (nextScreen === 'home' && stage.querySelector('.home-page') && patchSettingsDOM(settings, true)) {
     syncHomeDrawerDOM();
@@ -822,6 +856,14 @@ const socket = new Socket({
     const code = socket.roomCode;
     if (code && !message.restored) enqueueWrite({ type: 'joinRoom', code });
   },
+  onProfile(profile) {
+    state.profile = profile;
+    render();
+  },
+  onIdentity() {
+    state.profile = null;
+    if (profileOpen) requestProfile(1);
+  },
   onState(next) {
     const previous = state.room;
     const nextRoom = next.room;
@@ -838,7 +880,9 @@ const socket = new Socket({
         else if (outcome === 'miss' || nextRoom.phase === 'prepare') toast('未通过');
       }
     }
-    state = next;
+    const profile = state.profile;
+    state = { ...next, profile };
+    if (nextRoom) { profileOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -859,9 +903,11 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (location.search) history.replaceState(null, '', '/');
+      if (!profileOpen && location.search) history.replaceState(null, '', '/');
     }
     render();
+    // 名字或身份变了：档案页跟着刷新一次
+    if (profileOpen) requestProfile(state.profile?.page || 1);
   },
   onError(message) {
     pendingLobbySettings = null;
@@ -946,6 +992,8 @@ app.addEventListener('click', async (event) => {
     } else {
       socket.roomCode = '';
       previousRoomCode = '';
+      profileOpen = false;
+      state.profile = null;
       if (location.search) history.replaceState(null, '', '/');
       render();
     }
@@ -996,6 +1044,30 @@ app.addEventListener('click', async (event) => {
   if (button.dataset.action === 'close-path') {
     event.preventDefault();
     closePath();
+    return;
+  }
+
+  if (button.dataset.action === 'open-profile') {
+    event.preventDefault();
+    openProfile();
+    return;
+  }
+  if (button.dataset.action === 'profile-prev' || button.dataset.action === 'profile-next') {
+    event.preventDefault();
+    const step = button.dataset.action === 'profile-next' ? 1 : -1;
+    requestProfile((state.profile?.page || 1) + step);
+    return;
+  }
+  if (button.dataset.action === 'reset-identity') {
+    event.preventDefault();
+    if (await confirmAction('reset')) enqueueWrite({ type: 'resetIdentity' });
+    return;
+  }
+  if (button.dataset.action === 'copy-uid') {
+    event.preventDefault();
+    if (!state.profile?.user) return;
+    try { await navigator.clipboard.writeText(state.profile.user.uid); toast('UID 已复制'); }
+    catch { toast('请手动复制 UID'); }
     return;
   }
 
@@ -1107,7 +1179,7 @@ app.addEventListener('click', async (event) => {
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;
-    const url = `${state.publicUrl || location.origin}/?r=${state.room.code}&inviter=${state.uid}`;
+    const url = `${state.publicUrl || location.origin}/?r=${state.room.code}`;
     button.classList.add('copied');
     setTimeout(() => button.classList.remove('copied'), 600);
     try {

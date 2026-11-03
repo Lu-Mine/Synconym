@@ -1,6 +1,6 @@
 export class Socket {
-  constructor({ onHello, onState, onError, onToast, onConnection }) {
-    this.handlers = { onHello, onState, onError, onToast, onConnection };
+  constructor({ onHello, onState, onProfile, onIdentity, onError, onToast, onConnection }) {
+    this.handlers = { onHello, onState, onProfile, onIdentity, onError, onToast, onConnection };
     this.uid = localStorage.getItem('sy_uid') || '';
     this.roomCode = new URLSearchParams(location.search).get('r') || '';
     this.pendingLeave = sessionStorage.getItem('sy_pending_leave') || '';
@@ -40,6 +40,14 @@ export class Socket {
         this.hadState = true;
         this.handlers.onState?.(message);
         for (const item of this.queue.splice(0)) this.send(item);
+      } else if (message.type === 'profile') {
+        this.handlers.onProfile?.(message.profile);
+      } else if (message.type === 'identity') {
+        // 我是新人：换掉本地身份，后续重连与请求都用新 uid。
+        this.uid = message.uid;
+        localStorage.setItem('sy_uid', this.uid);
+        document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
+        this.handlers.onIdentity?.(message);
       } else if (message.type === 'error') {
         this.handlers.onError?.(message.message);
       } else if (message.type === 'toast') {

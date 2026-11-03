@@ -59,7 +59,7 @@ test('大厅动态更新及确认和提交保留图标顺序', () => {
   for (const [label, glyph] of [['准备', 'check'], ['取消准备', 'x']]) {
     assert.ok(source.includes(`<span>${label}</span>\${icon('${glyph}')}`), label);
   }
-  assert.match(source, /querySelector\('\[data-action="accept-confirm"\] span'\)\.textContent = breaking/);
+  assert.match(source, /querySelector\('\[data-action="accept-confirm"\] span'\)\.textContent = resetting/);
   assert.match(source, /button\.querySelector\('span'\)\.textContent = submitted/);
   assert.doesNotMatch(source, /button\.textContent = submitted|querySelector\('\[data-action="accept-confirm"\]'\)\.textContent/);
 });

@@ -1,4 +1,4 @@
-import { avatarDetails, homeMarkup, lobbyMarkup, resultMarkup, shellMarkup, writingMarkup } from '/render.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, profileMarkup, resultMarkup, shellMarkup, writingMarkup } from '/render.js';
 
 const settings = { mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true };
 const players = [
@@ -20,7 +20,8 @@ const scenes = [
   ['breakVote', '崩局投票'], ['breakVote-voted', '崩局投票 · 已投票'],
   ['result-exact', '结算 · 精确相遇'], ['result-voted', '结算 · 投票相遇'],
   ['result-none', '结算 · 未相遇'], ['result-break', '结算 · 崩局'],
-  ['rematch', '结算 · 重赛选择'], ['interrupted', '对局中断']
+  ['rematch', '结算 · 重赛选择'], ['interrupted', '对局中断'],
+  ['profile', '档案'], ['profile-empty', '档案 · 还没有对局']
 ];
 const select = document.querySelector('#mock-scene');
 const app = document.querySelector('#app');
@@ -61,15 +62,32 @@ function hydrateAvatars() {
   }
 }
 
+function profileFor(scene) {
+  const total = scene === 'profile-empty' ? 0 : 12;
+  return {
+    user: { uid: 'A7K2M9QX', name: players[0].name, createdAt: Date.now() - 12 * 86400000 },
+    nameHistory: [{ name: players[0].name, changedAt: Date.now() }, { name: '沉默的柚子', changedAt: Date.now() - 7200000 }],
+    matches: Array.from({ length: Math.min(10, total) }, (_, index) => ({
+      id: `mock-${index}`, roomCode: `1234${index % 10}`, outcome: ['exact', 'voted', 'none'][index % 3],
+      totalRounds: 12, convergedRound: 2 + index, themeName: index % 2 ? '火锅' : null,
+      startedAt: Date.now() - index * 3600000, players: players.slice(0, 3).map((player) => player.name)
+    })),
+    page: 1, pageSize: 10, total
+  };
+}
+
 function render(scene) {
-  const room = roomFor(scene);
+  const profileScene = scene.startsWith('profile');
+  const room = profileScene ? null : roomFor(scene);
   const isHome = scene.startsWith('home');
-  const state = { uid: 'a', user: { uid: 'a', name: players[0].name }, room };
-  document.body.dataset.scene = isHome ? 'home' : ['result', 'rematch', 'interrupted'].includes(room.phase) ? 'result' : room.phase;
-  app.innerHTML = shellMarkup(!isHome, state.user);
+  const state = { uid: 'a', user: { uid: 'a', name: players[0].name }, room,
+    profile: profileScene ? profileFor(scene) : null };
+  document.body.dataset.scene = isHome || profileScene ? 'home' : ['result', 'rematch', 'interrupted'].includes(room.phase) ? 'result' : room.phase;
+  app.innerHTML = shellMarkup(!isHome && !profileScene, state.user);
   const stage = app.querySelector('#stage');
-  stage.innerHTML = isHome ? homeMarkup(settings, scene === 'home-settings') : room.phase === 'lobby' ? lobbyMarkup(state)
-    : ['result', 'rematch', 'interrupted'].includes(room.phase) ? resultMarkup(state) : writingMarkup(state);
+  stage.innerHTML = profileScene ? profileMarkup(state)
+    : isHome ? homeMarkup(settings, scene === 'home-settings') : room.phase === 'lobby' ? lobbyMarkup(state)
+      : ['result', 'rematch', 'interrupted'].includes(room.phase) ? resultMarkup(state) : writingMarkup(state);
   const countdown = app.querySelector('#countdown');
   if (countdown) countdown.textContent = '23 秒';
   const idle = app.querySelector('#idle-countdown');

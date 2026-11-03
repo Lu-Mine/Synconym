@@ -8,6 +8,8 @@ import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validate
 
 const ROOM_IDLE_MS = 5 * 60 * 1000;
 const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
+const PROFILE_PAGE_SIZE = 10;
+const PROFILE_NAME_HISTORY = 20;
 
 function wordKeys(record) {
   return Object.fromEntries(Object.entries(record?.words || {})
@@ -119,6 +121,29 @@ export class RoomManager {
       } : null,
       serverNow: Date.now()
     }));
+  }
+
+  // 档案：身份、改名历史与分页后的对局记录，只发给发起请求的人。
+  profileFor(uid, page = 1) {
+    const user = this.db.getProfile(uid);
+    if (!user) throw new Error('身份不存在');
+    const total = this.db.countMatchesFor(uid);
+    const pages = Math.max(1, Math.ceil(total / PROFILE_PAGE_SIZE));
+    const current = Math.min(Math.max(Math.floor(Number(page)) || 1, 1), pages);
+    const matches = this.db.listMatchesFor(uid, { limit: PROFILE_PAGE_SIZE, offset: (current - 1) * PROFILE_PAGE_SIZE })
+      .map((match) => ({
+        id: match.id, roomCode: match.roomCode, outcome: match.outcome,
+        totalRounds: match.totalRounds, convergedRound: match.convergedRound,
+        themeName: match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null,
+        startedAt: match.startedAt, players: match.players.map((player) => player.name)
+      }));
+    return { user, nameHistory: this.db.getNameHistory(uid, PROFILE_NAME_HISTORY),
+      matches, page: current, pageSize: PROFILE_PAGE_SIZE, total };
+  }
+
+  sendProfile(connection, page) {
+    if (connection.ws?.readyState !== 1) return;
+    connection.ws.send(JSON.stringify({ type: 'profile', profile: this.profileFor(connection.uid, page), serverNow: Date.now() }));
   }
 
   touch(room) {
@@ -438,6 +463,8 @@ export class RoomManager {
   handle(connection, message) {
     if (!message || typeof message !== 'object') throw new Error('消息格式无效');
     const { type } = message;
+    // 档案只读，不占用写操作限流：改名后立刻刷新档案不该被 500ms 冷却拦下。
+    if (type === 'openProfile') { this.sendProfile(connection, message.page); return; }
     const typing = type === 'typing' || type === 'draft';
     const now = Date.now();
     if (typing ? now - connection.lastTyping < 300 : now - connection.lastWrite < 500) {
@@ -461,6 +488,18 @@ export class RoomManager {
     if (type === 'rename' && !room) {
       const name = validateName(message.name);
       this.db.rename(connection.uid, name);
+      this.sendState(connection, null);
+      return;
+    }
+    // 我是新人：旧 uid 与它的对局记录留在库里，新身份从零开始。
+    if (type === 'resetIdentity') {
+      const previous = connection.uid;
+      this.detach(connection, true);
+      if (this.clients.get(previous) === connection) this.clients.delete(previous);
+      connection.uid = this.makeUid();
+      const player = this.db.createPlayer(connection.uid, createName());
+      this.clients.set(connection.uid, connection);
+      connection.ws?.send(JSON.stringify({ type: 'identity', uid: connection.uid, name: player.name, serverNow: Date.now() }));
       this.sendState(connection, null);
       return;
     }
@@ -669,15 +708,34 @@ export class RoomManager {
 
 export function createMemoryDb() {
   const players = new Map();
+  const nameHistory = new Map();
   const matches = new Map();
   return {
     getPlayer: (uid) => players.get(uid),
-    createPlayer(uid, name) { const player = { uid, name }; players.set(uid, player); return player; },
+    getProfile: (uid) => players.get(uid),
+    createPlayer(uid, name) {
+      const player = { uid, name, createdAt: Date.now() };
+      players.set(uid, player);
+      nameHistory.set(uid, [{ name, changedAt: player.createdAt }]);
+      return player;
+    },
     touch() {},
-    rename(uid, name) { players.get(uid).name = name; },
+    rename(uid, name) {
+      players.get(uid).name = name;
+      if (!nameHistory.has(uid)) nameHistory.set(uid, []);
+      nameHistory.get(uid).unshift({ name, changedAt: Date.now() });
+    },
+    getNameHistory: (uid, limit = 20) => (nameHistory.get(uid) || []).slice(0, limit),
     saveMatch(match) { if (!matches.has(match.id)) matches.set(match.id, structuredClone(match)); },
     getMatch: (id) => structuredClone(matches.get(id)),
     listMatches: () => structuredClone([...matches.values()]),
+    countMatchesFor: (uid) => [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid)).length,
+    listMatchesFor(uid, { limit = 10, offset = 0 } = {}) {
+      return [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid))
+        .sort((a, b) => b.startedAt - a.startedAt)
+        .slice(offset, offset + limit)
+        .map(({ rounds, ...match }) => structuredClone(match));
+    },
     close() {}
   };
 }
