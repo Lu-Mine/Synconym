@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>状态预览 · 近意词</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .mock-toolbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; background: #172033; color: #fff; font-size: 14px; }
+    .mock-toolbar label { font-weight: 600; }
+    .mock-toolbar select { max-width: 100%; padding: 7px 10px; border: 1px solid #aebbd1; border-radius: 6px; background: #fff; color: #172033; font: inherit; }
+    .mock-toolbar a { color: #fff; }
+    .mock-hint { color: #e1e8f5; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <nav class="mock-toolbar" aria-label="开发状态预览">
+    <label for="mock-scene">状态预览</label>
+    <select id="mock-scene"></select>
+    <span class="mock-hint">静态示例，不连接服务器，不会改变真实对局</span>
+    <a href="/">返回游戏</a>
+  </nav>
+  <main id="app" class="app"></main>
+  <script type="module" src="/__mock/mock.js"></script>
+</body>
+</html>

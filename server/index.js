@@ -10,11 +10,22 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
 
-export function createSynconymServer({ db = createDatabase() } = {}) {
+export function createSynconymServer({ db = createDatabase(), mock = false } = {}) {
   const manager = new RoomManager({ db });
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
+        if (!mock) { response.writeHead(404); response.end('Not found'); return; }
+        const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js' };
+        const file = mockFiles[pathname];
+        if (!file) { response.writeHead(404); response.end('Not found'); return; }
+        const mockRoot = resolve(root, '../dev');
+        const content = await readFile(resolve(mockRoot, file));
+        response.writeHead(200, { 'Content-Type': mime[extname(file)], 'Cache-Control': 'no-cache' });
+        response.end(content);
+        return;
+      }
       const filename = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
       if (!filename.startsWith(`${root}${sep}`) || !(await stat(filename)).isFile()) {
         response.writeHead(404); response.end('Not found'); return;
@@ -84,7 +95,7 @@ export function createSynconymServer({ db = createDatabase() } = {}) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const port = Number(process.env.PORT || 3000);
-  const { server } = createSynconymServer();
+  const { server } = createSynconymServer({ mock: process.argv.includes('--mock') });
   server.listen(port, () => console.log(`Synconym listening on http://localhost:${port}`));
   const shutdown = () => server.close(() => process.exit(0));
   process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

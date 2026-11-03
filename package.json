@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node --watch server/index.js",
+    "dev": "node --watch server/index.js --mock",
     "start": "node server/index.js",
     "build:icons": "node scripts/build-icons.js",
     "test": "node --test"
