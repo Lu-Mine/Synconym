@@ -54,14 +54,20 @@ export function createSynconymServer({ db = createDatabase(), mock = false } = {
           connection = manager.connect(message.uid);
           connection.ws = ws;
           const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : connection.roomCode;
-          const room = manager.rooms.get(roomCode);
-          const player = room?.players.find((item) => item.uid === connection.uid);
-          const restored = Boolean(player && (player.connected || player.disconnectedAt == null || Date.now() - player.disconnectedAt < 90000));
-          ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored, serverNow: Date.now() }));
-          if (restored) manager.restore(connection, roomCode);
-          else {
-            if (player) manager.cleanup();
-            connection.roomCode = null;
+          if (message.leaveRoom === true) {
+            if (connection.roomCode && connection.roomCode !== roomCode) manager.detach(connection, true);
+            if (manager.rooms.get(roomCode)?.players.some((player) => player.uid === connection.uid)) connection.roomCode = roomCode;
+            manager.detach(connection, true);
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
+            manager.sendState(connection, null);
+            return;
+          }
+          const restored = manager.restore(connection, roomCode, () => {
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: true, serverNow: Date.now() }));
+          });
+          if (!restored) {
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
+            manager.detach(connection, true);
             manager.sendState(connection, null);
           }
         } else if (connection) {

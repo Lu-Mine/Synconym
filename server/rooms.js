@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { buildChart } from './similarity.js';
+import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
+import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
 import { createName } from './names.js';
 import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord } from './rules.js';
 
@@ -47,8 +51,12 @@ export class RoomManager {
       player = this.db.createPlayer(uid, createName());
     }
     const old = this.clients.get(uid);
-    if (old?.ws) old.ws.close(4001, '身份已在其他页面连接');
-    const connection = { ws: null, uid, roomCode: old?.roomCode ?? null, lastWrite: 0, lastTyping: 0 };
+    if (old?.ws && old.ws.readyState !== 2 && old.ws.readyState !== 3) {
+      throw new Error('该 UID 已在其他页面连接');
+    }
+    const connection = { ws: null, uid,
+      roomCode: old?.roomCode ?? [...this.rooms.values()].find((room) => room.players.some((p) => p.uid === uid))?.code ?? null,
+      lastWrite: 0, lastTyping: 0 };
     this.clients.set(uid, connection);
     this.db.touch(uid, now);
     return connection;
@@ -83,20 +91,29 @@ export class RoomManager {
       type: 'state', uid: connection.uid, user: { uid: user.uid, name: user.name },
       publicUrl: process.env.PUBLIC_URL?.replace(/\/$/, ''),
       room: room ? {
-        code: room.code, mode: room.mode, themeId: room.themeId,
+        code: room.code, mode: room.mode,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
+        prepareGraceDeadline: room.prepareGraceDeadline ?? null,
         hostUid: room.hostUid, idleDeadline: room.lastActiveAt + ROOM_IDLE_MS,
-        players: room.players.map(({ uid, name, seat, connected, ready, draft, submittedWord, vote }) =>
-          ({ uid, name, seat, connected, ready, typing: room.phase === 'writing' && !!draft && submittedWord === undefined,
+        players: room.players.map(({ uid, name, seat, connected, ready, draft, submittedWord, vote, disconnectedAt }) =>
+          ({ uid, name, seat, connected, ready, connectionState: connected ? 'connected' : 'disconnected',
+            disconnectedAt: connected ? null : disconnectedAt ?? null,
+            reconnectDeadline: connected ? null : ['result', 'rematch'].includes(room.phase)
+              ? room.rematchDeadline : disconnectedAt == null ? null : disconnectedAt + 90000,
+            typing: room.phase === 'writing' && !!draft && submittedWord === undefined,
             submitted: room.phase === 'writing' && submittedWord !== undefined,
+            voted: room.phase === 'voting' && vote !== undefined,
             voted: room.phase === 'voting' && vote !== undefined })),
         words: room.phase === 'writing' || room.phase === 'lobby' ? null : room.currentRecord?.words ?? null,
         marks: room.phase === 'writing' || room.phase === 'lobby' ? null : room.currentRecord?.marks ?? null,
         votes: room.phase === 'voting' ? null : room.currentRecord?.votes ?? null,
         wordKeys: room.phase === 'writing' || room.phase === 'lobby' ? null : wordKeys(room.currentRecord),
-        outcome: room.outcome ?? null, history: room.history.map((record) => ({ ...record, wordKeys: wordKeys(record) }))
+        outcome: room.outcome ?? null, history: room.history.map((record) => ({ ...record, wordKeys: wordKeys(record) })),
+        resultPlayers: room.resultPlayers ?? null, chart: room.chart ?? null,
+        rematchEligibleUids: room.rematchEligibleUids ?? [], rematchVotes: room.rematchVotes ?? {},
+        rematchDeadline: room.rematchDeadline ?? null
       } : null,
       serverNow: Date.now()
     }));
@@ -109,7 +126,9 @@ export class RoomManager {
 
   toast(room, event, player, excludeUid) {
     const message = event === 'join' ? `${player.name} 加入了房间` :
-      event === 'leave' ? `${player.name} 已退出房间` : `${player.name} 回来了`;
+      event === 'leave' ? `${player.name} 已主动退出房间` :
+      event === 'disconnect' ? `${player.name} 连接已断开，席位暂时保留，等待重连` :
+      event === 'expired' ? `${player.name} 重连已超时，席位已移除` : `${player.name} 已重新连接，回来了`;
     for (const connection of this.clients.values()) {
       if (connection.roomCode === room.code && connection.uid !== excludeUid && connection.ws?.readyState === 1) {
         connection.ws.send(JSON.stringify({ type: 'toast', event, uid: player.uid, name: player.name, message }));
@@ -117,43 +136,58 @@ export class RoomManager {
     }
   }
 
-  restore(connection, code) {
-    const room = this.rooms.get(code);
+  canRestore(connection, code) {
+    let room = this.rooms.get(code);
+    if (room && ['result', 'rematch'].includes(room.phase) && Date.now() >= room.rematchDeadline) this.finishRematch(room, true);
+    room = this.rooms.get(code);
     const player = room?.players.find((item) => item.uid === connection.uid);
     if (!player) return false;
+    if (['result', 'rematch'].includes(room.phase)) return room.rematchEligibleUids.includes(connection.uid);
     if (!player.connected && player.disconnectedAt != null && Date.now() - player.disconnectedAt >= 90000) {
       this.cleanup();
       return false;
     }
+    return true;
+  }
+
+  restore(connection, code, onRestore = () => {}) {
+    if (connection.roomCode && connection.roomCode !== code) this.detach(connection, true);
+    if (!this.canRestore(connection, code)) return false;
+    const room = this.rooms.get(code);
+    const player = this.playerFor(room, connection.uid);
     const returning = !player.connected;
-    const reason = player.leftReason;
+    onRestore();
     connection.roomCode = code;
     player.connected = true;
     delete player.disconnectedAt;
     delete player.leftReason;
     if (!room.players.some((p) => p.uid === room.hostUid && p.connected)) room.hostUid = player.uid;
     this.sortPlayers(room);
-    if (returning && reason === 'disconnect' && room.phase !== 'lobby') this.toast(room, 'return', player, player.uid);
+    if (returning) this.toast(room, 'return', player, player.uid);
     this.touch(room);
+    this.checkRematch(room);
     return true;
   }
 
-  setPhase(room, phase, seconds) {
+  setPhase(room, phase, seconds, now = Date.now()) {
     clearTimeout(room.timer);
+    clearTimeout(room.prepareGraceTimer);
+    room.prepareGraceDeadline = null;
     room.phase = phase;
-    room.phaseDeadline = seconds == null ? null : Date.now() + seconds * 1000;
+    room.phaseDeadline = seconds == null ? null : now + seconds * 1000;
     if (seconds != null) {
       const deadline = room.phaseDeadline;
       room.timer = setTimeout(() => {
         if (this.rooms.get(room.code) !== room || room.phaseDeadline !== deadline) return;
         this.advanceDeadline(room);
         this.broadcast(room);
-      }, seconds * 1000);
+      }, Math.max(0, deadline - Date.now()));
       room.timer.unref?.();
     }
   }
 
   active(room) { return room.players.filter((p) => p.connected); }
+
   startWriting(room) {
     room.round += 1;
     room.currentRecord = null;
@@ -164,7 +198,8 @@ export class RoomManager {
   reveal(room) {
     const words = {}, marks = {};
     const previous = room.history.flatMap((r) => Object.entries(r.words).filter(([uid]) => r.marks[uid] === 'none').map(([, word]) => word));
-    for (const p of room.players) {
+    for (const participant of [...room.matchPlayers, ...room.players.filter((p) => !room.matchPlayers.some((item) => item.uid === p.uid))]) {
+      const p = room.players.find((player) => player.uid === participant.uid) ?? { uid: participant.uid, connected: false };
       const word = p.connected ? (p.submittedWord ?? p.draft ?? '') : '';
       if (!word.trim()) { words[p.uid] = '[未提交]'; marks[p.uid] = 'empty'; continue; }
       try { validateWord(word, previous, room.banRepeat); words[p.uid] = word; marks[p.uid] = 'none'; }
@@ -179,20 +214,33 @@ export class RoomManager {
 
   finishRound(room, outcome) {
     const record = room.currentRecord;
+    if (!record || room.history.includes(record)) return;
     record.outcome = outcome;
     room.history.push(record);
     if (outcome !== 'miss' || room.round >= room.maxRounds) {
       room.outcome = outcome === 'miss' ? 'none' : outcome;
       this.setPhase(room, 'result', null);
+      this.settle(room);
     } else {
       for (const p of room.players) p.ready = false;
-      this.setPhase(room, 'prepare', room.prepareSeconds);
+      const plan = preparePlan(room);
+      this.setPhase(room, 'prepare', plan.durationMs / 1000);
+      if (plan.graceMs) {
+        room.prepareGraceDeadline = room.phaseDeadline - room.prepareSeconds * 1000;
+        const deadline = room.phaseDeadline;
+        room.prepareGraceTimer = setTimeout(() => {
+          if (this.rooms.get(room.code) !== room || room.phase !== 'prepare' || room.phaseDeadline !== deadline) return;
+          this.checkProgress(room);
+          this.broadcast(room);
+        }, Math.max(0, room.prepareGraceDeadline - Date.now()));
+        room.prepareGraceTimer.unref?.();
+      }
     }
   }
 
-  finishVote(room) {
+  finishVote(room, early = false) {
     const active = this.active(room);
-    room.currentRecord.votes = Object.fromEntries(active.map((p) => [p.uid, p.vote === true]));
+    room.currentRecord.votes = Object.fromEntries(active.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === true]));
     const passed = active.length >= 2 && active.every((p) => p.vote === true);
     for (const connection of this.clients.values()) {
       if (connection.roomCode === room.code && connection.ws?.readyState === 1) {
@@ -203,39 +251,126 @@ export class RoomManager {
   }
 
   checkProgress(room) {
+    if (['writing', 'voting', 'prepare'].includes(room.phase) && room.players.length === 1) {
+      room.history = [];
+      room.currentRecord = null;
+      room.outcome = 'interrupted';
+      this.setPhase(room, 'interrupted', null);
+      return;
+    }
     const active = this.active(room);
     if (!active.length) return;
     if (room.phase === 'writing' && active.every((p) => p.submittedWord !== undefined)) this.reveal(room);
-    else if (room.phase === 'prepare' && active.every((p) => p.ready)) this.startWriting(room);
+    else if (room.phase === 'voting' && active.some((p) => p.vote === false)) this.finishVote(room, true);
+    else if (prepareCanAdvance(room)) this.startWriting(room);
+  }
+
+  settle(room) {
+    if (room.persisted) return;
+    room.resultPlayers = room.matchPlayers.map((player) => ({ ...player }));
+    room.chart = buildChart(room.resultPlayers, room.history);
+    room.endedAt = Date.now();
+    if (!room.dropped) this.db.saveMatch({
+      id: room.matchId, roomCode: room.code, mode: room.mode, themeId: room.themeId ?? null,
+      maxRounds: room.maxRounds, totalRounds: room.history.length,
+      convergedRound: room.outcome === 'none' ? null : room.round, outcome: room.outcome,
+      startedAt: room.startedAt, endedAt: room.endedAt,
+      players: room.resultPlayers, rounds: room.history
+    });
+    room.persisted = true;
+    // Settlement owns the only countdown; choices and reconnects never extend it.
+    room.rematchEligibleUids = room.players.map((player) => player.uid);
+    room.rematchVotes = {};
+    this.setPhase(room, 'result', REMATCH_SECONDS, room.endedAt);
+    room.rematchDeadline = room.phaseDeadline;
+  }
+
+  destroyRoom(room, message) {
+    if (this.rooms.get(room.code) !== room) return;
+    clearTimeout(room.timer);
+    this.rooms.delete(room.code);
+    clearTimeout(room.prepareGraceTimer);
+    for (const connection of this.clients.values()) {
+      if (connection.roomCode !== room.code) continue;
+      connection.roomCode = null;
+      this.sendState(connection, null);
+      if (connection.ws?.readyState === 1) connection.ws.send(JSON.stringify({ type: 'toast', message }));
+    }
+  }
+
+  checkRematch(room) {
+    if (this.rooms.get(room.code) !== room || !['result', 'rematch'].includes(room.phase)) return;
+    if (Date.now() >= room.rematchDeadline) { this.finishRematch(room, true); return; }
+    const eligible = room.rematchEligibleUids;
+    if (!eligible.length) { this.destroyRoom(room, '没有有效玩家，房间已关闭'); return; }
+    if (eligible.every((uid) => room.players.some((player) => player.uid === uid && player.connected)
+      && ['rematch', 'room'].includes(room.rematchVotes[uid]))) this.finishRematch(room);
+  }
+
+  finishRematch(room, timedOut = false) {
+    if (this.rooms.get(room.code) !== room || !['result', 'rematch'].includes(room.phase)) return;
+    if (!timedOut && !room.rematchEligibleUids.every((uid) => room.players.some((player) => player.uid === uid && player.connected)
+      && ['rematch', 'room'].includes(room.rematchVotes[uid]))) return;
+    const retained = room.players.filter((player) => player.connected && room.rematchEligibleUids.includes(player.uid)
+      && ['rematch', 'room'].includes(room.rematchVotes[player.uid]));
+    const restart = retained.length >= 2 && retained.every((player) => room.rematchVotes[player.uid] === 'rematch');
+    for (const player of room.players.filter((player) => !retained.includes(player))) {
+      const connection = this.clients.get(player.uid);
+      if (connection?.roomCode !== room.code) continue;
+      connection.roomCode = null;
+      this.sendState(connection, null);
+      if (connection.ws?.readyState === 1) connection.ws.send(JSON.stringify({ type: 'toast', message: '超时未选择已退出' }));
+    }
+    room.players = retained;
+    if (!retained.length) { this.destroyRoom(room, '没有玩家留下，房间已关闭'); return; }
+    if (!room.players.some((player) => player.uid === room.hostUid)) room.hostUid = room.players[0].uid;
+    for (const player of room.players) {
+      player.ready = false; player.draft = '';
+      delete player.submittedWord; delete player.vote; delete player.disconnectedAt; delete player.leftReason;
+    }
+    for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'chart', 'outcome',
+      'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
+    room.history = []; room.round = 0; room.dropped = false;
+    this.sortPlayers(room);
+    if (restart) {
+      room.matchId = randomUUID();
+      room.startedAt = Date.now();
+      room.matchPlayers = room.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
+      this.startWriting(room);
+    } else this.setPhase(room, 'lobby', null);
+    this.touch(room);
   }
 
   advanceDeadline(room) {
     if (room.phase === 'writing') this.reveal(room);
     else if (room.phase === 'voting') this.finishVote(room);
     else if (room.phase === 'prepare') this.startWriting(room);
+    else if (['result', 'rematch'].includes(room.phase)) this.finishRematch(room, true);
   }
-  close() { for (const room of this.rooms.values()) clearTimeout(room.timer); }
+  close() { for (const room of this.rooms.values()) { clearTimeout(room.timer); clearTimeout(room.prepareGraceTimer); } }
 
   detach(connection, remove = false) {
-    const room = this.rooms.get(connection.roomCode);
-    if (room) {
-      const player = room.players.find((item) => item.uid === connection.uid);
-      const permanent = remove && room.phase === 'lobby';
-      if (player && permanent) room.players = room.players.filter((item) => item.uid !== connection.uid);
-      else if (player && player.connected) {
-        player.connected = false;
-        player.ready = false;
-        player.disconnectedAt = Date.now();
-        player.leftReason = remove ? 'leave' : 'disconnect';
-        if (room.phase === 'writing') { player.draft = ''; player.submittedWord = undefined; }
-        if (room.phase === 'voting') player.vote = undefined;
-      }
-      connection.roomCode = null;
-      if (remove && player) this.toast(room, 'leave', player);
-      if (room.hostUid === connection.uid) this.transferHost(room);
-      if (room.players.length === 0) { clearTimeout(room.timer); this.rooms.delete(room.code); }
-      else { this.checkProgress(room); this.touch(room); }
-    } else connection.roomCode = null;
+    let room = this.rooms.get(connection.roomCode);
+    // Explicit departure wins at a deadline boundary; late game messages do not.
+    if (!remove && room && ['result', 'rematch'].includes(room.phase) && Date.now() >= room.rematchDeadline) {
+      this.finishRematch(room, true);
+      room = this.rooms.get(connection.roomCode);
+    }
+    if (!room) { connection.roomCode = null; return; }
+    const player = room.players.find((item) => item.uid === connection.uid);
+    connection.roomCode = null;
+    if (remove) {
+      const removed = removePlayer(room, connection.uid);
+      if (removed) this.toast(room, 'leave', removed);
+    } else if (markDisconnected(player)) {
+      this.toast(room, 'disconnect', player);
+    } else return;
+    if (room.hostUid === connection.uid) this.transferHost(room);
+    if (!room.players.length) { this.destroyRoom(room, '没有玩家留下，房间已关闭'); return; }
+    if (remove) this.checkRematch(room);
+    if (this.rooms.get(room.code) !== room) return;
+    this.checkProgress(room);
+    this.touch(room);
   }
   disconnect(connection) {
     if (this.clients.get(connection.uid) !== connection) return;
@@ -280,6 +415,15 @@ export class RoomManager {
     }
     if (typing) connection.lastTyping = now; else connection.lastWrite = now;
     const room = connection.roomCode ? this.rooms.get(connection.roomCode) : null;
+    if (type === 'leave') {
+      this.detach(connection, true);
+      this.sendState(connection, null);
+      return;
+    }
+    if (room && !['createRoom', 'joinRoom'].includes(type) && ['result', 'rematch'].includes(room.phase) && now >= room.rematchDeadline) {
+      this.finishRematch(room, true);
+      throw new Error('选择已超时，请根据当前阶段重新操作');
+    }
     if (type === 'hello') {
       if (room) this.sendState(connection);
       return;
@@ -299,12 +443,10 @@ export class RoomManager {
         if (!target) throw new Error('没有找到这个房间');
         if (connection.roomCode === code) { this.sendState(connection, target); return; }
         const existing = target.players.find((item) => item.uid === connection.uid);
-        if (existing && !existing.connected && existing.disconnectedAt != null && Date.now() - existing.disconnectedAt < 90000) {
-          this.detach(connection, true);
+        if (existing && this.canRestore(connection, code)) {
           this.restore(connection, code);
           return;
         }
-        if (existing && !existing.connected) this.cleanup();
         target = this.rooms.get(code);
         if (!target) throw new Error('没有找到这个房间');
         if (target.phase !== 'lobby') throw new Error('这局已经开始');
@@ -326,9 +468,12 @@ export class RoomManager {
       return;
     }
     const current = this.roomFor(connection);
-    const player = this.playerFor(current, connection.uid);
+    let player = this.playerFor(current, connection.uid);
     if (current.phaseDeadline != null && Date.now() >= current.phaseDeadline) {
       this.advanceDeadline(current);
+      if (this.rooms.get(current.code) !== current) throw new Error('房间已关闭');
+      if (connection.roomCode !== current.code) throw new Error('你还没有加入房间');
+      player = this.playerFor(current, connection.uid);
       this.touch(current);
     }
     switch (type) {
@@ -353,6 +498,8 @@ export class RoomManager {
       }
       case 'submitWord': {
         if (current.phase !== 'writing' || player.submittedWord !== undefined) throw new Error('当前不能提交');
+        if (typeof message.word !== 'string' || message.word.length > 1024) throw new Error('输入内容无效');
+        player.draft = message.word;
         const previous = current.history.flatMap((r) => Object.entries(r.words).filter(([uid]) => r.marks[uid] === 'none').map(([, word]) => word));
         validateWord(message.word, previous, current.banRepeat);
         player.submittedWord = message.word;
@@ -410,7 +557,32 @@ export class RoomManager {
         if (current.players.some((item) => item.uid !== current.hostUid && (!item.ready || !item.connected))) {
           throw new Error('等所有在线玩家准备后才能开始');
         }
+        current.matchId = randomUUID();
+        current.startedAt = Date.now();
+        current.matchPlayers = current.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
         this.startWriting(current);
+        break;
+      }
+      case 'rematch': {
+        if (current.phase === 'interrupted' && message.choice === 'room') {
+          current.rematchEligibleUids = [connection.uid];
+          current.rematchVotes = { [connection.uid]: 'room' };
+          current.phase = 'result';
+          this.finishRematch(current);
+          this.touch(current);
+          return;
+        }
+        const choice = message.choice ?? (message.accept === true ? 'rematch' : message.accept === false ? 'room' : undefined);
+        if (!['rematch', 'room'].includes(choice)) throw new Error('重赛投票无效');
+        if (!['result', 'rematch'].includes(current.phase) || !player.connected) throw new Error('当前不能重赛');
+        if (!current.rematchEligibleUids.includes(connection.uid)) throw new Error('没有重赛资格');
+        if (choice === 'rematch' && current.rematchEligibleUids.some((uid) => current.rematchVotes[uid] === 'room')) {
+          throw new Error('已有玩家选择回房间，不能重赛');
+        }
+        if (current.phase === 'result') current.phase = 'rematch';
+        current.rematchVotes[connection.uid] = choice;
+        this.checkRematch(current);
+        if (this.rooms.get(current.code) !== current) return;
         break;
       }
       case 'leave': {
@@ -426,26 +598,31 @@ export class RoomManager {
 
   cleanup(now = Date.now()) {
     for (const [code, room] of this.rooms) {
-      const expired = room.players.filter((player) => !player.connected && player.disconnectedAt && now - player.disconnectedAt >= 90000);
+      if (['result', 'rematch'].includes(room.phase)) {
+        if (now >= room.rematchDeadline) this.finishRematch(room, true);
+        continue;
+      }
+      const expired = room.players.filter((player) => disconnectExpired(player, now));
       if (expired.length) {
-        room.players = room.players.filter((player) => !expired.includes(player));
+        for (const player of expired) {
+          removePlayer(room, player.uid);
+          this.toast(room, 'expired', player);
+          const connection = this.clients.get(player.uid);
+          if (connection?.roomCode === code) { connection.roomCode = null; this.sendState(connection, null); }
+        }
         if (expired.some((player) => player.uid === room.hostUid)) this.transferHost(room);
         this.checkProgress(room);
         if (room.players.length) this.broadcast(room);
       }
       if (!room.players.length || now - room.lastActiveAt >= ROOM_IDLE_MS) {
-        for (const player of room.players) {
-          const connection = this.clients.get(player.uid);
-          if (connection) {
-            connection.roomCode = null;
-            if (connection.ws?.readyState === 1) {
-              connection.ws.send(JSON.stringify({ type: 'state', uid: connection.uid, room: null, serverNow: now }));
-              connection.ws.send(JSON.stringify({ type: 'toast', message: '房间因长时间无活动已关闭' }));
-            }
-          }
-        }
-        clearTimeout(room.timer);
-        this.rooms.delete(code);
+        this.destroyRoom(room, '房间因长时间无活动已关闭');
+      }
+    }
+    for (const connection of this.clients.values()) {
+      const code = connection.roomCode;
+      if (code && (!this.rooms.has(code) || !this.rooms.get(code).players.some((p) => p.uid === connection.uid))) {
+        connection.roomCode = null;
+        this.sendState(connection, null);
       }
     }
   }
@@ -453,11 +630,15 @@ export class RoomManager {
 
 export function createMemoryDb() {
   const players = new Map();
+  const matches = new Map();
   return {
     getPlayer: (uid) => players.get(uid),
     createPlayer(uid, name) { const player = { uid, name }; players.set(uid, player); return player; },
     touch() {},
     rename(uid, name) { players.get(uid).name = name; },
+    saveMatch(match) { if (!matches.has(match.id)) matches.set(match.id, structuredClone(match)); },
+    getMatch: (id) => structuredClone(matches.get(id)),
+    listMatches: () => structuredClone([...matches.values()]),
     close() {}
   };
 }

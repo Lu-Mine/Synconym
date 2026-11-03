@@ -1,3 +1,5 @@
+import { chartMarkup } from './chart.js';
+
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
@@ -131,8 +133,8 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
         <input id="player-name" class="input" maxlength="12" placeholder="输入新名字（最多 12 字）" required value="${escapeHtml(name)}">
         <p class="rename-uid" id="rename-uid">UID：${escapeHtml(uid)}</p>
         <div class="rename-dialog-actions">
-          <button class="button secondary" type="button" data-action="cancel-rename">取消</button>
-          <button class="button primary" type="submit">保存</button>
+          <button class="button secondary" type="button" data-action="cancel-rename"><span>取消</span>${icon('x')}</button>
+          <button class="button primary" type="submit"><span>保存</span>${icon('check')}</button>
         </div>
       </form>
     </section>
@@ -146,8 +148,22 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </div>
       <p class="transfer-hint">把房主转给 <strong id="transfer-target-name"></strong> 后，你会变成普通玩家，需要准备后才能开始。</p>
       <div class="rename-dialog-actions">
-        <button class="button secondary" type="button" data-action="cancel-transfer">取消</button>
-        <button class="button primary" type="button" data-action="confirm-transfer">转让房主</button>
+        <button class="button secondary" type="button" data-action="cancel-transfer"><span>取消</span>${icon('x')}</button>
+        <button class="button primary" type="button" data-action="confirm-transfer">${icon('user')}<span>转让房主</span></button>
+      </div>
+    </section>
+  </div>
+  <div class="rename-modal confirm-modal" id="confirm-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="cancel-confirm" aria-label="取消操作"></button>
+    <section class="rename-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+      <div class="rename-dialog-heading">
+        <h2 id="confirm-title">退出房间？</h2>
+        <button class="icon-button" type="button" data-action="cancel-confirm" aria-label="取消操作">${icon('x')}</button>
+      </div>
+      <p class="transfer-hint" id="confirm-description"></p>
+      <div class="rename-dialog-actions">
+        <button class="button secondary" type="button" data-action="cancel-confirm"><span>取消</span>${icon('x')}</button>
+        <button class="button danger" type="button" data-action="accept-confirm"><span>退出房间</span>${icon('check')}</button>
       </div>
     </section>
   </div>
@@ -174,7 +190,7 @@ export function homeMarkup(settings, settingsOpen = false) {
     <div class="entry-deck">
       <form id="create-form" class="create-card">
         <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span>
+          <span class="create-submit-label">${icon('arrow-right', 'create-submit-arrow')}<span>创建房间</span></span>
         </button>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
@@ -194,7 +210,7 @@ export function homeMarkup(settings, settingsOpen = false) {
       <form id="join-form" class="join-form">
         <label class="sr-only" for="room-code">5 位数字房号</label>
         <input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" pattern="[0-9]{5}" placeholder="输入 5 位房号" maxlength="5" autocomplete="off" spellcheck="false" required>
-        <button class="button secondary join-submit" type="submit">加入房间</button>
+        <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>
   </div>`;
@@ -218,7 +234,7 @@ export function playerItemMarkup(player, room, uid) {
       </div>
     </div>
     ${!player.connected
-      ? '<span class="ready-state">暂时离开</span>'
+      ? '<span class="ready-state">连接中断 · 等待重连</span>'
       : isHost ? '<span class="ready-state"><span>房主</span></span>'
       : `<span class="ready-state">${isReady ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>`}
   </li>`;
@@ -256,8 +272,8 @@ export function lobbyMarkup(state) {
       <button class="room-code-ticket" type="button" data-action="copy" aria-label="复制邀请链接" title="复制邀请链接">
         <span class="ticket-caption">房间号</span>
         <span class="ticket-code-row">
-          <span class="ticket-code" id="lobby-room-code">${escapeHtml(room.code)}</span>
           ${icon('copy', 'ticket-copy-icon')}
+          <span class="ticket-code" id="lobby-room-code">${escapeHtml(room.code)}</span>
         </span>
       </button>
     </section>
@@ -277,7 +293,7 @@ export function lobbyMarkup(state) {
     <div class="lobby-actions" id="lobby-actions">
       ${host
         ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
-        : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`}
+        : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `<span>取消准备</span>${icon('x')}` : `<span>准备</span>${icon('check')}`}</button>`}
       <button class="button secondary lobby-leave-button" type="button" data-action="leave">${icon('log-out')}<span>退出</span></button>
     </div>
   </div>`;
@@ -310,7 +326,8 @@ export function writingMarkup(state, ui = {}) {
   const voted = Boolean(me?.voted || ui.voted);
   const ready = Boolean(me?.ready || ui.ready);
   const outcome = room.outcome || room.history?.at(-1)?.outcome;
-  const pathButton = `<button class="path-open" type="button" data-action="open-path">${icon('route')}<span>思考路径</span></button>`;
+  const pathAvailable = room.round > 2 || (room.round === 2 && phase !== 'writing');
+  const pathButton = pathAvailable ? `<button class="path-open" type="button" data-action="open-path">${icon('route')}<span>思考路径</span></button>` : '';
   const stageProgress = [['writing', '写词', 'pen-line'], ['voting', '投票', 'check'], ['prepare', '准备', 'play']].map(([step, label, glyph]) => `<span class="stage-step${phase === step ? ' is-current' : ''}"${phase === step ? ' aria-current="step"' : ''}>${icon(glyph)}<span class="stage-step-label">${label}</span></span>`).join('<span class="stage-step-divider" aria-hidden="true">·</span>');
   const title = phase === 'writing' ? '各自写下此刻想到的词' : phase === 'voting' ? '这些词想到一起了吗？' : phase === 'prepare' ? '准备好，再靠近一点' : phase === 'result' ? (outcome === 'exact' || outcome === 'voted' ? '我们相遇了' : outcome === 'miss' || outcome === 'failed' ? '这一局结束了' : '对局结束') : '等待下一阶段';
   const previousRound = phase === 'writing' && Array.isArray(room.history) ? room.history.find((record) => record.n === room.round - 1) : null;
@@ -335,25 +352,97 @@ export function writingMarkup(state, ui = {}) {
     const mine = player.uid === uid;
     const complete = phase === 'writing' ? (player.submitted || (mine && ui.submitted)) : phase === 'voting' ? (player.voted || (mine && ui.voted)) : (player.ready || (mine && ui.ready));
     const statusKey = player.connected === false ? 'away' : complete ? 'done' : phase === 'writing' && (player.typing || (mine && ui.draft)) ? 'active' : 'waiting';
-    const status = statusKey === 'away' ? '暂时离开' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : phase === 'voting' ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
+    const status = statusKey === 'away' ? '连接中断 · 等待重连' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : phase === 'voting' ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
     return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(player.name || '玩家', 'game-status-avatar')}<span>${escapeHtml(player.name || '玩家')}${player.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', active: 'pen-line', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${status}</span></span></li>`;
   }).join('');
-  return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}">
+  return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
     <section class="writing-stage">
       <div class="stage-meta"><span class="stage-round">第 ${escapeHtml(room.round ?? '–')} / ${escapeHtml(room.maxRounds ?? '–')} 轮</span><nav class="stage-progress" aria-label="对局阶段">${stageProgress}</nav><span class="stage-room">房间 ${escapeHtml(room.code || '–')}</span></div>
       <div class="stage-content">
         <div class="stage-copy">
           <h1>${title}</h1>
           <p>${phase === 'writing' ? '词语会在所有人提交后揭晓' : phase === 'voting' ? '5 秒内同时投票，超时视为否' : phase === 'prepare' ? '全员准备或倒计时结束后进入下一轮' : '感谢一起游玩'}</p>
+          ${phase === 'prepare' ? '<p id="prepare-grace-hint" class="prepare-grace-hint" role="status" hidden>有人掉线，多等一会 · 本次准备额外增加 10 秒</p>' : ''}
         </div>
         ${phase !== 'result' ? `<div class="writing-clock" role="timer" aria-live="off">${icon('clock')}<span id="countdown">–</span></div>` : ''}
       </div>
     </section>
     ${phase === 'writing' ? `<div id="previous-words">${previousRound ? `<section class="surface-block"><div class="section-heading"><h2>上一轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}</div>` : ''}
-    ${phase === 'writing' ? `<form id="word-form" class="surface-block game-form"><label for="word-input">你的词</label><input id="word-input" class="input" value="${escapeHtml(ui.draft || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字" ${submitted ? 'disabled' : ''}><p class="game-hint">可使用空格；超时将提交输入框中的内容</p><button class="button primary" type="submit" ${submitted ? 'disabled' : ''}>${submitted ? '已提交，等待其他玩家' : '提交'}</button></form><section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list" id="game-status">${statuses}</ul></section>` : ''}
+    ${phase === 'writing' ? `<form id="word-form" class="surface-block game-form"><label for="word-input">你的词</label><input id="word-input" class="input" value="${escapeHtml(ui.draft || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字" ${submitted ? 'disabled' : ''}><p class="game-hint">可使用空格；超时将提交输入框中的内容</p><button class="button primary" type="submit" ${submitted ? 'disabled' : ''}><span>${submitted ? '已提交，等待其他玩家' : '提交'}</span>${icon('check')}</button></form><section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list" id="game-status">${statuses}</ul></section>` : ''}
     ${phase === 'voting' || phase === 'prepare' || phase === 'result' ? `<section class="surface-block"><div class="section-heading"><h2>本轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}
-    ${phase === 'voting' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><div class="game-actions"><button class="button primary" type="button" data-action="vote-yes" ${voted ? 'disabled' : ''}>是</button><button class="button secondary" type="button" data-action="vote-no" ${voted ? 'disabled' : ''}>否</button></div><p class="game-hint game-center">${voted ? '已投票，等待揭晓' : '投票期间不会显示其他人的选择'}</p>` : ''}
-    ${phase === 'prepare' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><button class="button primary game-wide" type="button" data-action="game-ready" ${ready ? 'disabled' : ''}>${ready ? '已准备，等待其他玩家' : '准备下一轮'}</button>` : ''}
+    ${phase === 'voting' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><div class="game-actions"><button class="button primary" type="button" data-action="vote-yes" ${voted ? 'disabled' : ''}><span>是</span>${icon('check')}</button><button class="button secondary" type="button" data-action="vote-no" ${voted ? 'disabled' : ''}><span>否</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已投票，等待揭晓' : '投票期间不会显示其他人的选择'}</p>` : ''}
+    ${phase === 'prepare' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><button class="button primary game-wide" type="button" data-action="game-ready" ${ready ? 'disabled' : ''}><span>${ready ? '已准备，等待其他玩家' : '准备下一轮'}</span>${icon('check')}</button>` : ''}
     <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
+  </div>`;
+}
+
+const RESULT_LINES = {
+  exact: ['这次想到一块了', '答案，终于一致了', '默契刚好对上', '不同的思路，同一个答案', '这一轮，心有灵犀', '这次，答案对上了'],
+  voted: ['这份默契，大家认可', '词不同，想法很接近', '这一轮，大家都点头', '换个说法，也是同一种想法'],
+  none: ['这局各有各的想法', '答案不同，过程也有意思', '这次还差一点默契', '先把这些灵感留在这里']
+};
+
+export function resultTitle(room) {
+  if (room.outcome === 'break') return '本局已结束';
+  const lines = room.outcome === 'exact' && room.history?.length === 1
+    ? ['第一轮就想到一块了', '开局就有默契', '一个词，刚好想到一起']
+    : RESULT_LINES[room.outcome] || RESULT_LINES.none;
+  const seed = `${room.code}:${JSON.stringify(room.history || [])}`;
+  let hash = 0;
+  for (const ch of seed) hash = (Math.imul(hash, 31) + ch.codePointAt(0)) >>> 0;
+  return lines[hash % lines.length];
+}
+
+export function rematchMarkup(state) {
+  const { room, uid } = state;
+  const voting = ['result', 'rematch'].includes(room.phase) && room.rematchDeadline != null;
+  const eligible = room.rematchEligibleUids || [];
+  const choices = room.rematchVotes || {};
+  const mine = choices[uid];
+  const canChoose = !voting || eligible.includes(uid);
+  const roomChosen = eligible.some((id) => choices[id] === 'room');
+  const resultPlayers = room.resultPlayers || room.players || [];
+  const statusPlayers = [...resultPlayers, ...(room.players || []).filter((player) => !resultPlayers.some((item) => item.uid === player.uid))];
+  const statuses = statusPlayers.map((snapshot) => {
+    const player = (room.players || []).find((item) => item.uid === snapshot.uid);
+    const choice = choices[snapshot.uid];
+    const left = !player || !eligible.includes(snapshot.uid);
+    const away = !left && player.connected === false;
+    const label = choice === 'rematch' ? '重赛' : choice === 'room' ? '回房间' : '选择中';
+    const statusKey = left || away ? 'away' : choice ? 'done' : 'waiting';
+    const status = left ? '已离开' : away ? `连接中断 · 等待重连${choice ? ` · 已选${label}` : ''}` : choice ? `已选${label}` : label;
+    const name = player?.name || snapshot.name || snapshot.uid;
+    return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(name, 'game-status-avatar')}<span>${escapeHtml(name)}${snapshot.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${escapeHtml(status)}</span></span></li>`;
+  }).join('');
+  return `<section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>下一步</h2>${voting ? '<span class="rematch-clock" role="timer" aria-live="off">'+icon('clock')+'<span id="countdown">30 秒</span></span>' : ''}</div>
+    <p class="rematch-description">全员重赛，按当前配置直接开下一局；想调整配置就回房间。</p>
+    ${voting ? `<div class="result-player-status" aria-live="polite"><div class="section-heading"><h3>玩家状态</h3></div><ul class="game-status-list">${statuses}</ul></div>` : ''}
+    <div class="rematch-actions">
+      <button class="button primary" type="button" data-action="rematch-yes" ${!canChoose || roomChosen || mine === 'rematch' ? 'disabled' : ''}>${icon('play')}<span>${mine === 'rematch' ? '已选重赛' : '重赛'}</span></button>
+      <button class="button secondary" type="button" data-action="rematch-room" ${!canChoose || mine === 'room' ? 'disabled' : ''}>${icon('users')}<span>${mine === 'room' ? '已选回房间' : '回房间'}</span></button>
+      <button class="rematch-home" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
+    </div>
+    <p class="rematch-footnote">到期移除未选择或仍断线的玩家；剩余全选重赛且至少 2 人就直接开局，否则回房间。</p></section>`;
+}
+
+export function resultMarkup(state) {
+  const { room, uid } = state;
+  if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
+    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)}</p><h1>本局已中断</h1><p>房间只剩一位玩家，本局不会记录。</p></div></section>
+    <section class="surface-block result-rematch" aria-label="下一步"><div class="rematch-actions">
+      <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
+      <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
+    </div></section></div>`;
+  const players = room.resultPlayers || room.players || [];
+  const history = room.history || [];
+  const met = room.outcome === 'exact' || room.outcome === 'voted';
+  const voting = room.phase === 'rematch';
+  const voteRecords = history.map((round) => `<li class="result-vote-round"><h3>第 ${escapeHtml(round.n)} 轮 · ${round.outcome === 'exact' ? '精确相遇（无需投票）' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('');
+  return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
+    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)} · 本局回顾</p><h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div></section>
+    <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
+    <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词簇估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
+    <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>
+    <details class="surface-block result-votes"><summary>投票记录<span>按需查看每轮选择</span></summary><ol class="result-vote-records">${voteRecords}</ol></details>
   </div>`;
 }

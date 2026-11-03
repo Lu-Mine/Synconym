@@ -332,7 +332,7 @@ test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐�
     [player('host'), 'host', '房主'],
     [player('a'), 'waiting', '未准备'],
     [player('a', { ready: true }), 'done', '已准备'],
-    [player('a', { connected: false, ready: true }), 'away', '暂时离开']
+    [player('a', { connected: false, ready: true }), 'away', '连接中断 · 等待重连']
   ]) {
     const html = playerItemMarkup(p, room, 'host');
     assert.match(html, new RegExp(`status-${key}`));
@@ -346,7 +346,7 @@ test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐�
     ['voting', { voted: true }, 'done', '已投票'],
     ['prepare', {}, 'waiting', '未准备'],
     ['prepare', { ready: true }, 'done', '已准备'],
-    ['prepare', { connected: false }, 'away', '暂时离开']
+    ['prepare', { connected: false }, 'away', '连接中断 · 等待重连']
   ]) {
     const html = writingMarkup({ uid: 'other', room: { ...room, phase, players: [player('a', extra)] } });
     assert.match(html, new RegExp(`game-status status-${key}`));
@@ -384,7 +384,9 @@ test('思考路径按轮次展示已揭晓词语，不泄露写词阶段当前�
   const finished = thoughtPathMarkup({ players, history: [...history, { n: 2, words: { a: '香蕉' }, marks: {} }], phase: 'result', round: 2, words: { a: '香蕉' } });
   assert.equal((finished.match(/第 2 轮/g) || []).length, 1);
   for (const phase of ['writing', 'voting', 'prepare', 'result']) {
-    assert.match(writingMarkup({ uid: 'a', room: { phase, round: 2, players, code: '12345', history } }), /data-action="open-path"/);
+    const html = writingMarkup({ uid: 'a', room: { phase, round: 2, players, code: '12345', history } });
+    if (phase === 'writing') assert.doesNotMatch(html, /data-action="open-path"/);
+    else assert.match(html, /data-action="open-path"/);
     if (phase !== 'writing') assert.equal((writingMarkup({ uid: 'a', room: { phase, players, code: '12345', history } }).match(/previous-word-avatar/g) || []).length, 2);
   }
 });
@@ -429,9 +431,14 @@ test('阶段进度居中区标记当前环节，思考路径入口位于词汇�
     assert.match(html, new RegExp(`aria-current="step"[^]*?stage-step-label">${label}`));
     for (const glyph of ['pen-line', 'check', 'play']) assert.match(html, new RegExp(`icons.svg#icon-${glyph}`));
     assert.match(html, /class="stage-round"[^]*?class="stage-progress"[^]*?class="stage-room"/);
-    assert.match(html, /class="section-heading"><h2>(上一轮的词|本轮的词)<\/h2><button class="path-open"/);
-    assert.equal((html.match(/data-action="open-path"/g) || []).length, 1);
+    if (phase === 'writing') assert.doesNotMatch(html, /data-action="open-path"/);
+    else {
+      assert.match(html, /class="section-heading"><h2>本轮的词<\/h2><button class="path-open"/);
+      assert.equal((html.match(/data-action="open-path"/g) || []).length, 1);
+    }
   }
   const first = writingMarkup({ uid: 'a', room: { phase: 'writing', round: 1, players, history: [] } });
   assert.doesNotMatch(first, /data-action="open-path"/);
+  for (const phase of ['voting', 'prepare']) assert.doesNotMatch(writingMarkup({ uid: 'a', room: { phase, round: 1, players, history } }), /data-action="open-path"/);
+  assert.match(writingMarkup({ uid: 'a', room: { phase: 'writing', round: 3, players, history: [{ ...history[0], n: 2 }] } }), /data-action="open-path"/);
 });

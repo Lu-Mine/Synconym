@@ -39,8 +39,36 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   const updateName = db.prepare('UPDATE players SET name = ?, last_seen = ? WHERE uid = ?');
   const recordName = db.prepare('INSERT INTO name_history (uid, name, changed_at) VALUES (?, ?, ?)');
 
+  const insertMatch = db.prepare(`INSERT INTO matches
+    (id, room_code, mode, theme_id, max_rounds, total_rounds, converged_round, outcome, started_at, ended_at)
+    VALUES (@id, @roomCode, @mode, @themeId, @maxRounds, @totalRounds, @convergedRound, @outcome, @startedAt, @endedAt)`);
+  const insertParticipant = db.prepare('INSERT INTO match_players (match_id, uid, seat, name_at_time) VALUES (?, ?, ?, ?)');
+  const insertRound = db.prepare('INSERT INTO match_rounds (match_id, n, words_json, marks_json, votes_json, outcome) VALUES (?, ?, ?, ?, ?, ?)');
+  const saveMatch = db.transaction((match) => {
+    if (db.prepare('SELECT 1 FROM matches WHERE id = ?').get(match.id)) return;
+    insertMatch.run(match);
+    for (const player of match.players) insertParticipant.run(match.id, player.uid, player.seat, player.name);
+    for (const round of match.rounds) insertRound.run(match.id, round.n, JSON.stringify(round.words),
+      JSON.stringify(round.marks), round.votes == null ? null : JSON.stringify(round.votes), round.outcome);
+  });
+
   return {
     getPlayer: (uid) => getPlayer.get(uid),
+    saveMatch,
+    getMatch(id) {
+      const row = db.prepare('SELECT * FROM matches WHERE id = ?').get(id);
+      if (!row) return undefined;
+      return {
+        id: row.id, roomCode: row.room_code, mode: row.mode, themeId: row.theme_id,
+        maxRounds: row.max_rounds, totalRounds: row.total_rounds, convergedRound: row.converged_round,
+        outcome: row.outcome, startedAt: row.started_at, endedAt: row.ended_at,
+        players: db.prepare('SELECT uid, seat, name_at_time AS name FROM match_players WHERE match_id = ? ORDER BY seat').all(id),
+        rounds: db.prepare('SELECT * FROM match_rounds WHERE match_id = ? ORDER BY n').all(id).map((r) => ({
+          n: r.n, words: JSON.parse(r.words_json), marks: JSON.parse(r.marks_json), outcome: r.outcome,
+          ...(r.votes_json == null ? {} : { votes: JSON.parse(r.votes_json) })
+        }))
+      };
+    },
     createPlayer(uid, name, now = Date.now()) {
       createPlayer.run(uid, name, now, now);
       recordName.run(uid, name, now);

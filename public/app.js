@@ -1,10 +1,14 @@
 import { Socket } from './ws.js';
+import { countdownState } from './countdown.js';
+import { patchMarkup } from './dom.js';
 import {
   avatarDetails,
   homeMarkup,
   icon,
   lobbyMarkup,
   playerItemMarkup,
+  rematchMarkup,
+  resultMarkup,
   settingValueMarkup,
   settingsBlockMarkup,
   settingsSummaryText,
@@ -87,6 +91,7 @@ let renameOpen = false;
 let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
+let pendingConfirm = null;
 let toastTimer;
 let previousRoomCode = '';
 let currentScreen = '';
@@ -106,27 +111,65 @@ let typingTimer;
 let lastTypingAt = 0;
 let finalTypingSent = false;
 let roomHistoryGuard = false;
-let allowNavigation = false;
 
-function confirmLeave() {
-  return window.confirm('确定要退出房间吗？退出后可能错过当前对局。');
+let connectionStatus = 'connecting';
+
+function syncConnectionUI() {
+  const banner = document.querySelector('#connection-status');
+  if (banner) {
+    banner.hidden = connectionStatus === 'connected' || connectionStatus === 'connecting';
+    banner.textContent = connectionStatus === 'replaced' ? '此身份已在其他页面连接，本页已停止重连。'
+      : connectionStatus === 'connecting' ? '正在连接服务器…'
+      : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';
+  }
+  app.querySelector('#stage')?.toggleAttribute('inert', connectionStatus !== 'connected');
 }
 
-window.addEventListener('beforeunload', (event) => {
-  if (!state.room || allowNavigation) return;
-  event.preventDefault();
-  event.returnValue = '';
-});
+function closeConfirm(accepted = false) {
+  if (!pendingConfirm) return;
+  const { resolve, trigger } = pendingConfirm;
+  pendingConfirm = null;
+  const modal = app.querySelector('#confirm-modal');
+  modal?.classList.remove('is-open');
+  modal?.setAttribute('inert', '');
+  syncModalScrollLock();
+  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+  resolve(accepted);
+}
 
-window.addEventListener('popstate', () => {
+function confirmAction(kind) {
+  if (pendingConfirm) return Promise.resolve(false);
+  if (!state.room) return Promise.resolve(false);
+  const modal = app.querySelector('#confirm-modal');
+  if (!modal) return Promise.resolve(false);
+  const result = ['result', 'rematch'].includes(state.room.phase);
+  const lobby = state.room.phase === 'lobby';
+  const breaking = kind === 'break';
+  modal.querySelector('#confirm-title').textContent = breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
+  modal.querySelector('#confirm-description').textContent = breaking
+    ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
+    : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
+    : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
+    : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
+  modal.querySelector('[data-action="accept-confirm"] span').textContent = breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
+  const trigger = document.activeElement;
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  pendingConfirm = { resolve, promise, trigger };
+  modal.removeAttribute('inert');
+  modal.classList.add('is-open');
+  syncModalScrollLock();
+  modal.querySelector('.button[data-action="cancel-confirm"]').focus({ preventScroll: true });
+  return promise;
+}
+
+function confirmLeave() { return confirmAction('leave'); }
+
+window.addEventListener('popstate', async () => {
   if (!state.room || !roomHistoryGuard) return;
-  if (confirmLeave()) {
-    roomHistoryGuard = false;
-    allowNavigation = true;
-    history.back();
-  } else {
-    history.pushState({ roomGuard: true }, '', location.href);
-  }
+  // 先恢复当前历史保护项，再异步确认；取消不导航，确认通过服务端退出。
+  history.pushState({ roomGuard: true }, '', location.href);
+  if (await confirmLeave()) enqueueWrite({ type: 'leave' });
 });
 
 function cleanWord(value) {
@@ -183,7 +226,7 @@ function updateCountdown() {
   if (state.room?.phase === 'lobby' || !state.room) return;
   const tick = () => {
     const deadline = Number(state.room?.phaseDeadline);
-    const seconds = Number.isFinite(deadline) && deadline > 0 ? Math.max(0, Math.ceil((deadline - (Date.now() + timeOffset)) / 1000)) : null;
+    const { seconds, grace, urgent } = countdownState(state.room, Date.now() + timeOffset);
     if (state.room?.phase === 'writing' && deadline > 0 && !finalTypingSent && deadline - (Date.now() + timeOffset) <= 500) {
       finalTypingSent = true;
       sendTyping(true);
@@ -191,7 +234,10 @@ function updateCountdown() {
     const element = document.querySelector('#countdown');
     if (element) {
       element.textContent = seconds === null ? '–' : `${seconds} 秒`;
-      element.parentElement?.classList.toggle('urgent', seconds !== null && seconds <= 10);
+      element.parentElement?.classList.toggle('urgent', urgent);
+      element.parentElement?.classList.toggle('reconnect-grace', grace);
+      const hint = document.querySelector('#prepare-grace-hint');
+      if (hint) hint.hidden = !grace;
     }
   };
   tick();
@@ -417,7 +463,7 @@ function syncHomeDrawerDOM() {
 }
 
 function syncModalScrollLock() {
-  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || pathOpen);
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || pathOpen);
 }
 
 function syncRenameModalDOM(focusInput = false) {
@@ -456,7 +502,7 @@ function syncPathModalDOM(focusClose = false) {
   modal.classList.toggle('is-open', pathOpen);
   modal.toggleAttribute('inert', !pathOpen);
   const content = modal.querySelector('#path-content');
-  if (pathOpen && content && state.room) { content.innerHTML = thoughtPathMarkup(state.room); hydrateAvatars(content); }
+  if (pathOpen && content && state.room) { patchMarkup(content, thoughtPathMarkup(state.room)); hydrateAvatars(content); }
   if (pathOpen && focusClose) requestAnimationFrame(() => modal.querySelector('.rename-dialog [data-action="close-path"]')?.focus());
 }
 
@@ -545,15 +591,15 @@ function patchLobbyDOM(nextState) {
       }
     } else if (primaryAction?.dataset.action !== 'ready') {
       primaryAction?.remove();
-      actions.insertAdjacentHTML('afterbegin', `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`}</button>`);
+      actions.insertAdjacentHTML('afterbegin', `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `<span>取消准备</span>${icon('x')}` : `<span>准备</span>${icon('check')}`}</button>`);
     } else if (me) {
       primaryAction.className = `button ${me.ready ? 'secondary' : 'primary'} ready-button`;
-      primaryAction.innerHTML = me.ready ? `${icon('x')}<span>取消准备</span>` : `${icon('check')}<span>准备</span>`;
+      patchMarkup(primaryAction, me.ready ? `<span>取消准备</span>${icon('x')}` : `<span>准备</span>${icon('check')}`);
     }
   }
 
   if (list) {
-    list.innerHTML = room.players.map((player) => playerItemMarkup(player, room, uid)).join('');
+    patchMarkup(list, room.players.map((player) => playerItemMarkup(player, room, uid)).join(''));
     hydrateAvatars(list);
 
     for (const item of list.querySelectorAll('.player[data-uid]')) {
@@ -594,6 +640,7 @@ function screenKeyFor(nextState) {
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
+  if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
   return writingMarkup(state, gameUi);
 }
 
@@ -607,79 +654,100 @@ function ensureShell(inRoom) {
   return stage;
 }
 
-function render({ forceFull = false } = {}) {
-  if (!state.room || state.room.phase === 'lobby') pathOpen = false;
-  const nextScreen = screenKeyFor(state);
-  syncModalScrollLock();
-  const inRoom = Boolean(state.room);
-  const stage = ensureShell(inRoom);
-  syncPathModalDOM();
-  document.body.dataset.scene = nextScreen;
-
-  if (!forceFull && nextScreen === currentScreen) {
-    if (nextScreen === 'home' && patchSettingsDOM(settings, true)) {
-      syncHomeDrawerDOM();
-      return;
-    }
-    if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
-      syncRenameModalDOM(false);
-      syncTransferModalDOM();
-      refreshTimers();
-      return;
-    }
-    if (nextScreen === 'writing') {
-      const page = app.querySelector('.writing-page');
-      const template = document.createElement('template');
-      template.innerHTML = writingMarkup(state, gameUi);
-      const fresh = template.content;
-      const oldStatus = page?.querySelector('#game-status');
-      const newStatus = fresh.querySelector('#game-status');
-      if (oldStatus && newStatus) { oldStatus.innerHTML = newStatus.innerHTML; hydrateAvatars(oldStatus); }
-      const oldPrevious = page?.querySelector('#previous-words');
-      const newPrevious = fresh.querySelector('#previous-words');
-      if (oldPrevious && newPrevious && oldPrevious.innerHTML !== newPrevious.innerHTML) {
-        oldPrevious.innerHTML = newPrevious.innerHTML;
-        hydrateAvatars(oldPrevious);
-      }
-      const input = page?.querySelector('#word-input');
-      const button = page?.querySelector('#word-form button');
-      const submitted = Boolean(state.room.players?.find((player) => player.uid === state.uid)?.submitted || gameUi.submitted);
-      if (input) input.disabled = submitted;
-      if (button) { button.disabled = submitted; button.textContent = submitted ? '已提交，等待其他玩家' : '提交'; }
-      refreshTimers();
-      return;
+function patchSameScene(stage, nextScreen) {
+  const resultPage = stage.querySelector('.result-page');
+  if (['result', 'rematch'].includes(nextScreen) && resultPage?.dataset.room === state.room?.code) {
+    const panel = resultPage.querySelector('#result-rematch');
+    if (panel) {
+      const focusedAction = panel.contains(document.activeElement) ? document.activeElement.dataset.action : null;
+      patchMarkup(panel, rematchMarkup(state));
+      if (focusedAction) panel.querySelector(`[data-action="${focusedAction}"]:not(:disabled)`)?.focus({ preventScroll: true });
+      resultPage.dataset.screen = nextScreen;
+      return true;
     }
   }
+  if (nextScreen === 'home' && stage.querySelector('.home-page') && patchSettingsDOM(settings, true)) {
+    syncHomeDrawerDOM();
+    return true;
+  }
+  if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
+    syncRenameModalDOM(false);
+    syncTransferModalDOM();
+    return true;
+  }
+  if (nextScreen === 'voting' || nextScreen === 'prepare') {
+    const page = stage.querySelector('.writing-page');
+    if (page?.dataset.room === state.room?.code && page.dataset.round === String(state.room.round)) {
+      patchMarkup(stage, writingMarkup(state, gameUi));
+      hydrateAvatars(stage);
+      return true;
+    }
+  }
+  if (nextScreen === 'writing' && stage.querySelector('.writing-page')?.dataset.round === String(state.room.round)) {
+    const page = stage.querySelector('.writing-page');
+    const template = document.createElement('template');
+    template.innerHTML = writingMarkup(state, gameUi);
+    const fresh = template.content;
+    const oldStatus = page?.querySelector('#game-status');
+    const newStatus = fresh.querySelector('#game-status');
+    if (oldStatus && newStatus) { patchMarkup(oldStatus, newStatus.innerHTML); hydrateAvatars(oldStatus); }
+    const oldPrevious = page?.querySelector('#previous-words');
+    const newPrevious = fresh.querySelector('#previous-words');
+    if (oldPrevious && newPrevious && oldPrevious.innerHTML !== newPrevious.innerHTML) {
+      patchMarkup(oldPrevious, newPrevious.innerHTML);
+      hydrateAvatars(oldPrevious);
+    }
+    const input = page?.querySelector('#word-input');
+    const button = page?.querySelector('#word-form button');
+    const submitted = Boolean(state.room.players?.find((player) => player.uid === state.uid)?.submitted || gameUi.submitted);
+    if (input) input.disabled = submitted;
+    if (button) { button.disabled = submitted; button.querySelector('span').textContent = submitted ? '已提交，等待其他玩家' : '提交'; }
+    return true;
+  }
+  const currentPage = stage.querySelector('[data-screen]');
+  if (nextScreen === currentScreen && currentPage
+      && (!state.room || (currentPage.dataset.room === state.room.code
+        && (!currentPage.dataset.round || currentPage.dataset.round === String(state.room.round))))) {
+    patchMarkup(stage, buildScreenMarkup(nextScreen));
+    hydrateAvatars(stage);
+    return true;
+  }
+  return false;
+}
 
+function replaceScene(stage, nextScreen) {
   const html = buildScreenMarkup(nextScreen);
   const shouldTransition = Boolean(
-    currentScreen &&
-    currentScreen !== nextScreen &&
-    document.startViewTransition &&
-    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    currentScreen && currentScreen !== nextScreen && document.startViewTransition
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
-
   const applyDOM = () => {
     stage.innerHTML = html;
     hydrateAvatars(stage);
     syncTransferModalDOM();
-    if (shouldTransition) {
-      stage.firstElementChild?.classList.add('vt-managed');
-    }
+    if (shouldTransition) stage.firstElementChild?.classList.add('vt-managed');
   };
+  if (shouldTransition) document.startViewTransition(applyDOM).updateCallbackDone.then(refreshTimers, refreshTimers);
+  else { applyDOM(); refreshTimers(); }
+}
 
-  if (shouldTransition) {
-    document.startViewTransition(applyDOM).updateCallbackDone.then(refreshTimers, refreshTimers);
-  } else {
-    applyDOM();
-    refreshTimers();
-  }
-
+function render({ forceFull = false } = {}) {
+  if (!state.room || state.room.phase === 'lobby') pathOpen = false;
+  const nextScreen = screenKeyFor(state);
+  syncModalScrollLock();
+  const stage = ensureShell(Boolean(state.room));
+  syncConnectionUI();
+  syncPathModalDOM();
+  document.body.dataset.scene = nextScreen;
+  const patched = !forceFull && patchSameScene(stage, nextScreen);
+  if (patched) { currentScreen = nextScreen; refreshTimers(); return; }
+  replaceScene(stage, nextScreen);
   currentScreen = nextScreen;
 }
 
 function flushWriteQueue() {
   clearTimeout(writeDrainTimer);
+  if (!socket.ready && writeQueue[0]?.type !== 'leave') { writeQueue.length = 0; return; }
   if (!writeQueue.length) return;
   const elapsed = Date.now() - lastWriteAt;
   if (elapsed < WRITE_COOLDOWN_MS) {
@@ -698,6 +766,8 @@ function flushWriteQueue() {
 }
 
 function enqueueWrite(message) {
+  if (!socket.ready && message.type === 'joinRoom') { socket.send(message); return; }
+  if (!socket.ready && !['leave', 'joinRoom'].includes(message.type)) { toast('连接尚未恢复，请稍后重试'); return; }
   if (message.type === 'leave') {
     writeQueue.length = 0;
     pendingLobbySettings = null;
@@ -727,6 +797,18 @@ function scheduleLobbySettingsSync(nextSettings) {
 }
 
 const socket = new Socket({
+  onConnection(status) {
+    connectionStatus = status;
+    if (status !== 'connected') {
+      closeConfirm(false);
+      clearTimeout(typingTimer);
+      clearTimeout(writeDrainTimer);
+      writeQueue.length = 0;
+      pendingLobbySettings = null;
+      gameUi.submitted = false; gameUi.voted = false; gameUi.ready = false;
+    }
+    syncConnectionUI();
+  },
   onHello(message) {
     const code = socket.roomCode;
     if (code && !message.restored) enqueueWrite({ type: 'joinRoom', code });
@@ -736,6 +818,7 @@ const socket = new Socket({
     const nextRoom = next.room;
     const phaseChanged = previous?.code !== nextRoom?.code || previous?.phase !== nextRoom?.phase || previous?.round !== nextRoom?.round;
     if (phaseChanged) {
+      closeConfirm(false);
       clearTimeout(typingTimer);
       writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'ready', 'setReady'].includes(item.type)));
       gameUi = { draft: '', submitted: false, voted: false, ready: false };
@@ -763,7 +846,6 @@ const socket = new Socket({
     } else {
       socket.roomCode = '';
       roomHistoryGuard = false;
-      allowNavigation = false;
       previousRoomCode = '';
       renameOpen = false;
       pendingTransfer = null;
@@ -787,6 +869,7 @@ render({ forceFull: true });
 
 app.addEventListener('submit', (event) => {
   event.preventDefault();
+  if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
   if (event.target.id === 'create-form') {
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
@@ -827,6 +910,16 @@ app.addEventListener('compositionend', (event) => {
 });
 
 app.addEventListener('keydown', (event) => {
+  if (pendingConfirm) {
+    if (event.key === 'Escape') { event.preventDefault(); closeConfirm(false); return; }
+    if (event.key === 'Tab') {
+      const controls = [...app.querySelectorAll('#confirm-modal button:not(:disabled)')].filter((el) => !el.classList.contains('rename-modal-backdrop'));
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (event.key === 'Escape' && pathOpen) { event.preventDefault(); closePath(); return; }
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const row = event.target.closest?.('[data-action="transfer-host"]');
@@ -840,7 +933,7 @@ app.addEventListener('click', async (event) => {
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
     if (state.room) {
-      if (confirmLeave()) enqueueWrite({ type: 'leave' });
+      if (await confirmLeave()) enqueueWrite({ type: 'leave' });
     } else {
       socket.roomCode = '';
       previousRoomCode = '';
@@ -858,6 +951,31 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+
+  if (button.dataset.action === 'cancel-confirm' || button.dataset.action === 'accept-confirm') {
+    event.preventDefault();
+    closeConfirm(button.dataset.action === 'accept-confirm');
+    return;
+  }
+
+  if (button.dataset.action === 'export-chart') {
+    const chart = app.querySelector('#convergence-chart');
+    if (!chart) return;
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(chart)], { type: 'image/svg+xml;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `synconym-${state.room.code}.svg`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+  if (button.dataset.action === 'rematch-yes' || button.dataset.action === 'rematch-room') {
+    event.preventDefault();
+    if (!['result', 'rematch', 'interrupted'].includes(state.room?.phase)) return;
+    enqueueWrite({ type: 'rematch', choice: button.dataset.action === 'rematch-yes' ? 'rematch' : 'room' });
+    button.disabled = true;
+    return;
+  }
 
   if (button.dataset.action === 'open-path') {
     event.preventDefault();
@@ -945,7 +1063,7 @@ app.addEventListener('click', async (event) => {
     enqueueWrite({ type: 'start' });
   } else if (button.dataset.action === 'leave') {
     event.preventDefault();
-    if (confirmLeave()) enqueueWrite({ type: 'leave' });
+    if (await confirmLeave()) enqueueWrite({ type: 'leave' });
   } else if (button.dataset.action === 'rename') {
     event.preventDefault();
     renameOpen = !renameOpen;

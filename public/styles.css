@@ -1519,6 +1519,7 @@ p {
 
 /* === 写词轮次舞台 === */
 .writing-stage {
+  position: relative;
   margin-top: 24px;
   padding: 18px 24px 22px;
   background: var(--card);
@@ -1565,7 +1566,7 @@ p {
   margin-bottom: 0;
 }
 
-.writing-clock {
+.writing-clock, .rematch-clock {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1580,17 +1581,17 @@ p {
   transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
 }
 
-.writing-clock .icon {
+.writing-clock .icon, .rematch-clock .icon {
   width: 20px;
   height: 20px;
 }
 
-.writing-clock #countdown {
+.writing-clock #countdown, .rematch-clock #countdown {
   width: calc(2ch + 1.3em);
   text-align: left;
 }
 
-.writing-clock.urgent {
+.writing-clock.urgent, .rematch-clock.urgent {
   color: var(--vermilion);
 }
 
@@ -1889,3 +1890,63 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 @container (min-width: 390px) { .path-answers[data-player-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @container (min-width: 520px) { .path-answers[data-player-count="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .path-dialog { max-height: 85dvh; padding: 16px; } }
+
+/* M3：结算与重赛，沿用大厅和思考路径的组件与席位配色。 */
+.result-page { display: flex; flex-direction: column; gap: 20px; }
+.result-heading { padding: 16px 0 6px; }
+.result-heading h1 { margin: 10px 0; font-size: clamp(28px, 5vw, 40px); letter-spacing: -.03em; }
+.result-heading p { color: var(--muted); line-height: 1.6; }
+.result-eyebrow { font-size: 12px; letter-spacing: .08em; }
+.result-chart-scroll { overflow-x: auto; margin: 8px -8px; }
+.result-chart-scroll svg { display: block; min-width: 0; width: 100%; height: auto; }
+.result-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin: 12px 0; list-style: none; }
+.result-legend li { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
+.result-legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--player); flex-shrink: 0; }
+.result-vote-records { list-style: none; padding: 0; margin: 0; }
+.result-vote-round + .result-vote-round { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 16px; }
+.result-vote-round h3 { font-size: 14px; font-weight: 600; margin: 8px 0; }
+.result-vote-list { list-style: none; padding: 0; margin: 12px 0 16px; }
+.result-vote-list li { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; font-size: 13px; }
+.result-vote-list li span { overflow-wrap: anywhere; min-width: 0; }
+.result-vote-list strong { font-weight: 500; color: var(--muted); white-space: nowrap; }
+.result-rematch { border: 1px solid var(--line); }
+.result-rematch > .section-heading { align-items: flex-start; }
+.rematch-description { margin: 12px 0 20px; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.rematch-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+.rematch-actions .button { width: 100%; min-width: 0; }
+.rematch-home { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 8px; background: transparent; padding: 12px; color: var(--muted); font-size: 14px; }
+.rematch-home { grid-column: 1 / -1; }
+.rematch-home:hover { color: var(--ink); background: var(--card-hover); }
+.rematch-home .icon { width: 16px; height: 16px; }
+.rematch-footnote { margin: 14px 0 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
+.result-rematch-group { display: flex; flex-direction: column; gap: 20px; }
+.result-player-status { margin-bottom: 18px; }
+.result-player-status h3 { margin: 0; font-size: 15px; }
+.result-player-status .ready-state { max-width: 65%; flex-shrink: 1; text-align: right; overflow-wrap: anywhere; }
+.result-votes summary { cursor: pointer; font-size: 15px; font-weight: 600; }
+.result-votes summary span { margin-left: 12px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.result-votes[open] summary { margin-bottom: 20px; }
+@media (max-width: 560px) {
+  .result-page { gap: 14px; }
+  .result-rematch-group { gap: 14px; }
+  .rematch-actions { grid-template-columns: 1fr 1fr; }
+  .rematch-home { grid-column: 1 / -1; padding: 8px; }
+  .rematch-description { margin-bottom: 16px; }
+}
+
+.confirm-modal { z-index: 100; }
+.button.danger { background: #C83939; border-color: #C83939; color: #fff; }
+.button.danger:hover { background: #AF2929; border-color: #AF2929; }
+.confirm-modal .rename-dialog { max-width: 420px; }
+
+.connection-status { padding: 10px 18px; background: #fff4d5; color: #725116; text-align: center; font-size: 13px; line-height: 1.6; }
+.connection-status[hidden] { display: none; }
+
+.writing-clock.reconnect-grace { color: #3D5AFE; }
+.writing-clock.reconnect-grace .icon { color: inherit; }
+.stage-copy .prepare-grace-hint { color: #3D5AFE; font-size: 13px; }
+.prepare-grace-hint[hidden] { display: none; }
+
+.result-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.result-heading-copy { min-width: 0; flex: 1; }
+@media (max-width: 420px) { .result-heading { gap: 12px; } }
