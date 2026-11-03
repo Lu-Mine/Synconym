@@ -83,7 +83,8 @@ npm start        # 默认 http://localhost:3000
 ```
 
 - 需要 **Node 20 或更新**。`better-sqlite3` 固定使用 `^12`，请不要升到 13.x——它要求 Node 22+，在 Node 20 上会直接崩溃。
-- 对局记录存在 `data/synconym.db`（SQLite），部署时把这个目录挂到持久卷即可。
+- 对局记录默认存在 `data/synconym.db`（SQLite）。部署时用 `DB_PATH` 指向持久卷上的文件，例如 `DB_PATH=/var/lib/synconym/synconym.db`。不要把持久卷挂到整个 `data/` 目录上，否则会盖住随代码发布的主题表和 `data/vectors/`。
+- 结算曲线的词义相似度来自 `data/vectors/` 里的裁剪词向量（约 6 MB），随代码发布，不用另外下载。启动日志会打印加载的词数；文件缺失时服务照常启动，曲线显示为无法计算。需要重新裁剪时运行 `npm run build:vectors -- <cc.zh.300.vec.gz 的路径>`。
 - 环境变量：`PORT`（默认 3000）、`PUBLIC_URL`（生成邀请链接用的对外地址）、`DB_PATH`（数据库路径）。
 - 反向代理需要把 `/ws` 的 Upgrade 头转发过来。
 - 开发时用 `npm run dev`（改动自动重启），此时还能打开 `/__mock` 预览各阶段界面；`npm start` 不开放这个入口。
@@ -92,4 +93,4 @@ npm start        # 默认 http://localhost:3000
 
 ## 许可
 
-仓库暂未附带开源许可证文件；在添加前请视为保留所有权利。
+仓库暂未附带开源许可证文件；在添加前请视为保留所有权利。`data/vectors/` 下的词向量数据不在此列，其许可见该目录的 `NOTICE.md`。

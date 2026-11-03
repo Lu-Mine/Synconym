@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
+import { vectorInfo } from './similarity.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -102,7 +103,10 @@ export function createSynconymServer({ db = createDatabase(), mock = false } = {
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const port = Number(process.env.PORT || 3000);
   const { server } = createSynconymServer({ mock: process.argv.includes('--mock') });
-  server.listen(port, () => console.log(`Synconym listening on http://localhost:${port}`));
+  server.listen(port, () => {
+    console.log(`Synconym listening on http://localhost:${port}`);
+    if (vectorInfo) console.log(`词向量已加载：${vectorInfo.count} 个词，构建于 ${vectorInfo.builtAt}`);
+  });
   const shutdown = () => server.close(() => process.exit(0));
   process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 }

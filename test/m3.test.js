@@ -27,13 +27,15 @@ function setup(t, count = 2, db) {
   return { manager, room, clients, send, connect, exact };
 }
 const snapshot = (c) => c.messages.filter((m) => m.type === 'state').at(-1).room;
+// 6 字纯汉字串：高频词只取 1–4 字，必收词清单里也没有，保证不在词表里
+const UNKNOWN = '未收录的词语';
 
-test('similarity seed: normalized exact, same/adjacent/different clusters and unknown', () => {
+test('similarity: normalized exact, word-vector ordering and unknown', () => {
   assert.equal(similarity(' Ａ臺灣 ', 'a台湾'), 1);
-  assert.equal(similarity('苹果', '香蕉'), .9);
-  assert.equal(similarity('苹果', '白菜'), .5);
-  assert.equal(similarity('苹果', '猫'), .2);
-  assert.equal(similarity('未知甲', '苹果'), null);
+  const fruit = similarity('苹果', '香蕉'), food = similarity('苹果', '白菜'), other = similarity('苹果', '猫');
+  assert.ok(fruit > food && food > other, `${fruit} > ${food} > ${other}`);
+  for (const score of [fruit, food, other]) assert.ok(score >= 0 && score < 1);
+  assert.equal(similarity(UNKNOWN, '苹果'), null);
   assert.equal(similarity('', ''), null);
 });
 
@@ -46,7 +48,7 @@ test('pairwise 2–4 players: complete mean only, invalid/unknown null, voted ne
     assert.equal(chart.pairs.length, count * (count - 1) / 2);
     assert.equal(chart.similarity, chart.pairs.reduce((n, p) => n + p.similarity, 0) / chart.pairs.length);
   }
-  record.words.c = '未知';
+  record.words.c = UNKNOWN;
   assert.equal(buildChart(players, [record])[0].similarity, null);
   record.outcome = 'voted';
   const voted = buildChart(players, [record])[0];
@@ -228,7 +230,9 @@ test('voted result keeps real pair score, vote history, and persisted voted outc
   send(a, { type: 'submitWord', word: '苹果' }); send(b, { type: 'submitWord', word: '猫' });
   send(a, { type: 'vote', yes: true }); send(b, { type: 'vote', yes: true }); manager.advanceDeadline(room);
   manager.broadcast(room);
-  assert.equal(room.chart[0].similarity, 1); assert.equal(room.chart[0].pairs[0].similarity, .2);
+  assert.equal(room.chart[0].similarity, 1);
+  const pair = room.chart[0].pairs[0].similarity;
+  assert.equal(pair, similarity('苹果', '猫')); assert.ok(pair < 1);
   assert.deepEqual(snapshot(a).history[0].votes, { [a.uid]: true, [b.uid]: true });
   assert.equal(manager.db.getMatch(room.matchId).outcome, 'voted');
 });
