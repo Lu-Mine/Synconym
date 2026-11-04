@@ -2023,3 +2023,19 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .profile-privacy { color: var(--ink-secondary); font-size: 12px; line-height: 1.7; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 480px) { .profile-actions .button { flex: 1 1 auto; } }
+
+/* 首页隐私入口与独立阅读页 */
+.home-footer { margin-top: 32px; text-align: center; }
+.home-footer a, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
+.home-footer a:hover, .privacy-back:hover { color: var(--accent-hover); }
+.home-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+.privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }
+.privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }
+.privacy-content { margin-top: 24px; padding: clamp(24px, 5vw, 48px); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.privacy-content h1 { margin: 0; font-size: clamp(28px, 5vw, 36px); line-height: 1.2; }
+.privacy-content h2 { margin: 0 0 12px; font-size: 19px; line-height: 1.4; }
+.privacy-content section { margin-top: 32px; }
+.privacy-content p { margin: 0; color: var(--ink-secondary); line-height: 1.8; overflow-wrap: anywhere; }
+.privacy-content p + p { margin-top: 12px; }
+.privacy-content .privacy-intro { margin-top: 16px; }
+@media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }

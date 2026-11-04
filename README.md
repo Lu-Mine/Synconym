@@ -96,4 +96,4 @@ Docker、systemd、Caddy/Nginx 反向代理、备份与升级流程见 [DEPLOY.m
 
 ## 许可
 
-仓库暂未附带开源许可证文件；在添加前请视为保留所有权利。`data/vectors/` 下的词向量数据不在此列，其许可见该目录的 `NOTICE.md`。
+仓库代码及其他未另行标明的内容保留所有权利，详见 [LICENSE](LICENSE)。第三方组件和数据遵循各自许可；`data/vectors/` 的词向量数据以 CC BY-SA 3.0 发布，详见该目录的 [NOTICE.md](data/vectors/NOTICE.md)。

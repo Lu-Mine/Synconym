@@ -222,6 +222,7 @@ export function homeMarkup(settings, settingsOpen = false) {
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>
+    <footer class="home-footer"><a href="/privacy.html">隐私说明</a></footer>
   </div>`;
 }
 
