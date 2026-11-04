@@ -98,6 +98,8 @@ let pendingConfirm = null;
 let toastTimer;
 let previousRoomCode = '';
 let currentScreen = '';
+// 每次渲染自增：用于丢弃 view transition 里尚未执行的过期快照。
+let renderGeneration = 0;
 let timeOffset = 0;
 let countdownTimer;
 let idleCountdownTimer;
@@ -758,13 +760,16 @@ function patchSameScene(stage, nextScreen) {
   return false;
 }
 
-function replaceScene(stage, nextScreen) {
+function replaceScene(stage, nextScreen, generation) {
   const html = buildScreenMarkup(nextScreen);
   const shouldTransition = Boolean(
     currentScreen && currentScreen !== nextScreen && document.startViewTransition
       && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
   const applyDOM = () => {
+    // 过渡回调是异步的：期间若已有更新的渲染，这份过期快照必须丢弃，
+    // 否则会用旧内容覆盖新内容（例如点头像进档案页时被「正在读取档案…」盖掉）。
+    if (generation !== renderGeneration) return;
     stage.innerHTML = html;
     hydrateAvatars(stage);
     syncTransferModalDOM();
@@ -782,9 +787,11 @@ function render({ forceFull = false } = {}) {
   syncConnectionUI();
   syncPathModalDOM();
   document.body.dataset.scene = nextScreen;
+  renderGeneration += 1;
+  const generation = renderGeneration;
   const patched = !forceFull && patchSameScene(stage, nextScreen);
   if (patched) { currentScreen = nextScreen; refreshTimers(); return; }
-  replaceScene(stage, nextScreen);
+  replaceScene(stage, nextScreen, generation);
   currentScreen = nextScreen;
 }
 
