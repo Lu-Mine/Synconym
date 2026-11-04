@@ -1,0 +1,12 @@
+# Caddy 反向代理示例：把 game.example.com 换成你的域名。
+# Caddy 会自动申请并续期 Let's Encrypt 证书，也会自动处理 /ws 的 Upgrade 转发。
+# 用法：把本文件内容并入 /etc/caddy/Caddyfile，然后 systemctl reload caddy
+
+game.example.com {
+	encode zstd gzip
+
+	# 页面改动即生效，避免更新后玩家还在跑旧脚本
+	header /app.js /render.js /ws.js /styles.css Cache-Control "no-cache"
+
+	reverse_proxy 127.0.0.1:3000
+}

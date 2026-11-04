@@ -11,11 +11,25 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
 
-export function createSynconymServer({ db = createDatabase(), mock = false } = {}) {
-  const manager = new RoomManager({ db });
+// 部署加固：单进程默认最多 500 间房、单条 WS 消息 64 KB。都可用环境变量覆盖。
+const DEF_MAX_ROOMS = Number(process.env.MAX_ROOMS || 500);
+const DEF_MAX_PAYLOAD = Number(process.env.WS_MAX_PAYLOAD || 64 * 1024);
+
+export function createSynconymServer({
+  db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD
+} = {}) {
+  const manager = new RoomManager({ db, maxRooms });
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      if (pathname === '/healthz') {
+        response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        response.end(JSON.stringify({
+          status: 'ok', rooms: manager.rooms.size, clients: manager.clients.size,
+          vectors: Boolean(vectorInfo), uptime: Math.round(process.uptime())
+        }));
+        return;
+      }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
         if (!mock) { response.writeHead(404); response.end('Not found'); return; }
         const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js' };
@@ -38,7 +52,8 @@ export function createSynconymServer({ db = createDatabase(), mock = false } = {
       response.writeHead(404); response.end('Not found');
     }
   });
-  const wss = new WebSocketServer({ noServer: true });
+  // maxPayload 兜住超大帧：正常消息都在 1 KB 内，64 KB 已很宽松。
+  const wss = new WebSocketServer({ noServer: true, maxPayload });
   server.on('upgrade', (request, socket, head) => {
     if (new URL(request.url, 'http://localhost').pathname !== '/ws') { socket.destroy(); return; }
     wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));

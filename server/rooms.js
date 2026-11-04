@@ -22,9 +22,10 @@ function randomString(chars, length, random) {
 }
 
 export class RoomManager {
-  constructor({ db = createMemoryDb(), random = Math.random } = {}) {
+  constructor({ db = createMemoryDb(), random = Math.random, maxRooms = Infinity } = {}) {
     this.db = db;
     this.random = random;
+    this.maxRooms = maxRooms;
     this.rooms = new Map();
     this.clients = new Map();
   }
@@ -504,6 +505,8 @@ export class RoomManager {
       return;
     }
     if (type === 'createRoom' || type === 'joinRoom') {
+      // 房间数上限：防止有人反复建房把内存吃满；已在房内的人建房会先退出旧房，所以这里按上限拒绝。
+      if (type === 'createRoom' && this.rooms.size >= this.maxRooms) throw new Error('服务器房间已满，请稍后再试');
       const player = this.db.getPlayer(connection.uid);
       let target;
       if (type === 'joinRoom') {

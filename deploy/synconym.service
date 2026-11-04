@@ -1,0 +1,37 @@
+# 裸机（ECS 直跑）用：把文件放到 /etc/systemd/system/synconym.service
+# 然后 systemctl daemon-reload && systemctl enable --now synconym
+#
+# 前提：代码放在 /opt/synconym，已跑过 npm ci --omit=dev，
+# 且 /var/lib/synconym 存在并属于 synconym 用户。
+
+[Unit]
+Description=Synconym 近意词
+After=network.target
+
+[Service]
+Type=simple
+User=synconym
+Group=synconym
+WorkingDirectory=/opt/synconym
+
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DB_PATH=/var/lib/synconym/synconym.db
+# 生成邀请链接用的对外地址，换成你的域名
+Environment=PUBLIC_URL=https://game.example.com
+# 单进程默认上限，可按机器规格调整
+Environment=MAX_ROOMS=500
+Environment=WS_MAX_PAYLOAD=65536
+
+ExecStart=/usr/bin/node server/index.js
+
+# 崩了自动拉起；重启会丢失正在进行的对局（完成的对局已入库）
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/synconym
+
+[Install]
+WantedBy=multi-user.target

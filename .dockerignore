@@ -1,0 +1,14 @@
+node_modules
+.git
+.gitignore
+*.log
+
+# 本地开发库不能打进镜像；容器里 /data 挂持久卷
+data/synconym.db*
+data/*.db
+data/*.db-*
+
+# 只在本机用的东西
+dev
+test
+.agents
