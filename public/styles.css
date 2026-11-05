@@ -1128,7 +1128,7 @@ p {
 }
 
 .room-heading-row h1 {
-  font-size: 28px;
+  font-size: clamp(30px, 5vw, 36px);
 }
 
 .room-heading-copy p {
@@ -1944,8 +1944,12 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .result-player-status { margin-bottom: 18px; }
 .result-player-status h3 { margin: 0; font-size: 15px; }
 .result-player-status .ready-state { max-width: 65%; flex-shrink: 1; text-align: right; overflow-wrap: anywhere; }
-.result-votes summary { cursor: pointer; font-size: 15px; font-weight: 600; }
-.result-votes summary span { margin-left: 12px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.result-votes summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 600; }
+.result-votes summary::-webkit-details-marker { display: none; }
+.result-votes-label { min-width: 0; }
+.result-votes-label span { margin-left: 12px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.result-votes-icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--muted); transition: transform var(--dur-2) var(--ease-out); }
+.result-votes[open] .result-votes-icon { transform: rotate(180deg); }
 .result-votes[open] summary { margin-bottom: 20px; }
 @media (max-width: 560px) {
   .result-page { gap: 14px; }
@@ -2012,7 +2016,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .header-profile-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* 档案页 */
-.profile-page { display: flex; flex-direction: column; gap: 16px; }
+.profile-page { display: flex; flex-direction: column; gap: 16px; padding-top: clamp(28px, 5vw, 36px); }
 .profile-identity { display: flex; align-items: center; gap: 14px; margin-bottom: 0; }
 .profile-avatar { width: 56px; height: 56px; border-radius: 16px; font-size: 22px; }
 .profile-identity-text { display: flex; min-width: 0; flex-direction: column; gap: 4px; }

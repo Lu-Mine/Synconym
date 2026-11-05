@@ -18,6 +18,11 @@ test('结算展示完整历史成员、标记、投票与相遇轮次并转义�
   assert.match(html, /<details class="surface-block result-votes">/);
   assert.ok(!writingMarkup({ ...fixture(), room: { ...fixture().room, phase: 'writing' } }).includes('convergence-chart'));
 });
+test('投票记录使用右侧图标而非原生三角标记', () => {
+  const html = resultMarkup(fixture());
+  assert.match(html, /<summary><span class="result-votes-label">投票记录[^]*?<svg class="icon result-votes-icon"[^]*?icons.svg#icon-chevron-down[^]*?<\/summary>/);
+});
+
 
 test('结算和中断页在标题同行显示房间号', () => {
   const state = fixture();

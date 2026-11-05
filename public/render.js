@@ -545,6 +545,6 @@ export function resultMarkup(state) {
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
     <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词簇估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>
-    <details class="surface-block result-votes"><summary>投票记录<span>按需查看每轮选择</span></summary><ol class="result-vote-records">${voteRecords}</ol></details>
+    <details class="surface-block result-votes"><summary><span class="result-votes-label">投票记录<span>按需查看每轮选择</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
   </div>`;
 }
