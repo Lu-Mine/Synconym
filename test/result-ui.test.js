@@ -29,7 +29,7 @@ test('结算和中断页在标题同行显示房间号', () => {
   for (const phase of ['result', 'rematch', 'interrupted']) {
     state.room.phase = phase;
     const html = resultMarkup(state);
-    assert.match(html, /class="result-title-row"><h1>[^<]+<\/h1><span class="result-room-code">房间号 <strong>12345<\/strong><\/span>/);
+    assert.match(html, /class="result-title-row"><h1>[^<]+<\/h1><span class="room-code-display result-room-code">[^]*?icon-hash[^]*?<span>房号 12345<\/span>/);
     assert.doesNotMatch(html, /本局回顾|result-eyebrow/);
   }
 });

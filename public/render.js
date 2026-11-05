@@ -25,6 +25,10 @@ export function icon(name, className = '') {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="/icons.svg#icon-${name}"></use></svg>`;
 }
 
+function roomCodeMarkup(code, className = '') {
+  return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('hash', 'room-code-icon')}<span>房号 ${escapeHtml(code ?? '–')}</span></span>`;
+}
+
 export function brandMarkup() {
   return `<a class="brand" href="/" data-action="home" aria-label="返回近意词 Synconym 主页"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn"><span class="brand-wing-l">近</span><span class="brand-accent brand-yi">意</span><span class="brand-wing-r">词</span></span><span class="brand-en">Syn<span class="brand-accent brand-c">c</span>onym</span></a>`;
 }
@@ -268,12 +272,12 @@ function profileMatchMarkup(match) {
   const outcome = match.outcome === 'none'
     ? `打满 ${match.totalRounds} 轮未相遇`
     : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
-  const details = [`房号 ${match.roomCode}`, match.themeName ? `主题 · ${match.themeName}` : '自由模式',
+  const details = [match.themeName ? `主题 · ${match.themeName}` : '自由模式',
     match.players.join('、')];
   return `<li class="profile-match">
         <span class="profile-match-outcome" data-outcome="${escapeHtml(match.outcome)}">${escapeHtml(outcome)}</span>
         <span class="profile-match-date">${escapeHtml(profileDate(match.startedAt))}</span>
-        <span class="profile-match-meta">${escapeHtml(details.join(' · '))}</span>
+        <span class="profile-match-meta">${roomCodeMarkup(match.roomCode)}<span aria-hidden="true"> · </span>${escapeHtml(details.join(' · '))}</span>
       </li>`;
 }
 
@@ -458,7 +462,7 @@ export function writingMarkup(state, ui = {}) {
   }).join('');
   return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
     <section class="writing-stage">
-      <div class="stage-meta"><span class="stage-round">第 ${escapeHtml(room.round ?? '–')} / ${escapeHtml(room.maxRounds ?? '–')} 轮</span><nav class="stage-progress" aria-label="对局阶段">${stageProgress}</nav><span class="stage-room">房间 ${escapeHtml(room.code || '–')}</span></div>
+      <div class="stage-meta"><span class="stage-round">第 ${escapeHtml(room.round ?? '–')} / ${escapeHtml(room.maxRounds ?? '–')} 轮</span><nav class="stage-progress" aria-label="对局阶段">${stageProgress}</nav>${roomCodeMarkup(room.code || '–', 'stage-room')}</div>
       <div class="stage-content">
         <div class="stage-copy">
           <h1>${title}</h1>
@@ -531,7 +535,7 @@ export function rematchMarkup(state) {
 export function resultMarkup(state) {
   const { room, uid } = state;
   if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>本局已中断</h1><span class="result-room-code">房间号 <strong>${escapeHtml(room.code)}</strong></span></div><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
+    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>本局已中断</h1>${roomCodeMarkup(room.code, 'result-room-code')}</div><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <section class="surface-block result-rematch" aria-label="下一步"><div class="rematch-actions">
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
@@ -542,7 +546,7 @@ export function resultMarkup(state) {
   const voting = room.phase === 'rematch';
   const voteRecords = history.map((round) => `<li class="result-vote-round"><h3>第 ${escapeHtml(round.n)} 轮 · ${round.outcome === 'exact' ? '精确相遇（无需投票）' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('');
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>${escapeHtml(resultTitle(room))}</h1><span class="result-room-code">房间号 <strong>${escapeHtml(room.code)}</strong></span></div><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
+    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>${escapeHtml(resultTitle(room))}</h1>${roomCodeMarkup(room.code, 'result-room-code')}</div><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
     <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词簇估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>

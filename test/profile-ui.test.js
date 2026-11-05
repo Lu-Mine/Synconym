@@ -32,6 +32,7 @@ test('档案展示身份、曾用名、对局与隐私说明，并转义所有�
   assert.ok(!html.includes('<甲>'));
   assert.ok(!html.includes('>乙、'));
   for (const button of html.matchAll(/<button\b[^>]*>/g)) assert.match(button[0], /\btype="button"/);
+  assert.match(html, /class="profile-match-meta"><span class="room-code-display">[^]*?icon-hash[^]*?房号 12345/);
 });
 
 test('没有对局时显示空态，不渲染分页', () => {

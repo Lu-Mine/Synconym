@@ -1546,7 +1546,9 @@ p {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.stage-room { text-align: right; }
+.room-code-display { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.room-code-display .room-code-icon { width: 14px; height: 14px; flex-shrink: 0; color: currentColor; }
+.stage-room { justify-self: end; }
 .stage-progress { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .stage-step { display: inline-flex; align-items: center; gap: 3px; font-weight: 500; }
 .stage-step .icon { width: 13px; height: 13px; flex-shrink: 0; }
@@ -1918,8 +1920,7 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .result-heading p { color: var(--muted); line-height: 1.6; }
 .result-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .result-title-row h1 { min-width: 0; }
-.result-room-code { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; padding: 7px 10px; border-radius: 8px; background: var(--bg-subtle); color: var(--ink-secondary); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.result-room-code strong { color: var(--ink); font-size: 16px; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.result-room-code { flex-shrink: 0; }
 .result-chart-scroll { overflow-x: auto; margin: 8px -8px; }
 .result-chart-scroll svg { display: block; min-width: 0; width: 100%; height: auto; }
 .result-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin: 12px 0; list-style: none; }

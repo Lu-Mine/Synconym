@@ -431,7 +431,7 @@ test('阶段进度居中区标记当前环节，思考路径入口位于词汇�
     const html = writingMarkup({ uid: 'a', room: { phase, round: 2, maxRounds: 12, code: '12345', players, history } });
     assert.match(html, new RegExp(`aria-current="step"[^]*?stage-step-label">${label}`));
     for (const glyph of ['pen-line', 'check', 'play']) assert.match(html, new RegExp(`icons.svg#icon-${glyph}`));
-    assert.match(html, /class="stage-round"[^]*?class="stage-progress"[^]*?class="stage-room"/);
+    assert.match(html, /class="stage-round"[^]*?class="stage-progress"[^]*?class="room-code-display stage-room"[^]*?icon-hash/);
     if (phase === 'writing') assert.doesNotMatch(html, /data-action="open-path"/);
     else {
       assert.match(html, /class="section-heading"><h2>本轮的词<\/h2><button class="path-open"/);
