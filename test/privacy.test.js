@@ -11,6 +11,7 @@ test('站点标题、主内容与包含隐私说明的页脚分开', () => {
   for (const inRoom of [false, true]) {
     const shell = shellMarkup(inRoom);
     assert.match(shell, /<header class="site-header"[\s\S]*<\/header>[\s\S]*<main id="stage" class="stage"><\/main>\s*<footer class="site-footer">[\s\S]*class="brand"[\s\S]*近[\s\S]*Syn[\s\S]*<a class="footer-privacy" href="\/privacy\.html">隐私说明<\/a><\/footer>/);
+    assert.match(shell, /<a class="footer-privacy" href="https:\/\/github\.com\/Lu-Mine">GitHub<\/a>/);
   }
   assert.doesNotMatch(homeMarkup(DEFAULT_SETTINGS), /隐私说明/);
 });

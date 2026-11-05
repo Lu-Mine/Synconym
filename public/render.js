@@ -187,7 +187,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     </section>
   </div>
   <main id="stage" class="stage"></main>
-  <footer class="site-footer">${brandMarkup()}<a class="footer-privacy" href="/privacy.html">隐私说明</a></footer>`;
+  <footer class="site-footer">${brandMarkup()}<a class="footer-privacy" href="https://github.com/Lu-Mine">GitHub</a><a class="footer-privacy" href="/privacy.html">隐私说明</a></footer>`;
 }
 
 // 首页演示：只拼装游戏中真实使用的组件，数据取自默认昵称和真实主题。
