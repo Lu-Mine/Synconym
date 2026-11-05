@@ -189,6 +189,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
 export function homeMarkup(settings, settingsOpen = false) {
   return `<div class="page home-page" data-screen="home">
     <section class="intro">
+      <div class="intro-logo" role="img" aria-label="近意词 Synconym"><span class="brand-cn" aria-hidden="true"><span>近</span><span class="brand-accent brand-yi">意</span><span>词</span></span><span class="brand-en" aria-hidden="true">Syn<span class="brand-accent brand-c">c</span>onym</span></div>
       <div class="intro-main">
         <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
         <h1>各自想一个，<br>直到想到一起。</h1>

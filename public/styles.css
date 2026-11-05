@@ -403,6 +403,9 @@ p {
   text-align: center;
 }
 
+.intro-logo { display: flex; align-items: baseline; justify-content: center; gap: 12px; margin-bottom: 16px; }
+.intro-logo .brand-cn, .intro-logo .brand-en { font-size: clamp(32px, 8vw, 48px); }
+
 .intro-main {
   display: flex;
   align-items: center;
