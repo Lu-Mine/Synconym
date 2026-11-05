@@ -1839,12 +1839,12 @@ body[data-scene="voting"] { --bg-a: #FFD0BF; --bg-b: #E0CFFF; --bg-c: #FFE7B3; }
 body[data-scene="prepare"] { --bg-a: #BCEBD6; --bg-b: #C6E0FF; --bg-c: #DAF0BF; }
 /* 崩局阶段使用暖红警示底色，与普通准备/投票明显区分。 */
 body[data-scene="breakVote"] { --bg-a: #FFAB9E; --bg-b: #FFC4A9; --bg-c: #F2A8AF; }
-body[data-scene="breakVote"] .writing-stage { background: #FFF1EC; border-color: #D89788; }
-body[data-scene="breakVote"] .writing-stage h1,
-body[data-scene="breakVote"] .stage-step.is-current { color: #852D20; }
-body[data-scene="breakVote"] .writing-stage p:not(.current-theme) { color: #713B30; }
-body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled) { background: #B83225; }
-body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled) { background: #94261C; }
+body[data-scene="breakVote"] .writing-stage, .demo-vote .writing-stage { background: #FFF1EC; border-color: #D89788; }
+body[data-scene="breakVote"] .writing-stage h1, .demo-vote .writing-stage h1,
+body[data-scene="breakVote"] .stage-step.is-current, .demo-vote .stage-step.is-current { color: #852D20; }
+body[data-scene="breakVote"] .writing-stage p:not(.current-theme), .demo-vote .writing-stage p:not(.current-theme) { color: #713B30; }
+body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled), .demo-vote [data-action="break-yes"] { background: #B83225; }
+body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled), .demo-vote [data-action="break-yes"].is-pressed { background: #94261C; }
 body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .writing-stage { margin-bottom: 16px; }
 .game-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
@@ -2072,34 +2072,44 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-heading h2, .home-story-how h3, .home-story-features h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .home-story .story-heading-icon { width: 1em; height: 1em; flex: 0 0 auto; color: var(--accent); }
 .home-story-heading p { margin-top: 16px; font-size: 15px; line-height: 1.7; }
-/* 演示区直接复用游戏组件；运动只作用于 transform 与 opacity。 */
-.home-story-example { width: min(100%, 400px); margin: 32px auto 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); text-align: left; }
+/* 演示区直接复用游戏组件；脚本只切换组件本身的真实状态类。 */
+.home-story-example { width: min(100%, 400px); margin: 32px auto 0; text-align: left; }
 .home-story-example .word-grid { gap: 32px; }
 .home-story-example .path-connector { height: 34px; }
 .home-story-example .story-meet { gap: 0; }
-/* 两张词卡从静止开始加速，撞击时压缩、反弹并衰减，停住后匀速分开 */
-.story-meet .word-card:first-child { transform-origin: right center; animation: story-collide-l 4.8s linear infinite; }
-.story-meet .word-card:last-child { transform-origin: left center; animation: story-collide-r 4.8s linear infinite; }
-@keyframes story-collide-l {
-  0%, 14% { transform: translateX(-16px) scaleX(1); animation-timing-function: cubic-bezier(.55, .055, .675, .19); }
-  30% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
-  33% { transform: translateX(0) scaleX(.94); animation-timing-function: cubic-bezier(.3, 0, .6, 1); }
-  39% { transform: translateX(-5px) scaleX(1.015); animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
-  45% { transform: translateX(0) scaleX(.98); animation-timing-function: ease-out; }
-  49% { transform: translateX(-1.5px) scaleX(1); animation-timing-function: ease-in; }
-  52%, 74% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
-  92%, 100% { transform: translateX(-16px) scaleX(1); }
+/* 磁吸：远处缓慢漂移，进入吸附距离后瞬间贴合，接触时一次干脆的轻压，不回弹；之后匀速分开 */
+.story-meet .word-card:first-child { transform-origin: right center; animation: story-snap-l 4.4s linear infinite; }
+.story-meet .word-card:last-child { transform-origin: left center; animation: story-snap-r 4.4s linear infinite; }
+@keyframes story-snap-l {
+  0%, 12% { transform: translateX(-18px); animation-timing-function: cubic-bezier(.45, 0, 1, 1); }
+  34% { transform: translateX(-8px); animation-timing-function: cubic-bezier(.8, 0, 1, 1); }
+  37% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
+  40%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
+  92%, 100% { transform: translateX(-18px); }
 }
-@keyframes story-collide-r {
-  0%, 14% { transform: translateX(16px) scaleX(1); animation-timing-function: cubic-bezier(.55, .055, .675, .19); }
-  30% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
-  33% { transform: translateX(0) scaleX(.94); animation-timing-function: cubic-bezier(.3, 0, .6, 1); }
-  39% { transform: translateX(5px) scaleX(1.015); animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
-  45% { transform: translateX(0) scaleX(.98); animation-timing-function: ease-out; }
-  49% { transform: translateX(1.5px) scaleX(1); animation-timing-function: ease-in; }
-  52%, 74% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
-  92%, 100% { transform: translateX(16px) scaleX(1); }
+@keyframes story-snap-r {
+  0%, 12% { transform: translateX(18px); animation-timing-function: cubic-bezier(.45, 0, 1, 1); }
+  34% { transform: translateX(8px); animation-timing-function: cubic-bezier(.8, 0, 1, 1); }
+  37% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
+  40%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
+  92%, 100% { transform: translateX(18px); }
 }
+/* 一轮的循环：写词 → 提交 → 揭晓 → 投票 → 未通过 → 下一轮 */
+.round-demo { position: relative; margin: 0 0 24px; text-align: left; }
+.story-demo .writing-stage { margin-top: 0; }
+.round-demo .writing-stage { padding: 14px 18px; margin-bottom: 12px; }
+.round-demo .stage-meta { margin-bottom: 0; }
+.demo-panels { display: grid; }
+.demo-panels > [data-demo-panel] { grid-area: 1 / 1; opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out), visibility 0s linear var(--dur-3); }
+.demo-panels > .is-shown { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.demo-panels .surface-block { margin-bottom: 12px; }
+.demo-input { display: flex; align-items: center; }
+.demo-input.is-focused { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(61, 90, 254, .12); }
+.demo-caret { width: 1.5px; height: 20px; margin-left: 1px; background: var(--accent); animation: demo-caret 1s steps(1) infinite; }
+@keyframes demo-caret { 50% { opacity: 0; } }
+.story-demo .button.is-pressed { transform: translateY(1px) scale(.99); }
+.story-demo .primary.is-pressed { background: var(--accent-hover); }
+.round-demo .toast { position: absolute; top: 56px; }
 .home-story-how, .home-story-features { margin-top: 56px; }
 .home-story-how h3, .home-story-features h3 { margin: 0 0 20px; font-size: 22px; }
 .home-story-how ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
@@ -2112,92 +2122,37 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-feature-list article { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 32px; padding: 32px 0; border-bottom: 1px solid var(--line-strong); text-align: left; }
 .home-feature-list h4 { margin: 0 0 8px; font-size: 16px; }
 .home-feature-list p { margin: 0; }
-.feature-demo { display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 168px; padding: 18px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); overflow: hidden; }
-.feature-demo .setting-row { flex-wrap: wrap; justify-content: center; gap: 8px 16px; min-height: 0; padding: 8px 0; }
+.feature-demo { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 168px; padding: 18px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); overflow: hidden; }
+.feature-demo .setting-row { flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; min-height: 0; padding: 8px 0; }
 .feature-demo .segmented { --segment-base: 46px; }
-.feature-demo .segment { color: var(--ink); font-weight: 600; }
-.feature-demo .segmented::before { transition: none; }
 .feature-demo .player-list, .feature-demo .game-status-list, .feature-demo .profile-matches, .feature-demo .path-rounds { margin: 0; }
-.feature-demo .demo-swap { display: grid; }
-.feature-demo .demo-swap > * { grid-area: 1 / 1; }
-.feature-demo .demo-swap > :last-child { opacity: 0; }
-.demo-theme { align-items: center; }
-.demo-theme .segmented::before { animation: demo-mode 5.2s linear infinite; }
-.demo-theme-line { opacity: 0; animation: demo-reveal 5.2s linear infinite; }
-.demo-theme-line .current-theme { margin: 0; }
-.demo-settings .segmented::before { animation: demo-steps 6s linear infinite; }
-.demo-settings .switch { animation: demo-switch-track 6s linear infinite; }
-.demo-settings .switch-thumb { transition: none; animation: demo-switch-thumb 6s linear infinite; }
-.demo-reconnect .demo-swap > :first-child, .demo-vote .demo-swap > :first-child { animation: demo-swap-out 5s linear infinite; }
-.demo-reconnect .demo-swap > :last-child, .demo-vote .demo-swap > :last-child { animation: demo-swap-in 5s linear infinite; }
-.demo-vote .demo-swap > .game-status { border-bottom: 0; }
-.demo-vote .demo-swap + .demo-swap { border-top: 1px solid var(--line); }
-.demo-vote .demo-swap + .demo-swap > * { animation-delay: .5s; }
-.demo-vote .game-actions .button:last-child { animation: demo-press 5s linear infinite; }
-.demo-path .path-round-item:nth-child(2), .demo-profile .profile-match:first-child { animation: demo-drop 5s linear infinite; }
-/* 弹簧：越过目标后衰减回位 */
-@keyframes demo-mode {
-  0%, 18% { transform: translateX(0); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  27% { transform: translateX(108%); animation-timing-function: ease-in-out; }
-  32% { transform: translateX(96%); animation-timing-function: ease-in-out; }
-  36% { transform: translateX(101.5%); animation-timing-function: ease-in-out; }
-  39%, 70% { transform: translateX(100%); animation-timing-function: cubic-bezier(.45, 0, .55, 1); }
-  79% { transform: translateX(-8%); animation-timing-function: ease-in-out; }
-  84% { transform: translateX(4%); animation-timing-function: ease-in-out; }
-  88% { transform: translateX(-1.5%); animation-timing-function: ease-in-out; }
-  91%, 100% { transform: translateX(0); }
-}
-@keyframes demo-reveal {
-  0%, 28% { opacity: 0; transform: translateY(6px); animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
-  36%, 70% { opacity: 1; transform: translateY(0); animation-timing-function: ease-in; }
-  76%, 100% { opacity: 0; transform: translateY(6px); }
-}
-@keyframes demo-steps {
-  0%, 10% { transform: translateX(0); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  18%, 28% { transform: translateX(100%); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  36%, 46% { transform: translateX(200%); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  54%, 66% { transform: translateX(300%); animation-timing-function: cubic-bezier(.34, 1.3, .64, 1); }
-  80%, 100% { transform: translateX(0); }
-}
-@keyframes demo-switch-thumb {
-  0%, 20% { transform: translateX(0); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  28%, 72% { transform: translateX(20px); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  80%, 100% { transform: translateX(0); }
-}
-@keyframes demo-switch-track {
-  0%, 21% { background-color: var(--line-strong); }
-  26%, 73% { background-color: var(--accent); }
-  78%, 100% { background-color: var(--line-strong); }
-}
-@keyframes demo-swap-out { 0%, 40% { opacity: 1; } 46%, 90% { opacity: 0; } 96%, 100% { opacity: 1; } }
-@keyframes demo-swap-in {
-  0%, 40% { opacity: 0; transform: scale(.97); animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
-  46% { opacity: 1; transform: scale(1.02); animation-timing-function: ease-in-out; }
-  50%, 90% { opacity: 1; transform: scale(1); }
-  96%, 100% { opacity: 0; transform: scale(1); }
-}
-@keyframes demo-press {
-  0%, 34% { transform: scale(1); animation-timing-function: ease-in; }
-  37% { transform: scale(.95); animation-timing-function: cubic-bezier(.34, 1.56, .64, 1); }
-  44%, 100% { transform: scale(1); }
-}
-/* 下落：受重力加速，触底后小幅弹起并衰减 */
-@keyframes demo-drop {
-  0%, 18% { opacity: 0; transform: translateY(-16px); animation-timing-function: cubic-bezier(.55, .055, .675, .19); }
-  30% { opacity: 1; transform: translateY(0); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
-  35% { opacity: 1; transform: translateY(-4px); animation-timing-function: cubic-bezier(.5, 0, .9, .5); }
-  40% { opacity: 1; transform: translateY(0); animation-timing-function: ease-out; }
-  42% { opacity: 1; transform: translateY(-1px); animation-timing-function: ease-in; }
-  44%, 80% { opacity: 1; transform: translateY(0); }
-  88%, 100% { opacity: 0; transform: translateY(0); }
+.feature-demo .surface-block { margin-bottom: 0; padding: 12px 14px; }
+.feature-demo .writing-stage { padding: 14px 16px; }
+.feature-demo .writing-stage h1 { font-size: 17px; }
+.demo-theme { align-items: stretch; }
+.demo-theme .segmented { align-self: center; }
+.demo-theme .stage-theme { transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out); }
+.demo-theme .writing-stage.demo-theme-off .stage-theme { opacity: 0; transform: translate(-50%, 6px); }
+.demo-settings { padding-top: 52px; }
+.demo-clock { position: absolute; top: 12px; right: 16px; font-size: 20px; }
+.demo-clock .icon { width: 18px; height: 18px; }
+.demo-clock-value { display: inline-flex; align-items: center; }
+.demo-digit { display: inline-block; height: 1.2em; overflow: hidden; line-height: 1.2em; }
+.demo-digit-reel { display: flex; flex-direction: column; transition: transform 460ms var(--ease-snappy); }
+.demo-digit-reel > span { height: 1.2em; text-align: center; }
+.demo-vote .writing-stage { display: flex; flex-direction: column; gap: 6px; }
+.demo-vote .game-center { margin: 0; }
+/* 思考路径与对局记录：干净地淡入上移，无回弹 */
+.demo-path .path-round-item:nth-child(2), .demo-profile .profile-match:first-child { animation: demo-enter 5s linear infinite; }
+@keyframes demo-enter {
+  0%, 16% { opacity: 0; transform: translateY(8px); animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+  30%, 80% { opacity: 1; transform: translateY(0); animation-timing-function: ease-in; }
+  90%, 100% { opacity: 0; transform: translateY(0); }
 }
 .home-story .motion-observed:not(.motion-visible) *, .home-story .motion-observed.motion-hidden *,
 .home-story .motion-observed:not(.motion-visible) *::before, .home-story .motion-observed.motion-hidden *::before,
 .home-story .motion-observed:not(.motion-visible) *::after, .home-story .motion-observed.motion-hidden *::after { animation-play-state: paused; }
 @media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } .home-feature-list article { grid-template-columns: 1fr; gap: 16px; } }
 @media (prefers-reduced-motion: reduce) {
-  .home-story-example *, .feature-demo *, .feature-demo *::before { animation: none !important; }
-  .demo-theme-line { opacity: 1; }
-  .feature-demo .demo-swap > :first-child { opacity: 0; }
-  .feature-demo .demo-swap > :last-child { opacity: 1; }
+  .story-demo *, .story-demo *::before { animation: none !important; }
 }
