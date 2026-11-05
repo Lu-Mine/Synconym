@@ -226,7 +226,7 @@ export function homeMarkup(settings, settingsOpen = false) {
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
     <section class="home-story" aria-labelledby="home-story-title">
       <div class="home-story-heading">
-        <h2 id="home-story-title">从不同的想法，走到同一个答案。</h2>
+        <h2 id="home-story-title">${icon('users', 'story-heading-icon')}<span>从不同的想法，走到同一个答案。</span></h2>
         <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
       </div>
       <div class="home-story-example" aria-label="一局示例：海洋、天空，下一轮想到蓝色">
@@ -236,7 +236,7 @@ export function homeMarkup(settings, settingsOpen = false) {
         <span class="story-example-label">示例 · 想到一起</span>
       </div>
       <div class="home-story-how">
-        <h3>怎么玩？</h3>
+        <h3>${icon('play', 'story-heading-icon')}<span>怎么玩？</span></h3>
         <ol>
           <li><strong>${icon('pen-line', 'story-icon')}<span>各自写词</span></strong><span>同时写下一个词，揭晓前互相看不到。</span></li>
           <li><strong>${icon('check', 'story-icon')}<span>揭晓与投票</span></strong><span>词语相同即刻相遇；不同也可以投票，全票通过就算相遇。</span></li>
@@ -244,7 +244,7 @@ export function homeMarkup(settings, settingsOpen = false) {
         </ol>
       </div>
       <div class="home-story-features">
-        <h3>每一局，都可以不一样</h3>
+        <h3>${icon('sliders-horizontal', 'story-heading-icon')}<span>每一局，都可以不一样</span></h3>
         <div class="home-feature-list">
           <article><h4>${icon('users', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></article>
           <article><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></article>
