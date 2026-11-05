@@ -1866,7 +1866,7 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .player .ready-state, .game-status .ready-state { color: var(--status-color); background: var(--status-bg); }
 .word-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 /* 明快的席位色专用于词卡，与白字保持足够对比。 */
-:root { --card-player-0: #536fc4; --card-player-1: #bf5052; --card-player-2: #25816b; --card-player-3: #8262b4; }
+:root { --card-player-0: #5572c8; --card-player-1: #c15254; --card-player-2: #26846d; --card-player-3: #8666b9; }
 .word-card { min-width: 0; padding: 12px; border-radius: var(--radius-md); background: var(--card-color); }
 .word-card span { display: block; color: #fff; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .word-card strong { display: block; margin-top: 4px; color: #fff; font-size: 22px; font-weight: 600; overflow-wrap: anywhere; }
