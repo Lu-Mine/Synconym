@@ -189,11 +189,11 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
 export function homeMarkup(settings, settingsOpen = false) {
   return `<div class="page home-page" data-screen="home">
     <section class="intro">
-      <div class="intro-logo" role="img" aria-label="近意词 Synconym"><span class="brand-cn" aria-hidden="true"><span>近</span><span class="brand-accent brand-yi">意</span><span>词</span></span><span class="brand-en" aria-hidden="true">Syn<span class="brand-accent brand-c">c</span>onym</span></div>
-      <div class="intro-main">
+      <div class="intro-logo" role="img" aria-label="近意词 Synconym">
         <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
-        <h1>各自想一个，<br>直到想到一起。</h1>
+        <span class="brand-cn" aria-hidden="true"><span class="brand-wing-l">近</span><span class="brand-accent brand-yi">意</span><span class="brand-wing-r">词</span></span><span class="brand-en" aria-hidden="true">Syn<span class="brand-accent brand-c">c</span>onym</span>
       </div>
+      <h1>各自想一个，直到想到一起。</h1>
       <p>两个词之间，藏着我们想到的同一个东西。</p>
     </section>
 

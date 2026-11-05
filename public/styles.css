@@ -403,16 +403,18 @@ p {
   text-align: center;
 }
 
-.intro-logo { display: flex; align-items: baseline; justify-content: center; gap: 12px; margin-bottom: 16px; }
-.intro-logo .brand-cn, .intro-logo .brand-en { font-size: clamp(32px, 8vw, 48px); }
+.intro-logo { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 2vw, 12px); margin-bottom: 16px; white-space: nowrap; }
+.intro-logo .brand-cn, .intro-logo .brand-en { font-size: clamp(25px, 7vw, 48px); }
+.intro-logo .brand-wing-l { animation: logo-wing-left 8s ease-in-out infinite; }
+.intro-logo .brand-wing-r { animation: logo-wing-right 8s ease-in-out infinite; }
+.intro-logo .brand-accent { animation: logo-accent 8s ease-in-out infinite; }
+.intro-logo .brand-c { animation: logo-accent 8s ease-in-out infinite, logo-c 8s ease-in-out infinite; }
+@keyframes logo-wing-left { 0%, 40%, 100% { transform: translateX(0); } 50%, 90% { transform: translateX(1px); } }
+@keyframes logo-wing-right { 0%, 40%, 100% { transform: translateX(0); } 50%, 90% { transform: translateX(-1px); } }
+@keyframes logo-accent { 0%, 40%, 100% { background-position: 100% 100%; } 50%, 90% { background-position: 0% 0%; } }
+@keyframes logo-c { 0%, 40%, 100% { transform: rotate(-8deg); } 50%, 90% { transform: rotate(0); } }
 
-.intro-main {
-  display: flex;
-  align-items: center;
-  gap: 22px;
-}
-
-.intro h1 { margin: 0; }
+.intro h1 { margin: 0; font-size: clamp(18px, 5vw, 28px); white-space: nowrap; }
 .intro p { font-size: 15px; line-height: 1.6; }
 
 .intro-orbits {
@@ -1701,7 +1703,7 @@ p {
     padding: 36px 0 28px;
   }
 
-  .intro-main { gap: 14px; }
+  .intro-logo { gap: 8px; }
 
   .intro-orbits {
     width: 60px;
@@ -1785,6 +1787,9 @@ p {
 
 /* === 减弱动态效果无障碍路径（保留颜色与不透明度状态反馈，消除空间位移） === */
 @media (prefers-reduced-motion: reduce) {
+  .intro-logo .brand-wing-l,
+  .intro-logo .brand-wing-r,
+  .intro-logo .brand-accent { animation: none; }
   .page,
   .player.player-enter {
     animation: none !important;
