@@ -1,4 +1,5 @@
 import { Socket } from './ws.js';
+import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import {
@@ -117,6 +118,7 @@ let lastTypingAt = 0;
 let finalTypingSent = false;
 let roomHistoryGuard = false;
 
+let stopStoryMotion = () => {};
 let connectionStatus = 'connecting';
 
 function syncConnectionUI() {
@@ -771,7 +773,9 @@ function replaceScene(stage, nextScreen, generation) {
     // 过渡回调是异步的：期间若已有更新的渲染，这份过期快照必须丢弃，
     // 否则会用旧内容覆盖新内容（例如点头像进档案页时被「正在读取档案…」盖掉）。
     if (generation !== renderGeneration) return;
+    stopStoryMotion();
     stage.innerHTML = html;
+    stopStoryMotion = observeStoryMotion(stage);
     hydrateAvatars(stage);
     syncTransferModalDOM();
     if (shouldTransition) stage.firstElementChild?.classList.add('vt-managed');

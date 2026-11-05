@@ -2094,5 +2094,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @keyframes demo-switch { 0%, 25%, 100% { transform: translateX(0); } 40%, 75% { transform: translateX(14px); } }
 @keyframes demo-meet-left { 0%, 25%, 100% { transform: translateX(-12px); } 45%, 75% { transform: translateX(0); } }
 @keyframes demo-meet-right { 0%, 25%, 100% { transform: translateX(12px); } 45%, 75% { transform: translateX(0); } }
+.home-story .motion-observed:not(.motion-visible) *, .home-story .motion-observed.motion-hidden *,
+.home-story .motion-observed:not(.motion-visible) *::after, .home-story .motion-observed.motion-hidden *::after { animation-play-state: paused; }
 @media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } .home-feature-list article { grid-template-columns: 1fr; gap: 16px; } }
 @media (prefers-reduced-motion: reduce) { .home-story-example *, .feature-demo * { animation: none !important; } }

@@ -1,4 +1,6 @@
 import { avatarDetails, homeMarkup, lobbyMarkup, profileMarkup, resultMarkup, shellMarkup, writingMarkup } from '/render.js';
+import { observeStoryMotion } from '/story-motion.js';
+let stopStoryMotion = () => {};
 
 const settings = { mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true };
 const players = [
@@ -83,11 +85,13 @@ function render(scene) {
   const state = { uid: 'a', user: { uid: 'a', name: players[0].name }, room,
     profile: profileScene ? profileFor(scene) : null };
   document.body.dataset.scene = isHome || profileScene ? 'home' : ['result', 'rematch', 'interrupted'].includes(room.phase) ? 'result' : room.phase;
+  stopStoryMotion();
   app.innerHTML = shellMarkup(!isHome && !profileScene, state.user);
   const stage = app.querySelector('#stage');
   stage.innerHTML = profileScene ? profileMarkup(state)
     : isHome ? homeMarkup(settings, scene === 'home-settings') : room.phase === 'lobby' ? lobbyMarkup(state)
       : ['result', 'rematch', 'interrupted'].includes(room.phase) ? resultMarkup(state) : writingMarkup(state);
+  stopStoryMotion = observeStoryMotion(stage);
   const countdown = app.querySelector('#countdown');
   if (countdown) countdown.textContent = '23 秒';
   const idle = app.querySelector('#idle-countdown');
