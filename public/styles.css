@@ -1,6 +1,5 @@
 :root {
   color-scheme: light;
-  scrollbar-gutter: stable;
   view-transition-name: none;
   --bg: #F4F5F9;
   --bg-subtle: #EAECEF;
@@ -43,8 +42,17 @@
 
 *, *::before, *::after {
   box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* 操作控件不参与文字选择，正文和可编辑内容仍可选择。 */
+button, summary, label, [role="button"], [role="tab"], .stage-progress,
+.story-demo, .privacy-back {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 ::selection {
@@ -1644,23 +1652,36 @@ p {
   border: 0;
 }
 
-/* 自定义滚动条与视图过渡 */
-::-webkit-scrollbar {
-  width: 6px;
+/* 浮层滚动条不改变原生滚动容器的尺寸。脚本不可用时保留原生滚动条。 */
+html.overlay-scrollbars, html.overlay-scrollbars * {
+  scrollbar-width: none;
 }
-
-::-webkit-scrollbar:hover {
-  width: 8px;
+html.overlay-scrollbars::-webkit-scrollbar,
+html.overlay-scrollbars *::-webkit-scrollbar { display: none; }
+.scrollbar-overlay {
+  position: fixed;
+  z-index: 2147483647;
+  background: transparent;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-
-::-webkit-scrollbar-thumb {
+.scrollbar-overlay-thumb {
+  position: absolute;
   border-radius: 8px;
   background: var(--line-strong);
+  transition: background-color var(--dur-2) var(--ease-out);
 }
+.scrollbar-overlay:hover .scrollbar-overlay-thumb,
+.scrollbar-overlay.is-dragging .scrollbar-overlay-thumb { background: var(--muted); }
+.scrollbar-overlay.is-vertical { width: 10px; }
+.scrollbar-overlay.is-vertical .scrollbar-overlay-thumb { right: 2px; width: 6px; }
+.scrollbar-overlay.is-horizontal { height: 10px; }
+.scrollbar-overlay.is-horizontal .scrollbar-overlay-thumb { bottom: 2px; height: 6px; }
+.scrollbar-overlay.is-vertical:hover .scrollbar-overlay-thumb { width: 8px; right: 1px; }
+.scrollbar-overlay.is-horizontal:hover .scrollbar-overlay-thumb { height: 8px; bottom: 1px; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
-}
+/* 视图过渡 */
 
 ::view-transition-group(stage) {
   animation-duration: 0s;
@@ -1712,7 +1733,7 @@ p {
     width: 60px;
     height: 50px;
     flex-basis: 60px;
-    transform: translateX(4px);
+    transform: translateX(-4px);
   }
 
   .intro-orb {
