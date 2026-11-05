@@ -13,6 +13,15 @@ function leftIcon(html, label, icon) {
   assert.ok(html.includes(`${svg(icon)}<span>${label}</span>`), `${label}: ${icon}`);
 }
 
+test('首页介绍与过渡入口的图标各不重复且存在于图标资源中', () => {
+  const html = homeMarkup(settings).split('<a class="home-story-link"')[1];
+  const names = [...html.matchAll(/\/icons\.svg#icon-([\w-]+)/g)].map((match) => match[1]);
+  assert.equal(names.length, 14);
+  assert.equal(new Set(names).size, names.length);
+  const sprite = readFileSync(new URL('../public/icons.svg', import.meta.url), 'utf8');
+  for (const name of names) assert.ok(sprite.includes(`id="icon-${name}"`), name);
+});
+
 test('按钮图标按指定顺序排列', () => {
   const home = homeMarkup(settings);
   leftIcon(home, '加入房间', 'arrow-right');

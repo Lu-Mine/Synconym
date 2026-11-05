@@ -226,12 +226,12 @@ export function homeMarkup(settings, settingsOpen = false) {
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
     <section class="home-story" aria-labelledby="home-story-title">
       <div class="home-story-heading">
-        <h2 id="home-story-title">${icon('users', 'story-heading-icon')}<span>从不同的想法，走到同一个答案。</span></h2>
+        <h2 id="home-story-title">${icon('sparkles', 'story-heading-icon')}<span>从不同的想法，走到同一个答案。</span></h2>
         <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
       </div>
       <div class="home-story-example" aria-label="一局示例：海洋、天空，下一轮想到蓝色">
         <div class="story-words"><span>海洋</span><span>天空</span></div>
-        <span class="story-bridge">从上一轮出发 ${icon('arrow-down')}</span>
+        <span class="story-bridge">从上一轮出发 ${icon('chevron-down')}</span>
         <div class="story-words story-words-together"><span>蓝色</span><span>蓝色</span></div>
         <span class="story-example-label">示例 · 想到一起</span>
       </div>
@@ -244,9 +244,9 @@ export function homeMarkup(settings, settingsOpen = false) {
         </ol>
       </div>
       <div class="home-story-features">
-        <h3>${icon('sliders-horizontal', 'story-heading-icon')}<span>每一局，都可以不一样</span></h3>
+        <h3>${icon('book-open', 'story-heading-icon')}<span>每一局，都可以不一样</span></h3>
         <div class="home-feature-list">
-          <article><h4>${icon('users', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></article>
+          <article><h4>${icon('lightbulb', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></article>
           <article><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></article>
           <article><h4>${icon('rotate-ccw', 'story-icon')}<span>掉线也能回来</span></h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></article>
           <article><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></article>
