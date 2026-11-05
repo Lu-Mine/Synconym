@@ -411,7 +411,7 @@ export function thoughtPathMarkup(room) {
       const mark = round.marks?.[player.uid];
       const word = mark === 'empty' ? '[未提交]' : mark === 'invalid' ? '[非法答案]' : round.words?.[player.uid] || '[未参与]';
       const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
-      return `<li class="path-answer" style="--player:var(--player-${seat})"><div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div><strong class="path-word">${escapeHtml(word)}</strong></li>`;
+      return `<li class="path-answer" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div><strong class="path-word">${escapeHtml(word)}</strong></li>`;
     }).join('');
     return `<li class="path-round-item">${index ? `<div class="path-connector" aria-hidden="true">${icon('arrow-down')}</div>` : ''}<section class="path-round-group"><h3>第 ${escapeHtml(round.n)} 轮</h3><ul class="path-answers" data-player-count="${Math.min(players.length, 4)}">${cards}</ul></section></li>`;
   }).join('')}</ol>`;
@@ -446,7 +446,8 @@ export function writingMarkup(state, ui = {}) {
     const mark = marks[player.uid];
     const value = mark === 'invalid' ? '[非法答案]' : mark === 'empty' ? '[未提交]' : (typeof words[player.uid] === 'string' && words[player.uid] ? words[player.uid] : '[未提交]');
     const duplicate = !allMatch && validKeys[index] && counts.get(validKeys[index]) > 1;
-    return `<li class="word-card previous-word-card" style="--player:var(--player-${Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
+    const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
+    return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
   }).join('');
   const statuses = players.map((player) => {
     const mine = player.uid === uid;
