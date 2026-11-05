@@ -246,12 +246,12 @@ export function homeMarkup(settings, settingsOpen = false) {
       <div class="home-story-features">
         <h3>${icon('book-open', 'story-heading-icon')}<span>每一局，都可以不一样</span></h3>
         <div class="home-feature-list">
-          <article><h4>${icon('lightbulb', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></article>
-          <article><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></article>
-          <article><h4>${icon('rotate-ccw', 'story-icon')}<span>掉线也能回来</span></h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></article>
-          <article><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></article>
-          <article><h4>${icon('user', 'story-icon')}<span>留下自己的对局记录</span></h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></article>
-          <article><h4>${icon('clock', 'story-icon')}<span>长局也有重新选择的机会</span></h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></article>
+          <article><div class="feature-copy"><h4>${icon('lightbulb', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></div><div class="feature-demo demo-theme" aria-hidden="true"><span>自由联想</span><span>随机主题</span><strong>海洋</strong></div></article>
+          <article><div class="feature-copy"><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></div><div class="feature-demo demo-settings" aria-hidden="true"><span>轮次上限</span><strong>12 轮</strong><span>禁止重复词</span><i></i></div></article>
+          <article><div class="feature-copy"><h4>${icon('rotate-ccw', 'story-icon')}<span>掉线也能回来</span></h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></div><div class="feature-demo demo-reconnect" aria-hidden="true"><span>席位保留</span><strong>重新连接</strong><span>回到房间</span></div></article>
+          <article><div class="feature-copy"><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></div><div class="feature-demo demo-path" aria-hidden="true"><span>海洋</span><span>天空</span><span>蓝色</span></div></article>
+          <article><div class="feature-copy"><h4>${icon('user', 'story-icon')}<span>留下自己的对局记录</span></h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></div><div class="feature-demo demo-profile" aria-hidden="true"><strong>我的档案</strong><span>昵称 · UID</span><span>对局记录</span></div></article>
+          <article><div class="feature-copy"><h4>${icon('clock', 'story-icon')}<span>长局也有重新选择的机会</span></h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></div><div class="feature-demo demo-vote" aria-hidden="true"><span>下一轮</span><span>玩崩了</span><strong>投票决定</strong></div></article>
         </div>
       </div>
     </section>
