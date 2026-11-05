@@ -190,7 +190,42 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
   <footer class="site-footer"><a href="/privacy.html">隐私说明</a></footer>`;
 }
 
+// 首页演示：只拼装游戏中真实使用的组件，数据取自默认昵称和真实主题。
+const DEMO_PLAYERS = [
+  { uid: 'demo-a', name: '活泼的苹果', seat: 0, connected: true },
+  { uid: 'demo-b', name: '安静的蓝莓', seat: 1, connected: true }
+];
+
+function storyDemo(className, markup) {
+  return `<div class="${className}" aria-hidden="true" inert>${markup}</div>`;
+}
+
+function storyDemos() {
+  const [a, b] = DEMO_PLAYERS;
+  const lobby = { code: '12345', hostUid: a.uid, phase: 'lobby', players: DEMO_PLAYERS };
+  const swap = (className, from, to) => `<ul class="${className} demo-swap">${from}${to}</ul>`;
+  const words = (left, right) => ({ [a.uid]: left, [b.uid]: right });
+  const day = (date) => new Date(2026, 10, date).getTime();
+  const matches = [
+    { outcome: 'exact', convergedRound: 2, startedAt: day(5), roomCode: '12345', players: [a.name, b.name] },
+    { outcome: 'voted', convergedRound: 4, startedAt: day(3), roomCode: '58213', themeName: '王者荣耀', players: [a.name, b.name] },
+    { outcome: 'none', totalRounds: 12, startedAt: day(1), roomCode: '30476', players: [a.name, b.name] }
+  ];
+  const voteStatus = (player, mine) => swap('game-status-list',
+    gameStatusItemMarkup(player, 'waiting', '未投票', mine), gameStatusItemMarkup(player, 'done', '已投票', mine));
+  return {
+    example: `<ul class="word-grid">${wordCardMarkup(a, '海洋')}${wordCardMarkup(b, '天空')}</ul><div class="path-connector">${icon('arrow-down')}</div><ul class="word-grid story-meet">${wordCardMarkup(a, '蓝色')}${wordCardMarkup(b, '蓝色')}</ul>`,
+    theme: `${segmented('demo-mode', 'free', [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }])}<div class="stage-theme demo-theme-line">${themeMarkup({ mode: 'theme', phase: 'writing', themeName: '王者荣耀' })}</div>`,
+    settings: `<div class="setting-row"><span class="setting-label">写词时限</span>${segmented('demo-write', 15, [15, 30, 45, 60].map((value) => ({ value, label: `${value} 秒` })))}</div><div class="setting-row"><span class="setting-label">禁止重复词</span><button class="switch" type="button" role="switch" aria-checked="false" tabindex="-1"><span class="switch-thumb"></span></button></div>`,
+    reconnect: `<ul class="player-list">${playerItemMarkup(a, lobby, '')}</ul>${swap('player-list', playerItemMarkup({ ...b, connected: false }, lobby, ''), playerItemMarkup({ ...b, ready: true }, lobby, ''))}`,
+    path: thoughtPathMarkup({ phase: 'result', players: DEMO_PLAYERS, history: [{ n: 1, words: words('海洋', '天空'), marks: {} }, { n: 2, words: words('蓝色', '蓝色'), marks: {} }] }),
+    profile: `<ol class="profile-matches">${matches.map(profileMatchMarkup).join('')}</ol>`,
+    vote: `${voteStatus(a, true)}${voteStatus(b, false)}<div class="game-actions"><button class="button primary" type="button" tabindex="-1">${icon('arrow-right')}<span>下一轮</span></button><button class="button primary" type="button" tabindex="-1"><span>玩崩了</span>${icon('x')}</button></div>`
+  };
+}
+
 export function homeMarkup(settings, settingsOpen = false) {
+  const demos = storyDemos();
   return `<div class="page home-page" data-screen="home">
     <section class="intro">
       <div class="intro-logo" role="img" aria-label="近意词 Synconym">
@@ -233,12 +268,7 @@ export function homeMarkup(settings, settingsOpen = false) {
         <h2 id="home-story-title">${icon('sparkles', 'story-heading-icon')}<span>从不同的想法，走到同一个答案。</span></h2>
         <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
       </div>
-      <div class="home-story-example" aria-label="一局示例：海洋、天空，下一轮想到蓝色">
-        <div class="story-words"><span>海洋</span><span>天空</span></div>
-        <span class="story-bridge">从上一轮出发 ${icon('chevron-down')}</span>
-        <div class="story-words story-words-together"><span>蓝色</span><span>蓝色</span></div>
-        <span class="story-example-label">示例 · 想到一起</span>
-      </div>
+      ${storyDemo('home-story-example', demos.example)}
       <div class="home-story-how">
         <h3>${icon('play', 'story-heading-icon')}<span>怎么玩？</span></h3>
         <ol>
@@ -250,12 +280,12 @@ export function homeMarkup(settings, settingsOpen = false) {
       <div class="home-story-features">
         <h3>${icon('book-open', 'story-heading-icon')}<span>每一局，都可以不一样</span></h3>
         <div class="home-feature-list">
-          <article><div class="feature-copy"><h4>${icon('lightbulb', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></div><div class="feature-demo demo-theme" aria-hidden="true"><span>自由联想</span><span>随机主题</span><strong>海洋</strong></div></article>
-          <article><div class="feature-copy"><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></div><div class="feature-demo demo-settings" aria-hidden="true"><span>轮次上限</span><strong>12 轮</strong><span>禁止重复词</span><i></i></div></article>
-          <article><div class="feature-copy"><h4>${icon('rotate-ccw', 'story-icon')}<span>掉线也能回来</span></h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></div><div class="feature-demo demo-reconnect" aria-hidden="true"><span>席位保留</span><strong>重新连接</strong><span>回到房间</span></div></article>
-          <article><div class="feature-copy"><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></div><div class="feature-demo demo-path" aria-hidden="true"><span>海洋</span><span>天空</span><span>蓝色</span></div></article>
-          <article><div class="feature-copy"><h4>${icon('user', 'story-icon')}<span>留下自己的对局记录</span></h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></div><div class="feature-demo demo-profile" aria-hidden="true"><strong>我的档案</strong><span>昵称 · UID</span><span>对局记录</span></div></article>
-          <article><div class="feature-copy"><h4>${icon('clock', 'story-icon')}<span>长局也有重新选择的机会</span></h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></div><div class="feature-demo demo-vote" aria-hidden="true"><span>下一轮</span><span>玩崩了</span><strong>投票决定</strong></div></article>
+          <article><div class="feature-copy"><h4>${icon('lightbulb', 'story-icon')}<span>自由联想，或一起聊主题</span></h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></div>${storyDemo('feature-demo demo-theme', demos.theme)}</article>
+          <article><div class="feature-copy"><h4>${icon('sliders-horizontal', 'story-icon')}<span>房间规则，由你们决定</span></h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></div>${storyDemo('feature-demo demo-settings', demos.settings)}</article>
+          <article><div class="feature-copy"><h4>${icon('rotate-ccw', 'story-icon')}<span>掉线也能回来</span></h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></div>${storyDemo('feature-demo demo-reconnect', demos.reconnect)}</article>
+          <article><div class="feature-copy"><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></div>${storyDemo('feature-demo demo-path', demos.path)}</article>
+          <article><div class="feature-copy"><h4>${icon('user', 'story-icon')}<span>留下自己的对局记录</span></h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></div>${storyDemo('feature-demo demo-profile', demos.profile)}</article>
+          <article><div class="feature-copy"><h4>${icon('clock', 'story-icon')}<span>长局也有重新选择的机会</span></h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></div>${storyDemo('feature-demo demo-vote', demos.vote)}</article>
         </div>
       </div>
     </section>
@@ -268,7 +298,7 @@ function profileDate(timestamp) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function profileMatchMarkup(match) {
+export function profileMatchMarkup(match) {
   const outcome = match.outcome === 'none'
     ? `打满 ${match.totalRounds} 轮未相遇`
     : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
@@ -450,15 +480,14 @@ export function writingMarkup(state, ui = {}) {
     const mark = marks[player.uid];
     const value = mark === 'invalid' ? '[非法答案]' : mark === 'empty' ? '[未提交]' : (typeof words[player.uid] === 'string' && words[player.uid] ? words[player.uid] : '[未提交]');
     const duplicate = !allMatch && validKeys[index] && counts.get(validKeys[index]) > 1;
-    const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
-    return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
+    return wordCardMarkup(player, value, duplicate);
   }).join('');
   const statuses = players.map((player) => {
     const mine = player.uid === uid;
     const complete = phase === 'writing' ? (player.submitted || (mine && ui.submitted)) : phase === 'voting' ? (player.voted || (mine && ui.voted)) : phase === 'breakVote' ? (player.breakVoted || (mine && ui.voted)) : (player.ready || (mine && ui.ready));
     const statusKey = player.connected === false ? 'away' : complete ? 'done' : phase === 'writing' && (player.typing || (mine && ui.draft)) ? 'active' : 'waiting';
     const status = statusKey === 'away' ? '连接中断' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : ['voting', 'breakVote'].includes(phase) ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
-    return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(player.name || '玩家', 'game-status-avatar')}<span>${escapeHtml(player.name || '玩家')}${player.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', active: 'pen-line', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${status}</span></span></li>`;
+    return gameStatusItemMarkup(player, statusKey, status, player.uid === uid);
   }).join('');
   return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
     <section class="writing-stage">
@@ -481,6 +510,15 @@ export function writingMarkup(state, ui = {}) {
     ${phase === 'breakVote' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><div class="game-actions"><button class="button primary" type="button" data-action="break-no" ${voted ? 'disabled' : ''}>${icon('arrow-right')}<span>下一轮</span></button><button class="button primary" type="button" data-action="break-yes" ${voted ? 'disabled' : ''}><span>玩崩了</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已选择，结果确定或倒计时结束后揭晓' : '选择提交后不可更改；结果确定后提前结束'}</p>` : ''}
     <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
   </div>`;
+}
+
+function wordCardMarkup(player, value, duplicate = false) {
+  const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
+  return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
+}
+
+function gameStatusItemMarkup(player, statusKey, status, mine) {
+  return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(player.name || '玩家', 'game-status-avatar')}<span>${escapeHtml(player.name || '玩家')}${mine ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', active: 'pen-line', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${status}</span></span></li>`;
 }
 
 const RESULT_LINES = {

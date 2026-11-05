@@ -13,10 +13,13 @@ function leftIcon(html, label, icon) {
   assert.ok(html.includes(`${svg(icon)}<span>${label}</span>`), `${label}: ${icon}`);
 }
 
-test('首页介绍与过渡入口的图标各不重复且存在于图标资源中', () => {
+test('首页介绍的装饰图标各不重复且存在于图标资源中', () => {
   const html = homeMarkup(settings).split('<a class="home-story-link"')[1];
-  const names = [...html.matchAll(/\/icons\.svg#icon-([\w-]+)/g)].map((match) => match[1]);
-  assert.equal(names.length, 14);
+  const link = html.match(/^[^>]*>[^<]*<svg class="icon "[^>]*><use href="\/icons\.svg#icon-([\w-]+)"/)[1];
+  // 演示区复用真实组件，组件自带图标不计入；只检查介绍区自己的标题与条目图标。
+  const decorative = [...html.matchAll(/class="icon (?:story-icon|story-heading-icon)"[^>]*><use href="\/icons\.svg#icon-([\w-]+)"/g)].map((match) => match[1]);
+  const names = [link, ...decorative];
+  assert.equal(names.length, 13);
   assert.equal(new Set(names).size, names.length);
   const sprite = readFileSync(new URL('../public/icons.svg', import.meta.url), 'utf8');
   for (const name of names) assert.ok(sprite.includes(`id="icon-${name}"`), name);
