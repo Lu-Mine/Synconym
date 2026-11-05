@@ -2079,25 +2079,26 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-example .word-grid { gap: 32px; }
 .home-story-example .path-connector { height: 34px; }
 .home-story-example .story-meet { gap: 0; }
-/* 磁吸：远处缓慢漂移，进入吸附距离后瞬间贴合，接触时一次干脆的轻压，不回弹；之后匀速分开 */
-.story-meet .word-card:first-child { transform-origin: right center; animation: story-snap-l 2.93s linear infinite; }
-.story-meet .word-card:last-child { transform-origin: left center; animation: story-snap-r 2.93s linear infinite; }
-/* 靠近段的曲线取原曲线的反向：起步快、贴近时减速，接触瞬间轻压一下；分开保持匀速 */
-@keyframes story-snap-l {
-  0%, 12% { transform: translateX(-18px); animation-timing-function: cubic-bezier(0, 0, .2, 1); }
-  15% { transform: translateX(-10px); animation-timing-function: cubic-bezier(0, 0, .55, 1); }
-  37% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.3, 0, .7, 1); }
-  39% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
-  42%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
-  92%, 100% { transform: translateX(-18px); }
+/* 一个 5.4s 循环：先只显示第一轮 → 第二轮渐显（两卡分开）→ 两卡相互加速撞上，接触瞬间压扁并复原 → 停留 → 第二轮淡出重来 */
+.home-story-example .path-connector, .home-story-example .story-meet { animation: story-round-two 5.4s linear infinite; }
+.story-meet .word-card:first-child { transform-origin: right center; animation: story-hit-l 5.4s linear infinite; }
+.story-meet .word-card:last-child { transform-origin: left center; animation: story-hit-r 5.4s linear infinite; }
+@keyframes story-round-two {
+  0%, 16% { opacity: 0; animation-timing-function: var(--ease-out); }
+  30%, 86% { opacity: 1; animation-timing-function: ease-in; }
+  96%, 100% { opacity: 0; }
 }
-@keyframes story-snap-r {
-  0%, 12% { transform: translateX(18px); animation-timing-function: cubic-bezier(0, 0, .2, 1); }
-  15% { transform: translateX(10px); animation-timing-function: cubic-bezier(0, 0, .55, 1); }
-  37% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.3, 0, .7, 1); }
-  39% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
-  42%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
-  92%, 100% { transform: translateX(18px); }
+@keyframes story-hit-l {
+  0%, 36% { transform: translateX(-24px) scaleX(1); animation-timing-function: cubic-bezier(.6, 0, 1, .7); }
+  48% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.2, 0, .4, 1); }
+  50% { transform: translateX(0) scaleX(.95); animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+  55%, 100% { transform: translateX(0) scaleX(1); }
+}
+@keyframes story-hit-r {
+  0%, 36% { transform: translateX(24px) scaleX(1); animation-timing-function: cubic-bezier(.6, 0, 1, .7); }
+  48% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.2, 0, .4, 1); }
+  50% { transform: translateX(0) scaleX(.95); animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+  55%, 100% { transform: translateX(0) scaleX(1); }
 }
 /* 一轮的循环：写词 → 提交 → 揭晓 → 投票 → 未通过 → 下一轮 */
 .round-demo { position: relative; margin: 0 0 24px; text-align: left; }
@@ -2145,11 +2146,14 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .demo-digit { display: inline-block; height: 1.2em; overflow: hidden; line-height: 1.2em; }
 .demo-digit-reel { display: flex; flex-direction: column; transition: transform 460ms var(--ease-snappy); }
 .demo-digit-reel > span { height: 1.2em; text-align: center; }
+.demo-vote .demo-scene-break { display: flex; flex-direction: column; gap: 12px; }
+.demo-vote .demo-scene-break > * { margin: 0; }
 .demo-vote .writing-stage { display: flex; flex-direction: column; gap: 6px; }
-.demo-vote .game-center { margin: 0; }
 /* 思考路径与对局记录：干净地淡入上移，无回弹 */
 .demo-path .path-round-item:nth-child(2) { animation: demo-enter 5s linear infinite; }
 /* 新纪录展开时把旧纪录推下去，收起时旧纪录回到原位 */
+/* 演示框按完整记录列表预留高度并顶部对齐：新纪录展开时只推开下方旧纪录，框本身不变高 */
+.demo-profile { justify-content: flex-start; }
 .demo-profile .profile-match:first-child { overflow: hidden; transition: height 420ms var(--ease-out), padding 420ms var(--ease-out), opacity 300ms var(--ease-out); }
 .demo-profile .profile-match:first-child.is-collapsed { padding-block: 0; opacity: 0; }
 .demo-profile .profile-match:first-child.is-collapsed + .profile-match { border-top-color: transparent; }

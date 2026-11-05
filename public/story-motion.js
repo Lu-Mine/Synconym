@@ -113,7 +113,10 @@ const SCENES = {
     let full = 0;
     // 新纪录展开高度，把旧纪录向下推开；恢复时收起，旧纪录回到原位
     const collapse = () => {
-      full ||= first.offsetHeight;
+      if (!full) {
+        full = first.offsetHeight;
+        demo.style.minHeight = `${demo.offsetHeight}px`;
+      }
       first.style.height = `${full}px`;
       void first.offsetHeight;
       first.classList.add('is-collapsed');
