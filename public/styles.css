@@ -2073,7 +2073,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-heading h2 { color: var(--ink); font-size: clamp(22px, 4vw, 30px); line-height: 1.3; letter-spacing: -.03em; text-wrap: balance; }
 .home-story-heading h2, .home-story-how h3, .home-story-features h3 { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .home-story .story-heading-icon { width: 1em; height: 1em; flex: 0 0 auto; color: var(--accent); }
-.home-story-heading p { margin-top: 16px; font-size: 16px; line-height: 1.7; }
+.home-story-heading p { max-width: 28em; margin: 16px auto 0; font-size: 16px; line-height: 1.7; }
 /* 演示区直接复用游戏组件；脚本只切换组件本身的真实状态类。 */
 .home-story-example { width: min(100%, 448px); margin: 32px auto 0; padding-inline: 24px; text-align: left; }
 .home-story-example .word-grid { gap: 32px; }
@@ -2133,7 +2133,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-how ol > li > strong, .home-feature-list h4 { display: flex; align-items: center; gap: 8px; }
 .home-story-how ol > li > strong { font-size: 15px; }
 .home-story .story-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--accent); }
-.home-story-how ol > li > span, .home-feature-list p { color: var(--ink-secondary); font-size: 16px; line-height: 1.7; }
+.home-story-how ol > li > span, .home-feature-list p { max-width: 24em; color: var(--ink-secondary); font-size: 16px; line-height: 1.7; }
 .home-feature-list { display: grid; gap: clamp(48px, 8vw, 80px); }
 .home-feature-list article { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1.15fr); align-items: center; gap: clamp(24px, 5vw, 56px); text-align: left; }
 .home-feature-list h4 { margin: 0 0 8px; font-size: 16px; }
@@ -2195,6 +2195,14 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .round-demo .stage-step { gap: 1px; }
   .round-demo .stage-step .icon { width: 11px; height: 11px; }
 }
+@container (max-width: 300px) {
+  .round-demo .writing-stage { padding-inline: 6px; }
+  .round-demo .stage-meta { gap: 2px; font-size: 10px; }
+  .round-demo .stage-progress { gap: 1px; font-size: 10px; }
+  .round-demo .stage-step .icon { width: 9px; height: 9px; }
+  .round-demo .stage-room { font-size: 10px; }
+  .round-demo .stage-room .icon { width: 11px; height: 11px; }
+}
 .demo-vote .demo-scene-break { min-width: 270px; }
 @media (min-width: 760px) {
   .app:has(.home-page) { width: min(100% - 64px, 960px); }
@@ -2205,6 +2213,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 759px) {
   .home-feature-list article { grid-template-columns: minmax(0, 1fr); gap: 18px; }
 }
+@media (max-width: 560px) { .app:has(.home-page) { width: calc(100% - 48px); } }
 @media (max-width: 480px) { .home-story-how ol > li { grid-template-columns: 1fr; gap: 4px; } }
 @media (prefers-reduced-motion: reduce) {
   .story-demo *, .story-demo *::before, .story-demo *::after { animation: none !important; }
