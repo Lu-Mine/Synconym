@@ -992,6 +992,17 @@ app.addEventListener('keydown', (event) => {
 });
 
 app.addEventListener('click', async (event) => {
+  const storyLink = event.target.closest('.home-story-link');
+  if (storyLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    const target = document.querySelector('#home-story-title');
+    if (target) {
+      event.preventDefault();
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' });
+    }
+    return;
+  }
+
   const homeLink = event.target.closest('[data-action="home"]');
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
