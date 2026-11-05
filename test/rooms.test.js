@@ -328,15 +328,16 @@ test('加入房间输入框只收数字并调起数字键盘', () => {
 test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐藏', () => {
   const room = { code: '12345', hostUid: 'host', phase: 'lobby', round: 1, maxRounds: 4, players: [] };
   const player = (uid, extra = {}) => ({ uid, name: uid, seat: 0, connected: true, ...extra });
-  for (const [p, key, label] of [
-    [player('host'), 'host', '房主'],
-    [player('a'), 'waiting', '未准备'],
-    [player('a', { ready: true }), 'done', '已准备'],
-    [player('a', { connected: false, ready: true }), 'away', '连接中断 · 等待重连']
+  for (const [p, key, label, glyph] of [
+    [player('host'), 'host', '房主', 'user'],
+    [player('a'), 'waiting', '未准备', 'clock'],
+    [player('a', { ready: true }), 'done', '已准备', 'check'],
+    [player('a', { connected: false, ready: true }), 'away', '连接中断', 'log-out']
   ]) {
     const html = playerItemMarkup(p, room, 'host');
     assert.match(html, new RegExp(`status-${key}`));
-    assert.match(html, new RegExp(label));
+    assert.match(html, new RegExp(`icons.svg#icon-${glyph}[^]*?<span>${label}</span>`));
+    assert.doesNotMatch(html, /等待重连/);
   }
   for (const [phase, extra, key, label] of [
     ['writing', {}, 'waiting', '未开始'],
@@ -346,7 +347,7 @@ test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐�
     ['voting', { voted: true }, 'done', '已投票'],
     ['prepare', {}, 'waiting', '未准备'],
     ['prepare', { ready: true }, 'done', '已准备'],
-    ['prepare', { connected: false }, 'away', '连接中断 · 等待重连']
+    ['prepare', { connected: false }, 'away', '连接中断']
   ]) {
     const html = writingMarkup({ uid: 'other', room: { ...room, phase, players: [player('a', extra)] } });
     assert.match(html, new RegExp(`game-status status-${key}`));

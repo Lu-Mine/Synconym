@@ -336,10 +336,7 @@ export function playerItemMarkup(player, room, uid) {
         ${isMe ? '<span class="badge me-label">你</span>' : ''}
       </div>
     </div>
-    ${!player.connected
-      ? '<span class="ready-state">连接中断 · 等待重连</span>'
-      : isHost ? '<span class="ready-state"><span>房主</span></span>'
-      : `<span class="ready-state">${isReady ? `${icon('check')}<span>已准备</span>` : '<span>未准备</span>'}</span>`}
+    <span class="ready-state">${icon({ host: 'user', waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${{ host: '房主', waiting: '未准备', done: '已准备', away: '连接中断' }[statusKey]}</span></span>
   </li>`;
 }
 
@@ -455,7 +452,7 @@ export function writingMarkup(state, ui = {}) {
     const mine = player.uid === uid;
     const complete = phase === 'writing' ? (player.submitted || (mine && ui.submitted)) : phase === 'voting' ? (player.voted || (mine && ui.voted)) : phase === 'breakVote' ? (player.breakVoted || (mine && ui.voted)) : (player.ready || (mine && ui.ready));
     const statusKey = player.connected === false ? 'away' : complete ? 'done' : phase === 'writing' && (player.typing || (mine && ui.draft)) ? 'active' : 'waiting';
-    const status = statusKey === 'away' ? '连接中断 · 等待重连' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : ['voting', 'breakVote'].includes(phase) ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
+    const status = statusKey === 'away' ? '连接中断' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : ['voting', 'breakVote'].includes(phase) ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
     return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(player.name || '玩家', 'game-status-avatar')}<span>${escapeHtml(player.name || '玩家')}${player.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', active: 'pen-line', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${status}</span></span></li>`;
   }).join('');
   return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
@@ -515,7 +512,7 @@ export function rematchMarkup(state) {
     const away = !left && player.connected === false;
     const label = choice === 'rematch' ? '重赛' : choice === 'room' ? '回房间' : '选择中';
     const statusKey = left || away ? 'away' : choice ? 'done' : 'waiting';
-    const status = left ? '已离开' : away ? `连接中断 · 等待重连${choice ? ` · 已选${label}` : ''}` : choice ? `已选${label}` : label;
+    const status = left ? '已离开' : away ? `连接中断${choice ? ` · 已选${label}` : ''}` : choice ? `已选${label}` : label;
     const name = player?.name || snapshot.name || snapshot.uid;
     return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(name, 'game-status-avatar')}<span>${escapeHtml(name)}${snapshot.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${escapeHtml(status)}</span></span></li>`;
   }).join('');
@@ -533,7 +530,7 @@ export function rematchMarkup(state) {
 export function resultMarkup(state) {
   const { room, uid } = state;
   if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)}</p><h1>本局已中断</h1><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
+    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>本局已中断</h1><span class="result-room-code">房间号 <strong>${escapeHtml(room.code)}</strong></span></div><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <section class="surface-block result-rematch" aria-label="下一步"><div class="rematch-actions">
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
@@ -544,7 +541,7 @@ export function resultMarkup(state) {
   const voting = room.phase === 'rematch';
   const voteRecords = history.map((round) => `<li class="result-vote-round"><h3>第 ${escapeHtml(round.n)} 轮 · ${round.outcome === 'exact' ? '精确相遇（无需投票）' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('');
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><p class="result-eyebrow">房间 ${escapeHtml(room.code)} · 本局回顾</p><h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
+    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>${escapeHtml(resultTitle(room))}</h1><span class="result-room-code">房间号 <strong>${escapeHtml(room.code)}</strong></span></div><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
     <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词簇估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>

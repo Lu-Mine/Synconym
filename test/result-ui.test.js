@@ -19,6 +19,16 @@ test('结算展示完整历史成员、标记、投票与相遇轮次并转义�
   assert.ok(!writingMarkup({ ...fixture(), room: { ...fixture().room, phase: 'writing' } }).includes('convergence-chart'));
 });
 
+test('结算和中断页在标题同行显示房间号', () => {
+  const state = fixture();
+  for (const phase of ['result', 'rematch', 'interrupted']) {
+    state.room.phase = phase;
+    const html = resultMarkup(state);
+    assert.match(html, /class="result-title-row"><h1>[^<]+<\/h1><span class="result-room-code">房间号 <strong>12345<\/strong><\/span>/);
+    assert.doesNotMatch(html, /本局回顾|result-eyebrow/);
+  }
+});
+
 test('重赛展示历史玩家、已选重赛可改回房间，按钮显式声明不提交表单', () => {
   const state = fixture();
   Object.assign(state.room, { phase: 'rematch', rematchEligibleUids: ['a'], rematchVotes: { a: 'rematch' }, rematchDeadline: 123 });
@@ -79,7 +89,8 @@ test('未点击的结算阶段就显示倒计时，断线者显示重连等待�
   const html = resultMarkup(state);
   assert.match(html, /id="countdown"/);
   assert.doesNotMatch(html, /\d+\s*\/\s*\d+ 已选择/);
-  assert.ok(html.includes('连接中断 · 等待重连 · 已选重赛'));
+  assert.ok(html.includes('连接中断 · 已选重赛'));
+  assert.ok(!html.includes('等待重连'));
   assert.ok(!html.includes('结算即开始 30 秒倒计时'));
   assert.ok(!html.includes('选择后最多等'));
 });
@@ -94,7 +105,7 @@ test('结算玩家状态使用对局样式并区分选择、掉线和离开', ()
   assert.match(html, /<div class="result-player-status"[^>]*><div class="section-heading"><h3>玩家状态<\/h3>/);
   assert.match(html, /class="ready-state"/);
   assert.doesNotMatch(html, /\d+\s*\/\s*\d+ 已选择/);
-  for (const text of ['已选重赛', '已选回房间', '连接中断 · 等待重连', '已离开', '（你）']) assert.ok(html.includes(text), text);
+  for (const text of ['已选重赛', '已选回房间', '连接中断', '已离开', '（你）']) assert.ok(html.includes(text), text);
   assert.match(html, /class="game-status status-done"/);
   assert.match(html, /class="game-status status-away"/);
   state.room.rematchVotes = {};
