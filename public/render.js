@@ -225,7 +225,7 @@ export function homeMarkup(settings, settingsOpen = false) {
     </div>
     <section class="home-story" aria-labelledby="home-story-title">
       <div class="home-story-heading">
-        <h2 id="home-story-title">从不同的想法，<br>走到同一个答案。</h2>
+        <h2 id="home-story-title">从不同的想法，走到同一个答案。</h2>
         <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
       </div>
       <div class="home-story-example" aria-label="一局示例：海洋、天空，下一轮想到蓝色">
@@ -238,9 +238,20 @@ export function homeMarkup(settings, settingsOpen = false) {
         <h3>怎么玩？</h3>
         <ol>
           <li><strong>各自写词</strong><span>同时写下一个词，揭晓前互相看不到。</span></li>
-          <li><strong>看看彼此的想法</strong><span>揭晓后，你们可以投票决定是否已经相遇。</span></li>
-          <li><strong>继续靠近</strong><span>还没相遇？带着上一轮的词，继续联想。</span></li>
+          <li><strong>揭晓与投票</strong><span>词语相同即刻相遇；不同也可以投票，全票通过就算相遇。</span></li>
+          <li><strong>继续靠近</strong><span>还没相遇？根据上一轮的词继续联想，直到相遇或达到轮次上限。</span></li>
         </ol>
+      </div>
+      <div class="home-story-features">
+        <h3>每一局，都可以不一样</h3>
+        <div class="home-feature-list">
+          <article><h4>自由联想，或一起聊主题</h4><p>自由模式随心发挥；主题模式在每局开始时随机抽取一个主题，给想法一个共同方向。</p></article>
+          <article><h4>房间规则，由你们决定</h4><p>调整轮次上限、写词和准备时限，也可以选择是否禁止重复词。用房号或邀请链接叫朋友加入。</p></article>
+          <article><h4>掉线也能回来</h4><p>大厅和对局中断线后，席位暂时保留；及时重连即可回到当前进度。</p></article>
+          <article><h4>回看你们的思考路径</h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></article>
+          <article><h4>留下自己的对局记录</h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></article>
+          <article><h4>长局也有重新选择的机会</h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></article>
+        </div>
       </div>
     </section>
   </div>`;

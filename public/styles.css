@@ -2052,9 +2052,9 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }
 
 /* 首页玩法介绍：让词语本身展示游戏的过程。 */
-.home-story { margin-top: clamp(72px, 14vw, 112px); }
-.home-story-heading { max-width: 480px; }
-.home-story-heading h2 { color: var(--ink); font-size: clamp(28px, 6vw, 40px); line-height: 1.25; letter-spacing: -.03em; }
+.home-story { margin-top: clamp(72px, 14vw, 112px); text-align: center; }
+.home-story-heading { max-width: 600px; margin-inline: auto; }
+.home-story-heading h2 { color: var(--ink); font-size: clamp(22px, 4vw, 30px); line-height: 1.3; letter-spacing: -.03em; text-wrap: balance; }
 .home-story-heading p { margin-top: 16px; font-size: 15px; line-height: 1.7; }
 .home-story-example { display: flex; flex-direction: column; align-items: center; gap: 18px; margin-top: 32px; padding: clamp(28px, 7vw, 48px) 20px; border-radius: var(--radius-lg); background: #e9edff; }
 .story-words { display: flex; justify-content: center; gap: clamp(16px, 6vw, 48px); width: 100%; }
@@ -2064,10 +2064,14 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .story-bridge { display: inline-flex; align-items: center; gap: 6px; color: #4a5584; font-size: 13px; font-weight: 600; }
 .story-bridge .icon { width: 15px; height: 15px; }
 .story-example-label { color: #4a5584; font-size: 13px; }
-.home-story-how { margin-top: 56px; }
-.home-story-how h3 { margin: 0 0 16px; font-size: 22px; }
+.home-story-how, .home-story-features { margin-top: 56px; }
+.home-story-how h3, .home-story-features h3 { margin: 0 0 20px; font-size: 22px; }
 .home-story-how ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
-.home-story-how li { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); }
+.home-story-how li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); }
 .home-story-how li strong { font-size: 15px; }
-.home-story-how li span { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
-@media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } }
+.home-story-how li span, .home-feature-list p { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
+.home-feature-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 32px; }
+.home-feature-list article:last-child { grid-column: 1 / -1; max-width: 340px; justify-self: center; }
+.home-feature-list h4 { margin: 0 0 8px; font-size: 16px; }
+.home-feature-list p { margin: 0; }
+@media (max-width: 480px) { .home-feature-list { grid-template-columns: 1fr; gap: 28px; } .home-feature-list article:last-child { grid-column: auto; } }
