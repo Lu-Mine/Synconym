@@ -155,6 +155,14 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 ---
 
 ## 八、升级与发布
+### GitHub Actions 自动部署（当前 ECS）
+
+推送到 `master` 会自动运行测试，通过后打包该提交并通过 SSH 上传到 ECS。宝塔中的 `synconym` Node 项目使用 `/www/wwwroot/synconym` 符号链接指向版本目录，SQLite 仍在 `/var/lib/synconym`。部署会停止项目、切换版本并重启；健康检查或词向量加载失败时尝试回滚。进行中的对局会中断。
+
+工作流需要仓库 Secrets：`DEPLOY_SSH_KEY` 和 `DEPLOY_SSH_HOST_KEY`。服务器部署入口位于 `/opt/synconym-deploy/github-deploy.sh`，受限 SSH 密钥只能调用该入口。服务器上的部署入口和宝塔控制脚本是独立安装的基础设施；修改 `deploy/github-deploy.sh`、`deploy/bt-restart.py` 或 `deploy/bt-start.sh` 后，需由管理员检查并手动更新 `/opt/synconym-deploy/` 中的对应文件，普通代码部署不会自动替换这些脚本。
+
+可在 GitHub Actions 中查看发布结果，失败时检查日志；网络波动可重试。服务器保留版本目录，需由管理员按磁盘情况定期清理未使用的旧版本，切勿删除当前版本及回滚版本。
+
 
 **房间状态存在内存里，重启会丢掉正在进行的对局**（已完成的对局已经入库，不会丢）。
 

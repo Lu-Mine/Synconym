@@ -1,0 +1,41 @@
+name: Deploy Synconym
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Package and deploy
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/synconym_deploy
+          chmod 600 ~/.ssh/synconym_deploy
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          git archive --format=tar.gz "$GITHUB_SHA" > /tmp/synconym.tar.gz
+          sha256sum /tmp/synconym.tar.gz > /tmp/synconym.sha256
+          checksum=$(cut -d ' ' -f 1 /tmp/synconym.sha256)
+          ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10 root@example.com "deploy $GITHUB_SHA $checksum" < /tmp/synconym.tar.gz
