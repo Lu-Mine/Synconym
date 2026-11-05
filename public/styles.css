@@ -423,6 +423,7 @@ p {
   height: 58px;
   flex: 0 0 72px;
   isolation: isolate;
+  transform: translateX(-8px);
 }
 
 .intro-orb {
@@ -2048,9 +2049,9 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 480px) { .profile-actions .button { flex: 1 1 auto; } }
 
 /* 页脚隐私入口与独立阅读页 */
-.site-footer { margin-top: 32px; text-align: center; }
-.site-footer a, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
-.site-footer a:hover, .privacy-back:hover { color: var(--accent-hover); }
+.site-footer { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 32px; text-align: center; }
+.site-footer .footer-privacy, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
+.site-footer .footer-privacy:hover, .privacy-back:hover { color: var(--accent-hover); }
 .site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }
 .privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }
@@ -2064,9 +2065,10 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }
 
 /* 首页玩法介绍：让词语本身展示游戏的过程。 */
-.home-story-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; min-height: 44px; margin: 32px auto 0; padding: 8px 12px; color: var(--ink-secondary); font-size: 14px; text-decoration: none; border-radius: var(--radius-sm); transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
-.home-story-link:hover { color: var(--accent); background: rgba(61, 90, 254, .06); }
-.home-story-link .icon { width: 15px; height: 15px; }
+.home-story-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; min-height: 46px; margin: 32px auto 0; padding: 10px 20px; color: var(--accent); font-size: 14px; font-weight: 650; text-decoration: none; background: rgba(61, 90, 254, .08); border: 1px solid rgba(61, 90, 254, .24); border-radius: var(--radius-sm); transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
+.home-story-link:hover { color: var(--accent-hover); background: rgba(61, 90, 254, .14); border-color: var(--accent); }
+.home-story-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.home-story-link .icon { width: 16px; height: 16px; }
 .home-story { margin-top: clamp(56px, 10vw, 96px); text-align: center; }
 .home-story-heading h2 { scroll-margin-top: clamp(64px, 15vh, 144px); }
 .home-story-heading { max-width: 600px; margin-inline: auto; }
@@ -2080,14 +2082,14 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-example .path-connector { height: 34px; }
 .home-story-example .story-meet { position: relative; gap: 0; }
 /* 粒子与词卡碰撞的 48% 时间点同步，仅使用两层轻量伪元素。 */
-.story-meet::before, .story-meet::after { content: ''; position: absolute; z-index: 2; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; pointer-events: none; opacity: 0; }
+.story-meet::before, .story-meet::after { content: ''; position: absolute; z-index: 2; left: 50%; top: 50%; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; opacity: 0; }
 .story-meet::before { background: var(--player-0); box-shadow: -24px -22px var(--player-0), 24px -22px var(--player-1), -36px 0 var(--player-1), 36px 0 var(--player-0), -20px 24px var(--player-1), 20px 24px var(--player-0); animation: story-sparks 5.4s ease-out infinite; }
 .story-meet::after { background: var(--player-1); box-shadow: 0 -34px var(--player-1), -32px -14px var(--player-0), 32px -14px var(--player-1), -28px 18px var(--player-0), 28px 18px var(--player-1), 0 32px var(--player-0); animation: story-sparks 5.4s ease-out infinite; }
 @keyframes story-sparks {
   0%, 47.9% { opacity: 0; transform: translate(-50%, -50%) scale(.1); }
-  49% { opacity: 1; transform: translate(-50%, -50%) scale(.25); }
-  62% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+  49% { opacity: 1; transform: translate(-50%, -50%) scale(.35); }
+  56% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  66%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
 }
 /* 一个 5.4s 循环：先只显示第一轮 → 第二轮渐显（两卡分开）→ 两卡相互加速撞上，接触瞬间压扁并复原 → 停留 → 第二轮淡出重来 */
 .home-story-example .path-connector, .home-story-example .story-meet { animation: story-round-two 5.4s linear infinite; }
