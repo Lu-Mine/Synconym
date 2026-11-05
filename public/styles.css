@@ -2050,3 +2050,24 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .privacy-content p + p { margin-top: 12px; }
 .privacy-content .privacy-intro { margin-top: 16px; }
 @media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }
+
+/* 首页玩法介绍：让词语本身展示游戏的过程。 */
+.home-story { margin-top: clamp(72px, 14vw, 112px); }
+.home-story-heading { max-width: 480px; }
+.home-story-heading h2 { color: var(--ink); font-size: clamp(28px, 6vw, 40px); line-height: 1.25; letter-spacing: -.03em; }
+.home-story-heading p { margin-top: 16px; font-size: 15px; line-height: 1.7; }
+.home-story-example { display: flex; flex-direction: column; align-items: center; gap: 18px; margin-top: 32px; padding: clamp(28px, 7vw, 48px) 20px; border-radius: var(--radius-lg); background: #e9edff; }
+.story-words { display: flex; justify-content: center; gap: clamp(16px, 6vw, 48px); width: 100%; }
+.story-words span { display: grid; place-items: center; width: clamp(100px, 25vw, 150px); aspect-ratio: 1.45; border-radius: var(--radius-md); background: #fff; color: var(--player-0); font-size: clamp(24px, 6vw, 32px); font-weight: 650; }
+.story-words span + span { color: var(--player-1); }
+.story-words-together { gap: 8px; }
+.story-bridge { display: inline-flex; align-items: center; gap: 6px; color: #4a5584; font-size: 13px; font-weight: 600; }
+.story-bridge .icon { width: 15px; height: 15px; }
+.story-example-label { color: #4a5584; font-size: 13px; }
+.home-story-how { margin-top: 56px; }
+.home-story-how h3 { margin: 0 0 16px; font-size: 22px; }
+.home-story-how ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+.home-story-how li { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); }
+.home-story-how li strong { font-size: 15px; }
+.home-story-how li span { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
+@media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } }

@@ -223,6 +223,26 @@ export function homeMarkup(settings, settingsOpen = false) {
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>
+    <section class="home-story" aria-labelledby="home-story-title">
+      <div class="home-story-heading">
+        <h2 id="home-story-title">从不同的想法，<br>走到同一个答案。</h2>
+        <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
+      </div>
+      <div class="home-story-example" aria-label="一局示例：海洋、天空，下一轮想到蓝色">
+        <div class="story-words"><span>海洋</span><span>天空</span></div>
+        <span class="story-bridge">从上一轮出发 ${icon('arrow-down')}</span>
+        <div class="story-words story-words-together"><span>蓝色</span><span>蓝色</span></div>
+        <span class="story-example-label">示例 · 想到一起</span>
+      </div>
+      <div class="home-story-how">
+        <h3>怎么玩？</h3>
+        <ol>
+          <li><strong>各自写词</strong><span>同时写下一个词，揭晓前互相看不到。</span></li>
+          <li><strong>看看彼此的想法</strong><span>揭晓后，你们可以投票决定是否已经相遇。</span></li>
+          <li><strong>继续靠近</strong><span>还没相遇？带着上一轮的词，继续联想。</span></li>
+        </ol>
+      </div>
+    </section>
   </div>`;
 }
 
