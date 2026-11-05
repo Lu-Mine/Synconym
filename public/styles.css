@@ -2067,11 +2067,11 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-how, .home-story-features { margin-top: 56px; }
 .home-story-how h3, .home-story-features h3 { margin: 0 0 20px; font-size: 22px; }
 .home-story-how ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
-.home-story-how li { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); }
+.home-story-how li { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); text-align: left; }
 .home-story-how li strong { font-size: 15px; }
 .home-story-how li span, .home-feature-list p { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
 .home-feature-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 32px; }
-.home-feature-list article:last-child { grid-column: 1 / -1; max-width: 340px; justify-self: center; }
+.home-feature-list article { text-align: left; }
 .home-feature-list h4 { margin: 0 0 8px; font-size: 16px; }
 .home-feature-list p { margin: 0; }
-@media (max-width: 480px) { .home-feature-list { grid-template-columns: 1fr; gap: 28px; } .home-feature-list article:last-child { grid-column: auto; } }
+@media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } .home-feature-list { grid-template-columns: 1fr; gap: 28px; } }
