@@ -198,7 +198,7 @@ export function homeMarkup(settings, settingsOpen = false) {
     <div class="entry-deck">
       <form id="create-form" class="create-card">
         <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label">${icon('arrow-right', 'create-submit-arrow')}<span>创建房间</span></span>
+          <span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span>
         </button>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">

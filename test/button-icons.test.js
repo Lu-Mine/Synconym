@@ -13,10 +13,10 @@ function leftIcon(html, label, icon) {
   assert.ok(html.includes(`${svg(icon)}<span>${label}</span>`), `${label}: ${icon}`);
 }
 
-test('勾叉图标在文字后，其余按钮图标在文字前', () => {
+test('按钮图标按指定顺序排列', () => {
   const home = homeMarkup(settings);
   leftIcon(home, '加入房间', 'arrow-right');
-  assert.match(home, /<svg class="icon create-submit-arrow"[^>]*><use href="\/icons\.svg#icon-arrow-right"><\/use><\/svg><span>创建房间<\/span>/);
+  assert.match(home, /<span>创建房间<\/span><svg class="icon create-submit-arrow"[^>]*><use href="\/icons\.svg#icon-arrow-right"><\/use><\/svg>/);
   const shell = shellMarkup();
   for (const [label, icon] of [['取消', 'x'], ['保存', 'check'], ['退出房间', 'check']]) rightIcon(shell, label, icon);
   leftIcon(shell, '转让房主', 'user');
