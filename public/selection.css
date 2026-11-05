@@ -1,0 +1,19 @@
+/* 固定界面文案不是操作目标，避免点击或拖动时误选。 */
+.intro, .entry-divider, .home-story-link, .home-story,
+.setting-label, .setting-value, .theme-setting-hint,
+.stage-copy, .stage-round, .writing-clock, .section-heading,
+.room-heading-copy, .ticket-caption, .player-count, .ready-state,
+.badge, .readonly-tag, .game-hint, .path-hint, .path-empty,
+.profile-empty, .profile-total, .profile-page-count, .profile-privacy,
+.rematch-description, .rematch-footnote, .rematch-clock,
+.result-heading-copy > p, .result-title-row > h1,
+.rename-dialog-heading, .transfer-hint, .connection-status, .toast {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 可编辑内容和提示中嵌入的玩家名字仍可选择。 */
+input, textarea, [contenteditable="true"], #transfer-target-name {
+  -webkit-user-select: text;
+  user-select: text;
+}
