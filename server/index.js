@@ -64,6 +64,7 @@ export function createSynconymServer({
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (data) => {
       try {
+        if (connection && manager.clients.get(connection.uid) !== connection) return;
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
@@ -92,11 +93,7 @@ export function createSynconymServer({
           throw new Error('连接尚未就绪');
         }
       } catch (error) {
-        if (error.code === 'UID_IN_USE') {
-          ws.close(4002, 'UID in use');
-        } else {
-          ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
-        }
+        ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
       }
     });
     ws.on('close', () => { if (connection) manager.disconnect(connection); });

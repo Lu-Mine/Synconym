@@ -37,22 +37,25 @@ function nextState(client, predicate = () => true, timeout = 2000) {
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test('同 UID 的活动连接不能被新页面冒用接管', async (t) => {
-  const { server, wss } = createSynconymServer({ db: createDatabase(':memory:') });
+test('同 UID 新页面接管连接并保留房间席位', async (t) => {
+  const { server, wss, manager } = createSynconymServer({ db: createDatabase(':memory:') });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
   const port = server.address().port;
   const first = await openClient(port);
+  first.ws.send(JSON.stringify({ type: 'createRoom' }));
+  const room = (await nextState(first, (state) => state.room)).room;
+  const firstClosed = once(first.ws, 'close');
   const second = await openClient(port, first.uid);
-  assert.equal(second.restored, undefined);
-  assert.equal(second.closeCode, 4002);
-  assert.equal(first.ws.readyState, WebSocket.OPEN);
-  first.ws.close();
-  await once(first.ws, 'close');
-  const retry = await openClient(port, first.uid);
-  assert.equal(retry.uid, first.uid);
-  await nextState(retry, (state) => state.room === null);
-  assert.deepEqual(retry.errors, []);
+  const [code] = await firstClosed;
+  assert.equal(code, 4001);
+  assert.equal(second.uid, first.uid);
+  assert.equal(second.restored, true);
+  const recovered = await nextState(second, (state) => state.room?.code === room.code);
+  assert.equal(recovered.room.players[0].seat, room.players[0].seat);
+  assert.equal(manager.playerFor(manager.rooms.get(room.code), first.uid).connected, true);
+  assert.equal(manager.clients.get(first.uid).ws.readyState, WebSocket.OPEN);
+  assert.deepEqual(second.errors, []);
 });
 test('真实 WebSocket 完成 M1 流程并恢复原席位', async (t) => {
   const db = createDatabase(':memory:');
@@ -210,7 +213,7 @@ test('结算截止前未执行清理，离线者迟到握手不能恢复资格',
   assert.deepEqual(room.players.map((p) => p.uid), [host.uid]);
   host.ws.close(); late.ws.close();
 });
-test('握手真实状态：拒绝在线接管、切房、主动退出、过期和房间销毁', async (t) => {
+test('握手真实状态：重连、切房、主动退出、过期和房间销毁', async (t) => {
   const { server, manager, wss } = createSynconymServer({ db: createDatabase(':memory:') });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
