@@ -231,12 +231,11 @@ function storyDemos() {
     theme: `${segmented('demo-mode', 'theme', [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }])}<div class="writing-stage"><div class="stage-copy"><h1>各自写下此刻想到的词</h1><p>词语会在所有人提交后揭晓</p></div><div class="stage-theme">${themeMarkup({ mode: 'theme', phase: 'writing', themeName: '王者荣耀' })}</div></div>`,
     settings: `${demoClockMarkup(45)}<div class="setting-row"><span class="setting-label">写词时限</span>${segmented('demo-write', 45, durations)}</div><div class="setting-row"><span class="setting-label">禁止重复词</span><button class="switch" type="button" role="switch" aria-checked="true" tabindex="-1"><span class="switch-thumb"></span></button></div>`,
     reconnect: `<ul class="player-list">${playerItemMarkup(a, lobby, '')}${playerItemMarkup({ ...b, ready: true }, lobby, '')}</ul>`,
-    path: thoughtPathMarkup({ phase: 'result', players: DEMO_PLAYERS, history: [{ n: 1, words: words('海洋', '天空'), marks: {} }, { n: 2, words: words('蓝色', '蓝色'), marks: {} }] }),
+    path: thoughtPathMarkup({ phase: 'result', players: DEMO_PLAYERS, history: [{ n: 1, words: words('海洋', '天空'), marks: {} }, { n: 2, words: words('蓝色', '蓝色'), marks: {} }] }).replace(/<p class="path-hint">[^<]*<\/p>/, ''),
     profile: `<ol class="profile-matches">${matches.map(profileMatchMarkup).join('')}</ol>`,
     vote: `<div class="demo-scene-break"><div class="writing-stage"><nav class="stage-progress">${stageProgressMarkup('breakVote')}</nav><h1>继续下一轮，还是结束本局？</h1></div>`
       + `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${gameStatusItemMarkup(a, 'done', '已投票', true)}${gameStatusItemMarkup(b, 'done', '已投票', false)}</ul></section>`
-      + `<div class="game-actions">${demoButton('primary', 'data-action="break-no" disabled', `${icon('arrow-right')}<span>下一轮</span>`)}${demoButton('primary', 'data-action="break-yes" disabled', `<span>玩崩了</span>${icon('x')}`)}</div>`
-      + '<p class="game-hint game-center" data-demo-hint>已选择，结果确定或倒计时结束后揭晓</p></div>'
+      + `<div class="game-actions">${demoButton('primary', 'data-action="break-no" disabled', `${icon('arrow-right')}<span>下一轮</span>`)}${demoButton('primary', 'data-action="break-yes" disabled', `<span>玩崩了</span>${icon('x')}`)}</div></div>`
   };
 }
 

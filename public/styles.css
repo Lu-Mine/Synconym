@@ -1843,8 +1843,10 @@ body[data-scene="breakVote"] .writing-stage, .demo-vote .writing-stage { backgro
 body[data-scene="breakVote"] .writing-stage h1, .demo-vote .writing-stage h1,
 body[data-scene="breakVote"] .stage-step.is-current, .demo-vote .stage-step.is-current { color: #852D20; }
 body[data-scene="breakVote"] .writing-stage p:not(.current-theme), .demo-vote .writing-stage p:not(.current-theme) { color: #713B30; }
-body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled), .demo-vote [data-action="break-yes"] { background: #B83225; }
-body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled), .demo-vote [data-action="break-yes"].is-pressed { background: #94261C; }
+body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled), .demo-vote [data-action="break-yes"]:not(:disabled) { background: #B83225; }
+body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled), .demo-vote [data-action="break-yes"].is-pressed:not(:disabled) { background: #94261C; }
+/* 红色按钮的禁用态：淡红底 + 深红字，与浅色背景区分，文字对比度约 6:1 */
+[data-action="break-yes"]:disabled, .button.danger:disabled { opacity: 1; color: #8E3A30; background: #F6DCD7; border-color: #EBC2BA; }
 body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .writing-stage { margin-bottom: 16px; }
 .game-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
@@ -1964,7 +1966,7 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 
 .confirm-modal { z-index: 100; }
 .button.danger { background: #C83939; border-color: #C83939; color: #fff; }
-.button.danger:hover { background: #AF2929; border-color: #AF2929; }
+.button.danger:hover:not(:disabled) { background: #AF2929; border-color: #AF2929; }
 .confirm-modal .rename-dialog { max-width: 420px; }
 
 .connection-status { padding: 10px 18px; background: #fff4d5; color: #725116; text-align: center; font-size: 13px; line-height: 1.6; }
@@ -2078,20 +2080,23 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-example .path-connector { height: 34px; }
 .home-story-example .story-meet { gap: 0; }
 /* 磁吸：远处缓慢漂移，进入吸附距离后瞬间贴合，接触时一次干脆的轻压，不回弹；之后匀速分开 */
-.story-meet .word-card:first-child { transform-origin: right center; animation: story-snap-l 4.4s linear infinite; }
-.story-meet .word-card:last-child { transform-origin: left center; animation: story-snap-r 4.4s linear infinite; }
+.story-meet .word-card:first-child { transform-origin: right center; animation: story-snap-l 2.93s linear infinite; }
+.story-meet .word-card:last-child { transform-origin: left center; animation: story-snap-r 2.93s linear infinite; }
+/* 靠近段的曲线取原曲线的反向：起步快、贴近时减速，接触瞬间轻压一下；分开保持匀速 */
 @keyframes story-snap-l {
-  0%, 12% { transform: translateX(-18px); animation-timing-function: cubic-bezier(.45, 0, 1, 1); }
-  34% { transform: translateX(-8px); animation-timing-function: cubic-bezier(.8, 0, 1, 1); }
-  37% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
-  40%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
+  0%, 12% { transform: translateX(-18px); animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+  15% { transform: translateX(-10px); animation-timing-function: cubic-bezier(0, 0, .55, 1); }
+  37% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.3, 0, .7, 1); }
+  39% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
+  42%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
   92%, 100% { transform: translateX(-18px); }
 }
 @keyframes story-snap-r {
-  0%, 12% { transform: translateX(18px); animation-timing-function: cubic-bezier(.45, 0, 1, 1); }
-  34% { transform: translateX(8px); animation-timing-function: cubic-bezier(.8, 0, 1, 1); }
-  37% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
-  40%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
+  0%, 12% { transform: translateX(18px); animation-timing-function: cubic-bezier(0, 0, .2, 1); }
+  15% { transform: translateX(10px); animation-timing-function: cubic-bezier(0, 0, .55, 1); }
+  37% { transform: translateX(0) scaleX(1); animation-timing-function: cubic-bezier(.3, 0, .7, 1); }
+  39% { transform: translateX(0) scaleX(.97); animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
+  42%, 72% { transform: translateX(0) scaleX(1); animation-timing-function: linear; }
   92%, 100% { transform: translateX(18px); }
 }
 /* 一轮的循环：写词 → 提交 → 揭晓 → 投票 → 未通过 → 下一轮 */
@@ -2113,11 +2118,11 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story-how, .home-story-features { margin-top: 56px; }
 .home-story-how h3, .home-story-features h3 { margin: 0 0 20px; font-size: 22px; }
 .home-story-how ol { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
-.home-story-how li { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); text-align: left; }
-.home-story-how li strong, .home-feature-list h4 { display: flex; align-items: center; gap: 8px; }
-.home-story-how li strong { font-size: 15px; }
+.home-story-how ol > li { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line-strong); text-align: left; }
+.home-story-how ol > li > strong, .home-feature-list h4 { display: flex; align-items: center; gap: 8px; }
+.home-story-how ol > li > strong { font-size: 15px; }
 .home-story .story-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--accent); }
-.home-story-how li > span, .home-feature-list p { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
+.home-story-how ol > li > span, .home-feature-list p { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
 .home-feature-list { display: flex; flex-direction: column; }
 .home-feature-list article { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 32px; padding: 32px 0; border-bottom: 1px solid var(--line-strong); text-align: left; }
 .home-feature-list h4 { margin: 0 0 8px; font-size: 16px; }
@@ -2143,7 +2148,14 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .demo-vote .writing-stage { display: flex; flex-direction: column; gap: 6px; }
 .demo-vote .game-center { margin: 0; }
 /* 思考路径与对局记录：干净地淡入上移，无回弹 */
-.demo-path .path-round-item:nth-child(2), .demo-profile .profile-match:first-child { animation: demo-enter 5s linear infinite; }
+.demo-path .path-round-item:nth-child(2) { animation: demo-enter 5s linear infinite; }
+/* 新纪录展开时把旧纪录推下去，收起时旧纪录回到原位 */
+.demo-profile .profile-match:first-child { overflow: hidden; transition: height 420ms var(--ease-out), padding 420ms var(--ease-out), opacity 300ms var(--ease-out); }
+.demo-profile .profile-match:first-child.is-collapsed { padding-block: 0; opacity: 0; }
+.demo-profile .profile-match:first-child.is-collapsed + .profile-match { border-top-color: transparent; }
+/* 掉线演示：状态色由组件原有过渡渐变；文字和图标只做透明度交替，不缩放 */
+.demo-reconnect .ready-state > * { transition: opacity 140ms var(--ease-out); }
+.demo-reconnect .ready-state.is-swapping > * { opacity: 0; }
 @keyframes demo-enter {
   0%, 16% { opacity: 0; transform: translateY(8px); animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
   30%, 80% { opacity: 1; transform: translateY(0); animation-timing-function: ease-in; }
@@ -2152,7 +2164,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .home-story .motion-observed:not(.motion-visible) *, .home-story .motion-observed.motion-hidden *,
 .home-story .motion-observed:not(.motion-visible) *::before, .home-story .motion-observed.motion-hidden *::before,
 .home-story .motion-observed:not(.motion-visible) *::after, .home-story .motion-observed.motion-hidden *::after { animation-play-state: paused; }
-@media (max-width: 480px) { .home-story-how li { grid-template-columns: 1fr; gap: 4px; } .home-feature-list article { grid-template-columns: 1fr; gap: 16px; } }
+@media (max-width: 480px) { .home-story-how ol > li { grid-template-columns: 1fr; gap: 4px; } .home-feature-list article { grid-template-columns: 1fr; gap: 16px; } }
 @media (prefers-reduced-motion: reduce) {
   .story-demo *, .story-demo *::before { animation: none !important; }
 }

@@ -91,27 +91,52 @@ const SCENES = {
       [1600, () => { index = (index + 1) % values.length; apply(); toggle?.setAttribute('aria-checked', String(toggle.getAttribute('aria-checked') !== 'true')); }]
     ];
   },
-  reconnect(demo) {
+  reconnect(demo, press, later) {
     const item = demo.querySelectorAll('.player')[1];
+    // 颜色由组件自带的过渡渐变；文字和图标只做透明度交替，不缩放，避免栅格化发糊
+    const swap = (ready, key, text, glyph) => {
+      const chip = item.querySelector('.ready-state');
+      chip?.classList.add('is-swapping');
+      item.classList.toggle('is-ready', ready);
+      for (const name of [...item.classList]) if (name.startsWith('status-')) item.classList.remove(name);
+      item.classList.add(`status-${key}`);
+      later(() => { setStatus(item, key, text, glyph); chip?.classList.remove('is-swapping'); }, 140);
+    };
     return () => [
-      [0, () => { item.classList.remove('is-ready'); setStatus(item, 'away', '连接中断', 'log-out'); }],
-      [1800, () => { item.classList.add('is-ready'); setStatus(item, 'done', '已准备', 'check'); }],
+      [0, () => swap(false, 'away', '连接中断', 'log-out')],
+      [1800, () => swap(true, 'done', '已准备', 'check')],
       [2600, () => {}]
+    ];
+  },
+  profile(demo, press, later) {
+    const first = demo.querySelector('.profile-match');
+    let full = 0;
+    // 新纪录展开高度，把旧纪录向下推开；恢复时收起，旧纪录回到原位
+    const collapse = () => {
+      full ||= first.offsetHeight;
+      first.style.height = `${full}px`;
+      void first.offsetHeight;
+      first.classList.add('is-collapsed');
+      first.style.height = '0px';
+    };
+    const expand = () => { first.classList.remove('is-collapsed'); first.style.height = `${full}px`; };
+    return () => [
+      [0, collapse],
+      [1400, expand],
+      [3000, () => {}]
     ];
   },
   break(demo, press) {
     const [mine, other] = demo.querySelectorAll('.game-status');
     const buttons = [...demo.querySelectorAll('.game-actions .button')];
     const yes = demo.querySelector('[data-action="break-yes"]');
-    const hint = demo.querySelector('[data-demo-hint]');
     return () => [
       [0, () => {
         setStatus(mine, 'waiting', '未投票', 'clock'); setStatus(other, 'waiting', '未投票', 'clock');
         setDisabled(buttons, false);
-        if (hint) hint.textContent = '选择提交后不可更改；结果确定后提前结束';
       }],
       [1400, () => press(yes)],
-      [180, () => { setStatus(mine, 'done', '已投票', 'check'); setDisabled(buttons, true); if (hint) hint.textContent = '已选择，结果确定或倒计时结束后揭晓'; }],
+      [180, () => { setStatus(mine, 'done', '已投票', 'check'); setDisabled(buttons, true); }],
       [1100, () => setStatus(other, 'done', '已投票', 'check')],
       [2200, () => {}]
     ];
@@ -124,7 +149,8 @@ function runScene(demo, active, timers) {
     button.classList.add('is-pressed');
     timers.add(setTimeout(() => button.classList.remove('is-pressed'), 160));
   };
-  const build = SCENES[demo.dataset?.demo]?.(demo, press);
+  const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
+  const build = SCENES[demo.dataset?.demo]?.(demo, press, later);
   if (!build) return;
   let queue = [];
   const next = () => {
