@@ -182,7 +182,8 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       <div id="path-content"></div>
     </section>
   </div>
-  <div id="stage" class="stage"></div>`;
+  <main id="stage" class="stage"></main>
+  <footer class="site-footer"><a href="/privacy.html">隐私说明</a></footer>`;
 }
 
 export function homeMarkup(settings, settingsOpen = false) {
@@ -221,7 +222,6 @@ export function homeMarkup(settings, settingsOpen = false) {
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>
-    <footer class="home-footer"><a href="/privacy.html">隐私说明</a></footer>
   </div>`;
 }
 

@@ -2,13 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
-import { homeMarkup } from '../public/render.js';
+import { homeMarkup, shellMarkup } from '../public/render.js';
 import { createSynconymServer } from '../server/index.js';
 import { createDatabase } from '../server/db.js';
 import { DEFAULT_SETTINGS } from '../server/rules.js';
 
-test('首页提供隐私说明入口', () => {
-  assert.match(homeMarkup(DEFAULT_SETTINGS), /href="\/privacy\.html"[^>]*>隐私说明<\/a>/);
+test('站点标题、主内容与包含隐私说明的页脚分开', () => {
+  for (const inRoom of [false, true]) {
+    const shell = shellMarkup(inRoom);
+    assert.match(shell, /<header class="site-header"[\s\S]*<\/header>[\s\S]*<main id="stage" class="stage"><\/main>\s*<footer class="site-footer"><a href="\/privacy\.html">隐私说明<\/a><\/footer>/);
+  }
+  assert.doesNotMatch(homeMarkup(DEFAULT_SETTINGS), /隐私说明/);
 });
 
 test('隐私说明可直接访问并如实说明身份重置', async (t) => {

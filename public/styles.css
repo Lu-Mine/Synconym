@@ -147,6 +147,9 @@ button svg {
 }
 
 .app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
   width: min(100% - 40px, 600px);
   margin: 0 auto;
   padding: 36px 0 64px;
@@ -322,6 +325,7 @@ html:has(.rename-modal.is-open) {
 }
 
 .stage {
+  flex: 1 0 auto;
   view-transition-name: stage;
 }
 
@@ -2025,11 +2029,11 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 480px) { .profile-actions .button { flex: 1 1 auto; } }
 
-/* 首页隐私入口与独立阅读页 */
-.home-footer { margin-top: 32px; text-align: center; }
-.home-footer a, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
-.home-footer a:hover, .privacy-back:hover { color: var(--accent-hover); }
-.home-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+/* 页脚隐私入口与独立阅读页 */
+.site-footer { margin-top: 32px; text-align: center; }
+.site-footer a, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
+.site-footer a:hover, .privacy-back:hover { color: var(--accent-hover); }
+.site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }
 .privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }
 .privacy-content { margin-top: 24px; padding: clamp(24px, 5vw, 48px); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
