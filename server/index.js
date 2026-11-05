@@ -64,16 +64,19 @@ export function createSynconymServer({
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (data) => {
       try {
-        if (connection && manager.clients.get(connection.uid) !== connection) return;
+        if (connection?.replaced) return;
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
           connection = manager.connect(message.uid);
           connection.ws = ws;
-          const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : connection.roomCode;
+          const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : null;
           if (message.leaveRoom === true) {
             if (connection.roomCode && connection.roomCode !== roomCode) manager.detach(connection, true);
-            if (manager.rooms.get(roomCode)?.players.some((player) => player.uid === connection.uid)) connection.roomCode = roomCode;
+            if (manager.rooms.get(roomCode)?.players.some((player) => player.uid === connection.uid)) {
+              manager.claimRoom(connection, roomCode);
+              connection.roomCode = roomCode;
+            }
             manager.detach(connection, true);
             ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
             manager.sendState(connection, null);
@@ -83,6 +86,10 @@ export function createSynconymServer({
             ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: true, serverNow: Date.now() }));
           });
           if (!restored) {
+            if (roomCode && !manager.clients.get(connection.uid)?.roomCode) {
+              const oldRoom = [...manager.rooms.values()].find((room) => room.players.some((player) => player.uid === connection.uid));
+              if (oldRoom && oldRoom.code !== roomCode) manager.detach({ uid: connection.uid, roomCode: oldRoom.code }, true);
+            }
             ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
             manager.detach(connection, true);
             manager.sendState(connection, null);

@@ -28,6 +28,7 @@ export class RoomManager {
     this.maxRooms = maxRooms;
     this.rooms = new Map();
     this.clients = new Map();
+    this.connections = new Set();
   }
 
   // 房号：5 位纯数字，首位非 0，输入时可以只调数字键盘
@@ -55,14 +56,27 @@ export class RoomManager {
       uid = this.makeUid();
       player = this.db.createPlayer(uid, createName());
     }
-    const old = this.clients.get(uid);
-    const connection = { ws: null, uid,
-      roomCode: old?.roomCode ?? [...this.rooms.values()].find((room) => room.players.some((p) => p.uid === uid))?.code ?? null,
-      lastWrite: 0, lastTyping: 0 };
-    this.clients.set(uid, connection);
-    if (old?.ws?.readyState === 1) old.ws.close(4001, 'Replaced by new connection');
+    const connection = { ws: null, uid, roomCode: null, lastWrite: 0, lastTyping: 0 };
+    this.connections.add(connection);
+    if (!this.clients.has(uid)) this.clients.set(uid, connection);
     this.db.touch(uid, now);
     return connection;
+  }
+
+  claimRoom(connection, code) {
+    const old = this.clients.get(connection.uid);
+    const previousRoom = [...this.rooms.values()].find((room) => room.players.some((player) => player.uid === connection.uid));
+    const replacing = old !== connection && Boolean(old?.roomCode);
+    if (previousRoom && previousRoom.code !== code) {
+      const previous = old?.roomCode === previousRoom.code ? old : { uid: connection.uid, roomCode: previousRoom.code };
+      this.detach(previous, true);
+    }
+    this.clients.set(connection.uid, connection);
+    if (replacing) {
+      old.roomCode = null;
+      old.replaced = true;
+      if (old.ws?.readyState === 1) old.ws.close(4001, 'Replaced by new connection');
+    }
   }
 
   roomFor(connection) {
@@ -179,6 +193,7 @@ export class RoomManager {
   restore(connection, code, onRestore = () => {}) {
     if (connection.roomCode && connection.roomCode !== code) this.detach(connection, true);
     if (!this.canRestore(connection, code)) return false;
+    this.claimRoom(connection, code);
     const room = this.rooms.get(code);
     const player = this.playerFor(room, connection.uid);
     const returning = !player.connected;
@@ -427,9 +442,11 @@ export class RoomManager {
     this.touch(room);
   }
   disconnect(connection) {
+    this.connections.delete(connection);
     if (this.clients.get(connection.uid) !== connection) return;
     this.detach(connection);
-    this.clients.delete(connection.uid);
+    const other = [...this.connections].find((client) => client.uid === connection.uid && !client.replaced);
+    if (other) this.clients.set(connection.uid, other); else this.clients.delete(connection.uid);
   }
 
   transferHost(room) {
@@ -494,7 +511,10 @@ export class RoomManager {
     if (type === 'resetIdentity') {
       const previous = connection.uid;
       this.detach(connection, true);
-      if (this.clients.get(previous) === connection) this.clients.delete(previous);
+      if (this.clients.get(previous) === connection) {
+        const other = [...this.connections].find((client) => client !== connection && client.uid === previous && !client.replaced);
+        if (other) this.clients.set(previous, other); else this.clients.delete(previous);
+      }
       connection.uid = this.makeUid();
       const player = this.db.createPlayer(connection.uid, createName());
       this.clients.set(connection.uid, connection);
@@ -532,6 +552,7 @@ export class RoomManager {
         };
         this.rooms.set(code, target);
       }
+      this.claimRoom(connection, target.code);
       this.addPlayer(connection, target, player.name);
       if (type === 'joinRoom') this.toast(target, 'join', this.playerFor(target, connection.uid));
       this.touch(target);

@@ -88,6 +88,7 @@ test('switching rooms removes old seat; stale socket close cannot detach replace
   const { manager, room, a, b, connect, send } = setup(t);
   b.ws.readyState = 3;
   const replacement = connect(b.uid);
+  assert.equal(manager.restore(replacement, room.code), true);
   manager.disconnect(b);
   assert.equal(manager.playerFor(room, b.uid).connected, true);
   send(replacement, { type: 'createRoom' });

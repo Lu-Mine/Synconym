@@ -46,7 +46,7 @@ test('同 UID 新页面接管连接并保留房间席位', async (t) => {
   first.ws.send(JSON.stringify({ type: 'createRoom' }));
   const room = (await nextState(first, (state) => state.room)).room;
   const firstClosed = once(first.ws, 'close');
-  const second = await openClient(port, first.uid);
+  const second = await openClient(port, first.uid, room.code);
   const [code] = await firstClosed;
   assert.equal(code, 4001);
   assert.equal(second.uid, first.uid);
@@ -56,6 +56,32 @@ test('同 UID 新页面接管连接并保留房间席位', async (t) => {
   assert.equal(manager.playerFor(manager.rooms.get(room.code), first.uid).connected, true);
   assert.equal(manager.clients.get(first.uid).ws.readyState, WebSocket.OPEN);
   assert.deepEqual(second.errors, []);
+});
+
+test('同 UID 首页可以并存，不会踢掉房间页面，进入房间时才接管', async (t) => {
+  const { server, wss, manager } = createSynconymServer({ db: createDatabase(':memory:') });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
+  const port = server.address().port;
+  const first = await openClient(port);
+  const second = await openClient(port, first.uid);
+  await nextState(first, s => s.room === null);
+  await nextState(second, s => s.room === null);
+  assert.equal(first.ws.readyState, WebSocket.OPEN);
+  assert.equal(second.ws.readyState, WebSocket.OPEN);
+  first.ws.send(JSON.stringify({ type: 'createRoom' }));
+  const { room } = await nextState(first, s => s.room);
+  const third = await openClient(port, first.uid);
+  await nextState(third, s => s.room === null);
+  assert.equal(first.ws.readyState, WebSocket.OPEN);
+  assert.equal(second.ws.readyState, WebSocket.OPEN);
+  const closed = once(first.ws, 'close');
+  second.ws.send(JSON.stringify({ type: 'joinRoom', code: room.code }));
+  const [code] = await closed;
+  assert.equal(code, 4001);
+  await nextState(second, s => s.room?.code === room.code);
+  assert.equal(third.ws.readyState, WebSocket.OPEN);
+  assert.equal(manager.playerFor(manager.rooms.get(room.code), first.uid).connected, true);
 });
 test('真实 WebSocket 完成 M1 流程并恢复原席位', async (t) => {
   const db = createDatabase(':memory:');
