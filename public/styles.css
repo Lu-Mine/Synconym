@@ -1956,7 +1956,8 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .prepare-grace-hint[hidden] { display: none; }
 
 /* 主题说明与当前主题允许长文本在窄屏换行。 */
-.theme-setting-hint { padding: 8px 0; color: var(--ink-secondary); font-size: 13px; }
+.mode-label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.theme-setting-hint { color: var(--ink-secondary); font-size: 13px; }
 .theme-setting-hint[hidden] { display: none; }
 .current-theme { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 18px; color: var(--ink); text-align: center; }
 .current-theme span { font-size: 13px; font-weight: 600; }

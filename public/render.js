@@ -76,10 +76,9 @@ export function settingsMarkup(settings, editable) {
   const control = (name, type, markup) => (editable ? markup : settingValueMarkup(name, settings, type));
   return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
     <div class="setting-row">
-      <span class="setting-label">模式</span>
+      <span class="mode-label"><span class="setting-label">模式</span><span class="theme-setting-hint" data-theme-setting-hint ${settings.mode === 'theme' ? '' : 'hidden'}>开始后随机抽取主题。</span></span>
       ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
     </div>
-    <p class="theme-setting-hint" data-theme-setting-hint ${settings.mode === 'theme' ? '' : 'hidden'}>开始后随机抽取主题。</p>
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
       ${control('maxRounds', 'stepper', `<div class="stepper" role="group" aria-label="轮次上限">

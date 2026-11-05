@@ -9,7 +9,7 @@ const room = { ...settings, code: '12345', phase: 'writing', round: 1, themeId: 
 test('主题设置说明随机抽取，房主和成员均无主题选择器', () => {
   for (const editable of [true, false]) {
     const html = settingsMarkup(settings, editable);
-    assert.match(html, /开始后随机抽取主题/);
+    assert.match(html, /<span class="mode-label"><span class="setting-label">模式<\/span><span class="theme-setting-hint" data-theme-setting-hint\s*>开始后随机抽取主题。<\/span><\/span>/);
     assert.doesNotMatch(html, /data-setting="themeId"|<select/);
     assert.match(settingsMarkup({ ...settings, mode: 'free' }, editable), /data-theme-setting-hint hidden/);
   }
