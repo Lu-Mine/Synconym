@@ -2001,7 +2001,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 2px 6px 2px 2px;
+  padding: 2px 0 2px 2px;
   margin-left: -2px;
   border: 0;
   border-radius: var(--radius-sm);
