@@ -92,7 +92,11 @@ export function createSynconymServer({
           throw new Error('连接尚未就绪');
         }
       } catch (error) {
-        ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
+        if (error.code === 'UID_IN_USE') {
+          ws.close(4002, 'UID in use');
+        } else {
+          ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
+        }
       }
     });
     ws.on('close', () => { if (connection) manager.disconnect(connection); });

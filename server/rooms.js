@@ -57,7 +57,9 @@ export class RoomManager {
     }
     const old = this.clients.get(uid);
     if (old?.ws && old.ws.readyState !== 2 && old.ws.readyState !== 3) {
-      throw new Error('该 UID 已在其他页面连接');
+      const error = new Error('该 UID 已在其他页面连接');
+      error.code = 'UID_IN_USE';
+      throw error;
     }
     const connection = { ws: null, uid,
       roomCode: old?.roomCode ?? [...this.rooms.values()].find((room) => room.players.some((p) => p.uid === uid))?.code ?? null,

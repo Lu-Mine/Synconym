@@ -84,6 +84,26 @@ test('同 UID 被其他页面接管后停止自动抢连', (t) => {
   assert.equal(statuses.at(-1), 'replaced'); assert.equal(scheduled.length, 0);
 });
 
+test('刷新遇到旧连接未释放时退避重试并恢复房间', (t) => {
+  const { socket, ws, scheduled, statuses, FakeSocket } = setup(t);
+  ws.open(); ws.close(4002);
+  assert.equal(statuses.at(-1), 'uid-in-use');
+  assert.equal(socket.closed, false);
+  assert.equal(socket.reconnectDelay, 1000);
+  scheduled.shift()();
+  const retry = FakeSocket.instances.at(-1);
+  retry.open(); retry.close(4002);
+  assert.equal(socket.reconnectDelay, 2000);
+  scheduled.shift()();
+  const restored = FakeSocket.instances.at(-1);
+  restored.open();
+  assert.equal(restored.sent[0].roomCode, '12345');
+  restored.message({ type: 'hello', uid: 'ABCDEFGH', restored: true });
+  restored.message({ type: 'state', room: { code: '12345' } });
+  assert.equal(statuses.at(-1), 'connected');
+  assert.equal(socket.reconnectDelay, 500);
+});
+
 test('普通断线窗口过期后不再自动加入等待房间', (t) => {
   const { socket, ws, scheduled, FakeSocket } = setup(t);
   ready(ws); ws.close(); scheduled.shift()();

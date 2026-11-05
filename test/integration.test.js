@@ -17,6 +17,7 @@ function openClient(port, uid, roomCode, extra = {}) {
       if (message.type === 'error') { client.errors.push(message.message); resolve(client); }
     });
     ws.on('error', reject);
+    ws.on('close', (code) => { client.closeCode = code; resolve(client); });
   });
 }
 function nextState(client, predicate = () => true, timeout = 2000) {
@@ -43,10 +44,15 @@ test('同 UID 的活动连接不能被新页面冒用接管', async (t) => {
   const port = server.address().port;
   const first = await openClient(port);
   const second = await openClient(port, first.uid);
-  await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(second.restored, undefined);
-  assert.match(second.errors[0], /已在其他页面连接/);
+  assert.equal(second.closeCode, 4002);
   assert.equal(first.ws.readyState, WebSocket.OPEN);
+  first.ws.close();
+  await once(first.ws, 'close');
+  const retry = await openClient(port, first.uid);
+  assert.equal(retry.uid, first.uid);
+  await nextState(retry, (state) => state.room === null);
+  assert.deepEqual(retry.errors, []);
 });
 test('真实 WebSocket 完成 M1 流程并恢复原席位', async (t) => {
   const db = createDatabase(':memory:');

@@ -15,7 +15,6 @@ export class Socket {
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     this.ws = ws;
     ws.addEventListener('open', () => {
-      this.reconnectDelay = 500;
       this.send({ type: 'hello', uid: this.uid || undefined, roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave) }, true);
     });
     ws.addEventListener('message', ({ data }) => {
@@ -36,6 +35,7 @@ export class Socket {
         if (this.pendingLeave && message.room) return;
         if (!message.room) this.clearLeave();
         this.ready = true;
+        this.reconnectDelay = 500;
         this.handlers.onConnection?.('connected');
         this.hadState = true;
         this.handlers.onState?.(message);
@@ -63,7 +63,7 @@ export class Socket {
         this.handlers.onConnection?.('replaced');
         return;
       }
-      this.handlers.onConnection?.('disconnected');
+      this.handlers.onConnection?.(event.code === 4002 ? 'uid-in-use' : 'disconnected');
       if (this.closed) return;
       setTimeout(() => this.connect(), this.reconnectDelay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, 5000);
