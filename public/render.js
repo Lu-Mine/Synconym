@@ -223,6 +223,7 @@ export function homeMarkup(settings, settingsOpen = false) {
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>
+    <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
     <section class="home-story" aria-labelledby="home-story-title">
       <div class="home-story-heading">
         <h2 id="home-story-title">从不同的想法，走到同一个答案。</h2>
