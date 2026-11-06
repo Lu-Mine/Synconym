@@ -2,6 +2,7 @@ import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
+import { copyText } from './clipboard.js';
 import {
   avatarDetails,
   homeMarkup,
@@ -1204,13 +1205,21 @@ app.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!state.room) return;
     const url = `${state.publicUrl || location.origin}/?r=${state.room.code}`;
-    button.classList.add('copied');
-    setTimeout(() => button.classList.remove('copied'), 600);
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copyText(url)) {
+      button.classList.add('copied');
+      setTimeout(() => button.classList.remove('copied'), 600);
       toast('邀请链接已复制');
-    } catch {
-      toast('请复制浏览器地址栏中的邀请链接');
+    } else {
+      const input = document.createElement('input');
+      input.value = url;
+      input.readOnly = true;
+      input.setAttribute('aria-label', '手动复制邀请链接');
+      input.style.cssText = 'display:block;width:100%;margin-top:8px;';
+      button.insertAdjacentElement('afterend', input);
+      input.addEventListener('blur', () => input.remove(), { once: true });
+      input.focus();
+      input.select();
+      toast('请手动复制邀请链接');
     }
   }
 });
