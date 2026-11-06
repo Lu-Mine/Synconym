@@ -125,6 +125,7 @@ test('中断结算仅提供回房间和回主页，不展示对局记录', () =>
   const html = resultMarkup(state);
   assert.match(html, /本局已中断/);
   assert.match(html, /本局不会记录/);
+  assert.match(html, /回房间邀请朋友重新开始，或回主页退出房间/);
   assert.match(html, /data-action="rematch-room"/);
   assert.match(html, /data-action="leave"/);
   assert.doesNotMatch(html, /收敛曲线|完整词路径|投票记录|data-action="rematch-yes"/);

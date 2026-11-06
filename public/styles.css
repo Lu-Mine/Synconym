@@ -2070,8 +2070,12 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 480px) { .profile-actions .button { flex: 1 1 auto; } }
 
 /* 页脚隐私入口与独立阅读页 */
-.site-footer { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 32px; text-align: center; }
+.site-footer { display: flex; align-items: center; justify-content: center; gap: 12px 24px; margin-top: 32px; text-align: center; }
+.footer-links { display: flex; align-items: center; gap: 16px; }
+.site-footer .footer-privacy { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 13px; }
+.site-footer .footer-privacy .icon { width: 15px; height: 15px; }
 .site-footer .footer-privacy, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 380px) { .site-footer { gap: 8px; } .site-footer .brand { gap: 5px; } .site-footer .brand-cn, .site-footer .brand-en { font-size: 15px; } .footer-links { gap: 8px; } }
 .site-footer .footer-privacy:hover, .privacy-back:hover { color: var(--accent-hover); }
 .site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }

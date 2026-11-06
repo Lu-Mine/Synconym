@@ -187,7 +187,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     </section>
   </div>
   <main id="stage" class="stage"></main>
-  <footer class="site-footer">${brandMarkup()}<a class="footer-privacy" href="https://github.com/Lu-Mine">GitHub</a><a class="footer-privacy" href="/privacy.html">隐私说明</a></footer>`;
+  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine">${icon('code-2')}<span>GitHub</span></a><a class="footer-privacy" href="/privacy.html">${icon('shield-check')}<span>隐私说明</span></a></nav></footer>`;
 }
 
 // 首页演示：只拼装游戏中真实使用的组件，数据取自默认昵称和真实主题。
@@ -590,7 +590,7 @@ export function resultMarkup(state) {
   const { room, uid } = state;
   if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
     <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>本局已中断</h1>${roomCodeMarkup(room.code, 'result-room-code')}</div><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
-    <section class="surface-block result-rematch" aria-label="下一步"><div class="rematch-actions">
+    <section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>下一步</h2></div><p class="rematch-description">回房间邀请朋友重新开始，或回主页退出房间。</p><div class="rematch-actions">
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
     </div></section></div>`;
