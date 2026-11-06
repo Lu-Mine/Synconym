@@ -796,21 +796,26 @@ p {
 }
 
 .join-input-wrap { position: relative; flex: 1 1 0; min-width: 0; }
-.join-input-wrap .code-input { padding-right: 108px; }
+.join-input-wrap .code-input { padding-right: 150px; }
 .paste-invite {
   position: absolute;
   right: 5px;
   top: 5px;
   height: 40px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--card);
   color: var(--accent);
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
 }
+.paste-invite .icon { width: 15px; height: 15px; flex: none; }
 .paste-invite:hover { background: var(--surface-hover, rgba(61, 90, 254, .08)); }
 .paste-invite:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 

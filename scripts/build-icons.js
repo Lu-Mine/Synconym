@@ -5,7 +5,7 @@ const names = [
   'plus', 'minus', 'check', 'x', 'copy', 'settings', 'user', 'log-out',
   'clock', 'play', 'users', 'chevron-down', 'rotate-ccw',
   'arrow-right', 'arrow-down', 'route', 'pen-line', 'sliders-horizontal',
-  'sparkles', 'book-open', 'lightbulb', 'hash', 'shield-check'
+  'sparkles', 'book-open', 'lightbulb', 'hash', 'shield-check', 'clipboard-paste'
 ];
 const symbols = await Promise.all(names.map(async (name) => {
   const svg = await readFile(resolve('node_modules/lucide-static/icons', `${name}.svg`), 'utf8');
