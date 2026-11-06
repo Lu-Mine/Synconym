@@ -2295,11 +2295,12 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .lobby-actions { padding: 0; }
   .writing-page { padding-top: 24px; }
   .game-controls > #previous-words:empty { display: none; }
-  .game-controls > .game-hint { text-align: left; margin: 0; }
+  .game-controls > .game-hint { text-align: center; margin: 0; }
   .game-controls > .game-leave { margin: 0; }
-  .game-form .button { align-self: flex-start; }
+  .game-controls > .button, .game-form .button { align-self: center; }
+  .lobby-actions, .game-actions, .profile-actions, .rename-dialog-actions { justify-content: center; }
   .lobby-actions .button, .game-actions .button { flex: 1 1 0; min-width: 0; }
-  .rematch-actions { grid-template-columns: repeat(2, minmax(0, 240px)); }
+  .rematch-actions { grid-template-columns: repeat(2, minmax(0, 240px)); justify-content: center; }
 
   .result-page .result-heading { grid-column: 1 / -1; }
   .result-page[data-screen="interrupted"] > .result-rematch { grid-column: 1; }
