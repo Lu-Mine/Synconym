@@ -32,3 +32,25 @@ test('不支持 IntersectionObserver 时保留原有动画', () => {
   const stop = observeStoryMotion({ querySelectorAll: () => [{}] }, { doc: {}, Observer: null });
   assert.doesNotThrow(stop);
 });
+
+test('对局记录演示收起新条目前锁定容器高度', async () => {
+  const first = { offsetHeight: 60, style: {}, classList: { add() {}, remove() {} } };
+  const classes = new Set();
+  const demo = {
+    dataset: { demo: 'profile' }, offsetHeight: 216, style: {},
+    querySelector: () => first,
+    classList: { add: name => classes.add(name), contains: name => classes.has(name), toggle: (name, on) => on ? classes.add(name) : classes.delete(name) }
+  };
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe(target) { this.callback([{ target, isIntersecting: true }]); }
+    disconnect() {}
+  }
+  const doc = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  const stop = observeStoryMotion({ querySelectorAll: () => [demo] }, { doc, Observer, matchMedia: () => ({ matches: false }) });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.equal(demo.style.height, '216px');
+    assert.equal(first.style.height, '0px');
+  } finally { stop(); }
+});

@@ -1714,7 +1714,7 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none; }
 /* === 移动端自适应 === */
 @media (max-width: 560px) {
   .app {
-    width: min(100% - 28px, 600px);
+    width: min(100% - 48px, 600px);
     padding: 24px 0 20px;
   }
 
@@ -1788,7 +1788,9 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none; }
   .room-code-ticket {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 16px;
+    align-self: center;
     margin-left: 0;
   }
 
@@ -2028,8 +2030,8 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 2px 0 2px 2px;
-  margin-left: -2px;
+  padding: 6px;
+  margin: -4px -6px -4px -6px;
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -2090,7 +2092,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .privacy-content p { margin: 0; color: var(--ink-secondary); line-height: 1.8; overflow-wrap: anywhere; }
 .privacy-content p + p { margin-top: 12px; }
 .privacy-content .privacy-intro { margin-top: 16px; }
-@media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }
+@media (max-width: 480px) { .privacy-page { padding-top: 20px; } .privacy-content { margin-top: 16px; } }
 
 /* 首页玩法介绍：让词语本身展示游戏的过程。 */
 .home-story-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; min-height: 46px; margin: 32px auto 0; padding: 10px 20px; color: var(--accent); font-size: 14px; font-weight: 650; text-decoration: none; background: rgba(61, 90, 254, .08); border: 1px solid rgba(61, 90, 254, .24); border-radius: var(--radius-sm); transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
@@ -2195,7 +2197,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .demo-path .path-round-item:nth-child(2) { animation: demo-enter 5s linear infinite; }
 /* 新纪录展开时把旧纪录推下去，收起时旧纪录回到原位 */
 /* 演示框按完整记录列表预留高度并顶部对齐：新纪录展开时只推开下方旧纪录，框本身不变高 */
-.demo-profile { justify-content: flex-start; }
+.demo-profile { justify-content: flex-start; overflow-y: hidden; }
 .demo-profile .profile-match:first-child { overflow: hidden; transition: height 420ms var(--ease-out), padding 420ms var(--ease-out), opacity 300ms var(--ease-out); }
 .demo-profile .profile-match:first-child.is-collapsed { padding-block: 0; opacity: 0; }
 .demo-profile .profile-match:first-child.is-collapsed + .profile-match { border-top-color: transparent; }
@@ -2243,7 +2245,10 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 759px) {
   .home-feature-list article { grid-template-columns: minmax(0, 1fr); gap: 18px; }
 }
-@media (max-width: 560px) { .app:has(.home-page) { width: calc(100% - 48px); } }
+@media (max-width: 560px) {
+  .privacy-page { width: calc(100% - 48px); }
+  .home-story-heading h2 { font-size: clamp(15px, 4.7vw, 22px); gap: 6px; white-space: nowrap; }
+}
 @media (max-width: 480px) { .home-story-how ol > li { grid-template-columns: 1fr; gap: 4px; } }
 @media (prefers-reduced-motion: reduce) {
   .story-demo *, .story-demo *::before, .story-demo *::after { animation: none !important; }

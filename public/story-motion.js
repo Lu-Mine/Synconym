@@ -115,7 +115,7 @@ const SCENES = {
     const collapse = () => {
       if (!full) {
         full = first.offsetHeight;
-        demo.style.minHeight = `${demo.offsetHeight}px`;
+        demo.style.height = `${demo.offsetHeight}px`;
       }
       first.style.height = `${full}px`;
       void first.offsetHeight;
