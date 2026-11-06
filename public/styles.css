@@ -2246,6 +2246,17 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .story-demo *, .story-demo *::before, .story-demo *::after { animation: none !important; }
 }
 
+/* 窄屏保持原有单列阅读顺序；宽屏再将两个容器作为独立列。 */
+.writing-page { display: flex; flex-direction: column; }
+.game-info, .game-controls { display: contents; }
+.writing-page .writing-stage { order: 0; }
+.writing-page #previous-words, .game-controls > .surface-block:has(.word-grid) { order: 1; }
+.writing-page .game-form { order: 2; }
+.writing-page .game-status-block { order: 3; }
+.writing-page .game-actions, .writing-page .game-wide:not(.game-leave) { order: 4; }
+.writing-page .game-center { order: 5; }
+.writing-page .game-leave { order: 6; }
+
 /* 宽屏保留组件原有顺序和移动端布局，只重新分配页面空间。 */
 @media (min-width: 1000px) {
   .app:has(.lobby-page), .app:has(.writing-page),
@@ -2254,10 +2265,11 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   }
 
   /* 操作按钮有独立宽度上限，不随整列继续拉长。 */
-  .app button:not(.rename-modal-backdrop) { max-width: 320px; }
+  .app button { max-width: 320px; }
+  .app .rename-modal-backdrop { max-width: none; }
   .app .button { max-width: 240px; }
   .app .create-submit { display: flex; max-width: 320px; margin-inline: auto; }
-  .app .rematch-home { width: 100%; max-width: 240px; justify-self: start; }
+  .app .rematch-home { width: 100%; max-width: 240px; justify-self: center; }
   .app .room-code-ticket { max-width: 200px; }
 
   .lobby-page, .writing-page, .result-page, .profile-page {
@@ -2268,25 +2280,26 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
     align-items: start;
   }
   .lobby-page > *, .writing-page > *, .result-page > *, .profile-page > * { min-width: 0; }
-  /* 大厅两列独立承载房间信息和操作。 */
-  .lobby-page .room-banner { grid-column: 1; grid-row: 1; }
-  .lobby-page .players-block { grid-column: 1; grid-row: 2 / span 2; }
-  .lobby-page .settings-block { grid-column: 2; grid-row: 1 / span 2; }
-  .lobby-page .lobby-actions { grid-column: 2; grid-row: 3; }
-  .lobby-page .surface-block, .writing-page .surface-block, .writing-page .writing-stage { margin-bottom: 0; }
-
-  /* 阶段信息和玩家在左，当前词与操作在右。 */
+  /* 两列各自排列，不让另一列的高度影响间距。 */
+  .lobby-page { padding-top: 36px; }
+  .lobby-info, .lobby-controls, .game-info, .game-controls {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .lobby-page .room-banner { padding: 0; }
+  .lobby-page .surface-block, .writing-page .surface-block,
+  .writing-page .writing-stage { margin: 0; }
+  .lobby-actions { padding: 0; }
   .writing-page { padding-top: 24px; }
-  .writing-page .writing-stage { grid-column: 1; grid-row: 1; margin-top: 0; }
-  .writing-page > .surface-block:has(.game-status-list) { grid-column: 1; grid-row: 2; }
-  .writing-page > #previous-words, .writing-page > .surface-block:has(.word-grid) { grid-column: 2; grid-row: 1 / span 2; }
-  .writing-page > #previous-words:empty { display: none; }
-  .writing-page > .game-form, .writing-page > .game-actions,
-  .writing-page > .game-wide:not(.game-leave) { grid-column: 2; grid-row: 3; }
-  .writing-page > .game-hint { grid-column: 2; grid-row: 4; text-align: left; margin: 0; }
-  .writing-page > .game-leave { grid-column: 2; grid-row: 5; margin-top: 0; }
-  .writing-page:has(#previous-words:empty) > .game-form { grid-row: 1 / span 2; }
-  .writing-page:has(#previous-words:empty) > .game-leave { grid-row: 3; }
+  .game-controls > #previous-words:empty { display: none; }
+  .game-controls > .game-hint { text-align: left; margin: 0; }
+  .game-controls > .game-leave { margin: 0; }
+  .game-form .button { align-self: flex-start; }
+  .lobby-actions .button, .game-actions .button { flex: 1 1 0; min-width: 0; }
+  .rematch-actions { grid-template-columns: repeat(2, minmax(0, 240px)); }
 
   .result-page .result-heading { grid-column: 1 / -1; }
   .result-page[data-screen="interrupted"] > .result-rematch { grid-column: 1; }

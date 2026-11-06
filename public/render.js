@@ -408,6 +408,7 @@ export function lobbyMarkup(state) {
     .filter((player) => player.uid !== room.hostUid)
     .every((player) => player.ready && player.connected);
   return `<div class="page lobby-page" data-screen="lobby" data-room="${escapeHtml(room.code)}">
+    <div class="lobby-info">
     <section class="room-banner">
       <div class="room-heading-copy">
         <div class="room-heading-row">
@@ -437,6 +438,8 @@ export function lobbyMarkup(state) {
         ${room.players.map((player) => playerItemMarkup(player, room, uid)).join('')}
       </ul>
     </section>
+    </div>
+    <div class="lobby-controls">
 
     ${settingsBlockMarkup(room, host)}
 
@@ -445,6 +448,7 @@ export function lobbyMarkup(state) {
         ? `<button class="button primary start-button" type="button" data-action="start" ${canStart ? '' : 'disabled'}>${icon('play')}<span>开始</span></button>`
         : `<button class="button ${me?.ready ? 'secondary' : 'primary'} ready-button" type="button" data-action="ready">${me?.ready ? `<span>取消准备</span>${icon('x')}` : `<span>准备</span>${icon('check')}`}</button>`}
       <button class="button secondary lobby-leave-button" type="button" data-action="leave">${icon('log-out')}<span>退出</span></button>
+    </div>
     </div>
   </div>`;
 }
@@ -505,7 +509,9 @@ export function writingMarkup(state, ui = {}) {
     const status = statusKey === 'away' ? '连接中断' : phase === 'writing' ? ({ done: '已提交', active: '正在输入', waiting: '未开始' }[statusKey]) : ['voting', 'breakVote'].includes(phase) ? (complete ? '已投票' : '未投票') : (complete ? '已准备' : '未准备');
     return gameStatusItemMarkup(player, statusKey, status, player.uid === uid);
   }).join('');
+  const statusBlock = `<section class="surface-block game-status-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list"${phase === 'writing' ? ' id="game-status"' : ''}>${statuses}</ul></section>`;
   return `<div class="page writing-page" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
+    <div class="game-info">
     <section class="writing-stage">
       <div class="stage-meta"><span class="stage-round">第 ${escapeHtml(room.round ?? '–')} / ${escapeHtml(room.maxRounds ?? '–')} 轮</span><nav class="stage-progress" aria-label="对局阶段">${stageProgress}</nav>${roomCodeMarkup(room.code || '–', 'stage-room')}</div>
       <div class="stage-content">
@@ -518,13 +524,17 @@ export function writingMarkup(state, ui = {}) {
       </div>
       <div id="current-theme" class="stage-theme">${themeMarkup(room)}</div>
     </section>
+    ${['writing', 'voting', 'prepare', 'breakVote'].includes(phase) ? statusBlock : ''}
+    </div>
+    <div class="game-controls">
     ${phase === 'writing' ? `<div id="previous-words">${previousRound ? `<section class="surface-block"><div class="section-heading"><h2>上一轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}</div>` : ''}
-    ${phase === 'writing' ? `<form id="word-form" class="surface-block game-form"><label for="word-input">你的词</label><input id="word-input" class="input" value="${escapeHtml(ui.draft || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字" ${submitted ? 'disabled' : ''}><p class="game-hint">可使用空格；超时将提交输入框中的内容</p><button class="button primary" type="submit" ${submitted ? 'disabled' : ''}><span>${submitted ? '已提交，等待其他玩家' : '提交'}</span>${icon('check')}</button></form><section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list" id="game-status">${statuses}</ul></section>` : ''}
+    ${phase === 'writing' ? `<form id="word-form" class="surface-block game-form"><label for="word-input">你的词</label><input id="word-input" class="input" value="${escapeHtml(ui.draft || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字" ${submitted ? 'disabled' : ''}><p class="game-hint">可使用空格；超时将提交输入框中的内容</p><button class="button primary" type="submit" ${submitted ? 'disabled' : ''}><span>${submitted ? '已提交，等待其他玩家' : '提交'}</span>${icon('check')}</button></form>` : ''}
     ${phase === 'voting' || phase === 'prepare' || phase === 'breakVote' || phase === 'result' ? `<section class="surface-block"><div class="section-heading"><h2>本轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}
-    ${phase === 'voting' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><div class="game-actions"><button class="button primary" type="button" data-action="vote-yes" ${voted ? 'disabled' : ''}><span>是</span>${icon('check')}</button><button class="button secondary" type="button" data-action="vote-no" ${voted ? 'disabled' : ''}><span>否</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已投票，等待揭晓' : '投票期间不会显示其他人的选择'}</p>` : ''}
-    ${phase === 'prepare' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><button class="button primary game-wide" type="button" data-action="game-ready" ${ready ? 'disabled' : ''}><span>${ready ? '已准备，等待其他玩家' : '准备下一轮'}</span>${icon('check')}</button>` : ''}
-    ${phase === 'breakVote' ? `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${statuses}</ul></section><div class="game-actions"><button class="button primary" type="button" data-action="break-no" ${voted ? 'disabled' : ''}>${icon('arrow-right')}<span>下一轮</span></button><button class="button primary" type="button" data-action="break-yes" ${voted ? 'disabled' : ''}><span>玩崩了</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已选择，结果确定或倒计时结束后揭晓' : '选择提交后不可更改；结果确定后提前结束'}</p>` : ''}
+    ${phase === 'voting' ? `<div class="game-actions"><button class="button primary" type="button" data-action="vote-yes" ${voted ? 'disabled' : ''}><span>是</span>${icon('check')}</button><button class="button secondary" type="button" data-action="vote-no" ${voted ? 'disabled' : ''}><span>否</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已投票，等待揭晓' : '投票期间不会显示其他人的选择'}</p>` : ''}
+    ${phase === 'prepare' ? `<button class="button primary game-wide" type="button" data-action="game-ready" ${ready ? 'disabled' : ''}><span>${ready ? '已准备，等待其他玩家' : '准备下一轮'}</span>${icon('check')}</button>` : ''}
+    ${phase === 'breakVote' ? `<div class="game-actions"><button class="button primary" type="button" data-action="break-no" ${voted ? 'disabled' : ''}>${icon('arrow-right')}<span>下一轮</span></button><button class="button primary" type="button" data-action="break-yes" ${voted ? 'disabled' : ''}><span>玩崩了</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已选择，结果确定或倒计时结束后揭晓' : '选择提交后不可更改；结果确定后提前结束'}</p>` : ''}
     <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
+    </div>
   </div>`;
 }
 
