@@ -6,7 +6,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const script = resolve('deploy/github-deploy.sh').replaceAll('\\', '/');
-const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
+const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8').replaceAll('\r\n', '\n');
 const python = process.platform === 'win32' ? 'python' : 'python3';
 const gitPath = process.platform === 'win32' ? spawnSync('where.exe', ['git'], { encoding: 'utf8' }).stdout?.trim().split(/\r?\n/)[0] : null;
 const gitBin = gitPath && join(dirname(dirname(gitPath)), 'usr', 'bin');
