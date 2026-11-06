@@ -797,7 +797,7 @@ p {
 
 .join-input-wrap { position: relative; flex: 1 1 0; min-width: 0; }
 .join-input-wrap .code-input { padding-right: 130px; }
-.join-placeholder { position: absolute; left: 16px; right: 130px; top: 50%; transform: translateY(calc(-50% - 2px)); overflow: hidden; pointer-events: none; color: var(--muted); font-size: 14px; letter-spacing: .02em; white-space: nowrap; }
+.join-placeholder { position: absolute; left: 16px; right: 130px; top: 50%; transform: translateY(calc(-50% - 1px)); overflow: hidden; pointer-events: none; color: var(--muted); font-size: 14px; letter-spacing: .02em; white-space: nowrap; }
 .join-placeholder-text { display: inline-block; }
 .join-placeholder.is-overflowing .join-placeholder-text { animation: join-placeholder-scroll 8s ease-in-out infinite alternate; }
 .code-input:not(:placeholder-shown) + .join-placeholder { display: none; }
