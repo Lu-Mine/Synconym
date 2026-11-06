@@ -2267,13 +2267,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
     width: min(100% - 64px, 1120px);
   }
 
-  /* 操作按钮有独立宽度上限，不随整列继续拉长。 */
-  .app button { max-width: 320px; }
-  .app .rename-modal-backdrop { max-width: none; }
-  .app .button { max-width: 240px; }
-  .app .create-submit { display: flex; max-width: 320px; margin-inline: auto; }
-  .app .rematch-home { width: 100%; max-width: 240px; justify-self: center; }
-  .app .room-code-ticket { max-width: 200px; }
+  .app .rematch-home { justify-self: center; }
 
   .lobby-page, .writing-page, .result-page, .profile-page {
     display: grid;
@@ -2303,7 +2297,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .game-controls > .button, .game-form .button { align-self: center; }
   .lobby-actions, .game-actions, .profile-actions, .rename-dialog-actions { justify-content: center; }
   .lobby-actions .button, .game-actions .button { flex: 1 1 0; min-width: 0; }
-  .rematch-actions { grid-template-columns: repeat(2, minmax(0, 240px)); justify-content: center; }
+  .rematch-actions { justify-content: center; }
 
   .result-page .result-heading { grid-column: 1 / -1; }
   .result-page[data-screen="interrupted"] > .result-rematch { grid-column: 1; }
