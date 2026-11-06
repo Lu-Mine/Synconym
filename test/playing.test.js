@@ -28,6 +28,9 @@ test('人数文案与不可用时的回退', async () => {
   assert.equal(playingText(1234), '此刻 1,234 人正在游戏');
   assert.equal(playingText(-1), '');
   assert.match(homeMarkup({}), /id="playing-count" hidden/);
+  for (const open of [false, true]) {
+    assert.match(homeMarkup({}, open), /<button class="button primary create-submit"[^>]*>[\s\S]*id="playing-count" hidden[\s\S]*<\/button>/);
+  }
   const element = { hidden: true, textContent: '' };
   await refreshPlayingCount(element, async () => ({ ok: true, json: async () => ({ playing: 2 }) }));
   assert.equal(element.textContent, '此刻 2 人正在游戏');
