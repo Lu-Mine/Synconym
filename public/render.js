@@ -215,6 +215,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
 
 export function privacyMarkup() {
   return `<article class="privacy-content privacy-in-app">
+    <a class="button secondary privacy-back" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
     <header class="privacy-title"><h1>隐私说明</h1><p class="privacy-intro">这里说明近意词在游戏过程中使用和保存的数据。请不要在昵称或词语中填写不愿与同局玩家分享的信息。</p></header>
     <nav class="privacy-nav" aria-label="隐私说明目录">
       <span class="privacy-nav-title">页面目录</span>
@@ -236,7 +237,7 @@ export function privacyMarkup() {
       <p>你可以通过浏览器设置清除本地存储和 Cookie，但这不会删除服务器上的数据。如需了解或处理服务器上的数据，请联系你所使用的站点的运营者。</p></section>
     <section id="hosting"><h2>部署环境</h2>
       <p>游戏本身不要求注册手机号或密码。站点运营者使用的服务器、反向代理或托管平台可能另外处理网络连接信息或日志；这些做法取决于实际部署环境，请以该站点运营者提供的信息为准。</p></section>
-    <a class="privacy-back" href="/" data-action="home">返回主页</a>
+    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
   </article>`;
 }
 
