@@ -99,7 +99,6 @@ let pathTrigger = null;
 let pendingTransfer = null;
 let pendingConfirm = null;
 let pendingJoin = null;
-let joinCheckTimer;
 let joinCheckVersion = 0;
 let inviteTrigger = null;
 let toastTimer;
@@ -215,12 +214,12 @@ async function checkJoinInput(input, version) {
   }
 }
 
-function scheduleJoinCheck(input, delay = 600) {
-  clearTimeout(joinCheckTimer);
+function checkJoinOnInput(input, pasted = false) {
   const version = ++joinCheckVersion;
   const hint = app.querySelector('#join-hint');
   if (hint) hint.textContent = '';
-  joinCheckTimer = setTimeout(() => checkJoinInput(input, version), delay);
+  const value = input.value.trim();
+  if (pasted || parseRoomCode(value) || (/^[0-9０-９]+$/.test(value) && value.length > 5)) checkJoinInput(input, version);
 }
 
 function confirmAction(kind) {
@@ -1022,7 +1021,7 @@ app.addEventListener('submit', (event) => {
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
     const input = event.target.querySelector('#room-code');
-    if (input) scheduleJoinCheck(input, 0);
+    if (input) checkJoinOnInput(input, true);
   } else if (event.target.id === 'rename-form') {
     const input = app.querySelector('#player-name');
     const name = input?.value.trim() || '';
@@ -1044,12 +1043,12 @@ app.addEventListener('submit', (event) => {
 });
 
 app.addEventListener('input', (event) => {
-  if (event.target.id === 'room-code' && !event.isComposing) scheduleJoinCheck(event.target);
+  if (event.target.id === 'room-code' && !event.isComposing) checkJoinOnInput(event.target, event.inputType === 'insertFromPaste');
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
 });
 
 app.addEventListener('compositionend', (event) => {
-  if (event.target.id === 'room-code') scheduleJoinCheck(event.target);
+  if (event.target.id === 'room-code') checkJoinOnInput(event.target);
   if (event.target.id === 'word-input') acceptWordInput(event.target);
 });
 
@@ -1141,7 +1140,7 @@ app.addEventListener('click', async (event) => {
     if (!input?.isConnected) return;
     if (text === null) { input.focus(); toast('无法读取剪贴板，请手动粘贴邀请链接'); return; }
     input.value = text;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
     input.focus();
     return;
   }

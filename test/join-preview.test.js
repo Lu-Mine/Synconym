@@ -55,3 +55,19 @@ test('只有点击确认才发送加入请求，取消不发送', async () => {
     if (sent.length) { assert.equal(sent[0].type, 'joinRoom'); assert.equal(sent[0].code, '12345'); }
   }
 });
+
+test('输入满五位或粘贴后立即检测，不因停顿检测未完成的房号', () => {
+  const fn = source.match(/function checkJoinOnInput\([\s\S]*?\n}\n/)[0];
+  const calls = [];
+  const hint = { textContent: '旧提示' };
+  const context = { joinCheckVersion: 0, app: { querySelector: () => hint }, parseRoomCode, checkJoinInput: (input, version) => calls.push([input.value, version]) };
+  runInNewContext(fn, context);
+  context.checkJoinOnInput({ value: '1234' });
+  assert.deepEqual(calls, []);
+  assert.equal(hint.textContent, '');
+  context.checkJoinOnInput({ value: '12345' });
+  context.checkJoinOnInput({ value: 'https://example.com/?r=63068' }, true);
+  context.checkJoinOnInput({ value: '错误链接' }, true);
+  assert.deepEqual(calls.map(([value]) => value), ['12345', 'https://example.com/?r=63068', '错误链接']);
+  assert.equal(context.joinCheckVersion, 4);
+});
