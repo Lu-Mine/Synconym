@@ -47,17 +47,38 @@ test('房间复制按钮复制邀请链接，失败时提供实际链接手动�
   const branch = app.match(/} else if \(button\.dataset\.action === 'copy'\) \{([\s\S]*?)\n  \}\n\}\);/)[1];
   for (const success of [true, false]) {
     const calls = [];
-    const input = { style: {}, setAttribute() {}, addEventListener() {}, focus() {}, select() { calls.push(['selected', this.value]); } };
     const context = {
       event: { preventDefault() {} }, state: { room: { code: '12345' }, publicUrl: 'https://example.com' },
       location: { origin: 'http://localhost' }, button: { classList: { add: () => calls.push('copied'), remove() {} }, insertAdjacentElement() {} },
       copyText: async (text) => { calls.push(text); return success; },
       toast: (message) => calls.push(message), setTimeout() {},
-      document: { createElement: () => input }
+      openInvite: (url) => calls.push(['dialog', url])
     };
     await runInNewContext(`(async () => {${branch}})()`, context);
     assert.equal(calls[0], 'https://example.com/?r=12345');
     if (success) assert.deepEqual(calls.slice(1), ['copied', '邀请链接已复制']);
-    else assert.deepEqual(calls.slice(1), [['selected', 'https://example.com/?r=12345'], '请手动复制邀请链接']);
+    else assert.deepEqual(calls.slice(1), [['dialog', 'https://example.com/?r=12345']]);
   }
+});
+
+test('手动复制使用站内弹窗并支持打开、关闭和焦点恢复', async () => {
+  const { shellMarkup } = await import('../public/render.js');
+  const html = shellMarkup(true);
+  assert.match(html, /id="invite-modal" inert/);
+  assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="invite-title"/);
+  assert.match(html, /id="invite-link" aria-label="邀请链接" readonly/);
+  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const functions = source.match(/function openInvite\([\s\S]*?\n}\n\nfunction closeInvite\([\s\S]*?\n}/)[0];
+  const calls = [];
+  const modal = { classList: { add: () => calls.push('open'), remove: () => calls.push('close') }, removeAttribute: () => calls.push('enable'), setAttribute: () => calls.push('disable') };
+  const input = { focus: () => calls.push('focus'), select: () => calls.push('select') };
+  const trigger = { isConnected: true, focus: () => calls.push('restore') };
+  const context = { inviteTrigger: null, app: { querySelector: (selector) => selector === '#invite-modal' ? modal : input }, syncModalScrollLock: () => calls.push('scroll') };
+  runInNewContext(functions, context);
+  context.openInvite('https://example.com/?r=12345', trigger);
+  assert.equal(input.value, 'https://example.com/?r=12345');
+  assert.deepEqual(calls, ['enable', 'open', 'scroll', 'focus', 'select']);
+  context.closeInvite();
+  assert.deepEqual(calls.slice(5), ['close', 'disable', 'scroll', 'restore']);
+  assert.equal(context.inviteTrigger, null);
 });

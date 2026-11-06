@@ -179,6 +179,20 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </div>
     </section>
   </div>
+  <div class="rename-modal" id="invite-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="close-invite" aria-label="关闭邀请链接窗口"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" aria-describedby="invite-hint">
+      <div class="rename-dialog-heading">
+        <h2 id="invite-title">复制邀请链接</h2>
+        <button class="icon-button" type="button" data-action="close-invite" aria-label="关闭">${icon('x')}</button>
+      </div>
+      <p class="transfer-hint" id="invite-hint">无法自动复制，请手动复制下方链接。</p>
+      <input class="input" id="invite-link" aria-label="邀请链接" readonly>
+      <div class="rename-dialog-actions">
+        <button class="button primary" type="button" data-action="close-invite"><span>完成</span>${icon('check')}</button>
+      </div>
+    </section>
+  </div>
   <div class="rename-modal path-modal" id="path-modal" inert>
     <button class="rename-modal-backdrop" type="button" data-action="close-path" aria-label="关闭思考路径"></button>
     <section class="rename-dialog path-dialog" role="dialog" aria-modal="true" aria-labelledby="path-title">

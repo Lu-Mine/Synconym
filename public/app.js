@@ -97,6 +97,7 @@ let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
 let pendingConfirm = null;
+let inviteTrigger = null;
 let toastTimer;
 let previousRoomCode = '';
 let currentScreen = '';
@@ -144,6 +145,30 @@ function closeConfirm(accepted = false) {
   syncModalScrollLock();
   if (trigger?.isConnected) trigger.focus({ preventScroll: true });
   resolve(accepted);
+}
+
+function openInvite(url, trigger) {
+  const modal = app.querySelector('#invite-modal');
+  const input = app.querySelector('#invite-link');
+  if (!modal || !input) return;
+  inviteTrigger = trigger;
+  input.value = url;
+  modal.removeAttribute('inert');
+  modal.classList.add('is-open');
+  syncModalScrollLock();
+  input.focus();
+  input.select();
+}
+
+function closeInvite() {
+  if (!inviteTrigger) return;
+  const trigger = inviteTrigger;
+  inviteTrigger = null;
+  const modal = app.querySelector('#invite-modal');
+  modal?.classList.remove('is-open');
+  modal?.setAttribute('inert', '');
+  syncModalScrollLock();
+  if (trigger.isConnected) trigger.focus({ preventScroll: true });
 }
 
 function confirmAction(kind) {
@@ -488,7 +513,7 @@ function syncHomeDrawerDOM() {
 }
 
 function syncModalScrollLock() {
-  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || pathOpen);
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(inviteTrigger) || pathOpen);
 }
 
 function syncRenameModalDOM(focusInput = false) {
@@ -884,6 +909,7 @@ const socket = new Socket({
     const phaseChanged = previous?.code !== nextRoom?.code || previous?.phase !== nextRoom?.phase || previous?.round !== nextRoom?.round;
     if (phaseChanged) {
       closeConfirm(false);
+      closeInvite();
       clearTimeout(typingTimer);
       writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady'].includes(item.type)));
       gameUi = { draft: '', submitted: false, voted: false, ready: false };
@@ -979,6 +1005,16 @@ app.addEventListener('compositionend', (event) => {
 });
 
 app.addEventListener('keydown', (event) => {
+  if (inviteTrigger) {
+    if (event.key === 'Escape') { event.preventDefault(); closeInvite(); return; }
+    if (event.key === 'Tab') {
+      const controls = [...app.querySelectorAll('#invite-modal .rename-dialog button, #invite-link')];
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (pendingConfirm) {
     if (event.key === 'Escape') { event.preventDefault(); closeConfirm(false); return; }
     if (event.key === 'Tab') {
@@ -1033,6 +1069,11 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+  if (button.dataset.action === 'close-invite') {
+    event.preventDefault();
+    closeInvite();
+    return;
+  }
 
   if (button.dataset.action === 'cancel-confirm' || button.dataset.action === 'accept-confirm') {
     event.preventDefault();
@@ -1210,16 +1251,7 @@ app.addEventListener('click', async (event) => {
       setTimeout(() => button.classList.remove('copied'), 600);
       toast('邀请链接已复制');
     } else {
-      const input = document.createElement('input');
-      input.value = url;
-      input.readOnly = true;
-      input.setAttribute('aria-label', '手动复制邀请链接');
-      input.style.cssText = 'display:block;width:100%;margin-top:8px;';
-      button.insertAdjacentElement('afterend', input);
-      input.addEventListener('blur', () => input.remove(), { once: true });
-      input.focus();
-      input.select();
-      toast('请手动复制邀请链接');
+      openInvite(url, button);
     }
   }
 });
