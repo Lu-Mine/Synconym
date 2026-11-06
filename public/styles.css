@@ -575,6 +575,8 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: space-between;
+  flex: 1;
   gap: 4px 20px;
   min-width: 0;
   text-align: left;
