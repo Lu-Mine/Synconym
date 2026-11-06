@@ -550,8 +550,8 @@ p {
 .create-submit {
   width: calc(100% - 16px);
   margin-inline: 8px;
-  min-height: 56px;
-  padding: 14px 16px;
+  min-height: 72px;
+  padding: 10px 16px;
   border: 4px solid var(--card);
   justify-content: stretch;
   color: #FFFFFF;
@@ -560,6 +560,14 @@ p {
   transition:
     filter var(--dur-1) var(--ease-out),
     transform var(--dur-1) var(--ease-out);
+}
+
+.create-submit-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
 }
 
 .create-submit-label {
@@ -591,11 +599,12 @@ p {
 .create-submit:active:not(:disabled) { filter: brightness(.84); }
 
 .playing-count {
-  margin: 8px 24px 0;
-  color: var(--ink-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-  text-align: center;
+  padding-inline: 16px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2092,7 +2101,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }
 .privacy-content { margin-top: 28px; padding: clamp(24px, 5vw, 48px); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.privacy-in-app { width: 100%; margin-top: 0; }
+.privacy-in-app { width: 100%; margin-top: clamp(28px, 5vw, 36px); }
 .privacy-in-app > .privacy-back { margin-top: 28px; }
 .privacy-title { padding-bottom: 28px; border-bottom: 1px solid var(--line); }
 .privacy-content h1 { margin: 0; font-size: 32px; line-height: 1.25; letter-spacing: -.02em; }
@@ -2102,11 +2111,16 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .privacy-content p { margin: 0; color: var(--ink-secondary); line-height: 1.85; overflow-wrap: anywhere; text-wrap: pretty; }
 .privacy-content p + p { margin-top: 12px; }
 .privacy-content .privacy-intro { margin-top: 14px; }
-.privacy-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 20px 0 0; }
-.privacy-nav a { padding: 7px 11px; border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-secondary); font-size: 14px; text-decoration: none; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
-.privacy-nav a:hover { color: var(--accent-hover); background: var(--accent-soft); }
-.privacy-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-@media (max-width: 480px) { .privacy-content h1 { font-size: 28px; } .privacy-nav { gap: 6px; } }
+.privacy-nav { padding: 24px 0 4px; }
+.privacy-nav-title { display: block; margin-bottom: 10px; color: var(--ink-secondary); font-size: 13px; font-weight: 600; }
+.privacy-nav-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.privacy-nav a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; padding: 10px 4px; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 14px; text-decoration: none; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
+.privacy-nav a .icon { width: 16px; height: 16px; flex: none; color: var(--ink-secondary); transition: transform var(--dur-2) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.privacy-nav a:hover { color: var(--accent-hover); background: var(--card-hover); }
+.privacy-nav a:hover .icon { color: var(--accent-hover); transform: translateY(2px); }
+.privacy-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+@media (max-width: 480px) { .privacy-content h1 { font-size: 28px; } .privacy-nav-links { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .privacy-nav a, .privacy-nav a .icon { transition: none; } }
 
 /* 首页玩法介绍：让词语本身展示游戏的过程。 */
 .home-story-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; min-height: 46px; margin: 32px auto 0; padding: 10px 20px; color: var(--accent); font-size: 14px; font-weight: 650; text-decoration: none; background: rgba(61, 90, 254, .08); border: 1px solid rgba(61, 90, 254, .24); border-radius: var(--radius-sm); transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }

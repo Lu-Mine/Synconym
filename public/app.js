@@ -1112,7 +1112,8 @@ app.addEventListener('click', async (event) => {
   const privacySection = event.target.closest('.privacy-nav a');
   if (privacySection && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
-    document.getElementById(privacySection.hash.slice(1))?.scrollIntoView({ block: 'start' });
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(privacySection.hash.slice(1))?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' });
     return;
   }
 

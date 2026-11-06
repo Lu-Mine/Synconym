@@ -217,7 +217,13 @@ export function privacyMarkup() {
   return `<article class="privacy-content privacy-in-app">
     <header class="privacy-title"><h1>隐私说明</h1><p class="privacy-intro">这里说明近意词在游戏过程中使用和保存的数据。请不要在昵称或词语中填写不愿与同局玩家分享的信息。</p></header>
     <nav class="privacy-nav" aria-label="隐私说明目录">
-      <a href="#identity">浏览器里的身份</a><a href="#records">游戏记录</a><a href="#deletion">保存与删除</a><a href="#hosting">部署环境</a>
+      <span class="privacy-nav-title">页面目录</span>
+      <div class="privacy-nav-links">
+        <a href="#identity"><span>浏览器里的身份</span>${icon('arrow-down')}</a>
+        <a href="#records"><span>游戏中会记录什么</span>${icon('arrow-down')}</a>
+        <a href="#deletion"><span>保存与删除</span>${icon('arrow-down')}</a>
+        <a href="#hosting"><span>部署环境</span>${icon('arrow-down')}</a>
+      </div>
     </nav>
     <section id="identity"><h2>浏览器里的身份</h2>
       <p>首次访问时，服务端会分配随机 UID 和昵称。浏览器会把 UID 保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的同名 Cookie。主动退出遇到断线时，还会在会话存储中暂存退出意图。</p>
@@ -298,9 +304,8 @@ export function homeMarkup(settings, settingsOpen = false) {
     <div class="entry-deck">
       <form id="create-form" class="create-card">
         <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span>
+          <span class="create-submit-content"><span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span><span class="playing-count" id="playing-count" hidden></span></span>
         </button>
-        <p class="playing-count" id="playing-count" hidden></p>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
             <span class="drawer-trigger-title">${icon('sliders-horizontal')}<span>房间设置</span></span>

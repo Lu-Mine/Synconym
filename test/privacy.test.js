@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 import { homeMarkup, shellMarkup, privacyMarkup } from '../public/render.js';
 import { createSynconymServer } from '../server/index.js';
 import { createDatabase } from '../server/db.js';
@@ -26,6 +27,26 @@ test('隐私说明保留原文、目录及返回入口', () => {
     assert.match(html, new RegExp(`href="#${id}"`));
     assert.match(html, new RegExp(`<section id="${id}">`));
   }
+});
+
+test('章节目录平滑滚动，并遵守减少动态效果设置', async () => {
+  const source = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const handler = source.match(/  const privacySection = event\.target\.closest\('\.privacy-nav a'\);[\s\S]*?\n  }/)[0];
+  for (const reduced of [false, true]) {
+    let options;
+    let prevented = false;
+    const context = {
+      event: { target: { closest: () => ({ hash: '#records' }) }, button: 0, preventDefault: () => { prevented = true; } },
+      window: { matchMedia: () => ({ matches: reduced }) },
+      document: { getElementById: (id) => { assert.equal(id, 'records'); return { scrollIntoView: (value) => { options = value; } }; } }
+    };
+    runInNewContext(`(function () {${handler}\n})()`, context);
+    assert.equal(prevented, true);
+    assert.equal(options.behavior, reduced ? 'instant' : 'smooth');
+    assert.equal(options.block, 'start');
+  }
+  const css = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.privacy-in-app\s*\{[^}]*margin-top:\s*clamp\(28px, 5vw, 36px\)/);
 });
 
 test('隐私路由返回应用入口，旧独立页面不存在', async (t) => {
