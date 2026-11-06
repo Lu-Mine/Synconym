@@ -36,11 +36,22 @@ release=$(mktemp -d "$releases/${revision:0:12}.XXXXXXXX")
 tar -xzf "$archive" -C "$release" --no-same-owner
 chmod 755 "$release"
 new_front=$assets/$revision
-if [[ -e $new_front ]]; then
-  echo 'Frontend revision already exists; refusing overwrite' >&2; exit 1
+candidate=$(mktemp -d "$base/frontend-build.XXXXXXXX")
+rmdir "$candidate"
+if ! python3 "$base/prepare-frontend.py" "$release/public" "$candidate" "$revision"; then
+  rm -rf "$candidate"
+  exit 1
 fi
-python3 "$base/prepare-frontend.py" "$release/public" "$new_front"
-chmod -R a+rX "$new_front"
+chmod -R a+rX "$candidate"
+if [[ -e $new_front ]]; then
+  if ! diff -qr "$candidate" "$new_front" >/dev/null; then
+    rm -rf "$candidate"
+    echo 'Existing immutable frontend differs from candidate' >&2; exit 1
+  fi
+  rm -rf "$candidate"
+else
+  mv "$candidate" "$new_front"
+fi
 switch_front() {
   rm -f "$base/frontend.next"
   ln -s "$1" "$base/frontend.next"
@@ -53,7 +64,14 @@ verify_front() {
     rm -f "$tmp"; return 1
   fi
   rm -f "$tmp"
-  curl -fsS --max-time 5 "http://127.0.0.1:3000/assets/$revision/app.js" -o /dev/null
+  local file actual
+  for file in app.js scrollbars.js styles.css selection.css icons.svg github-mark.svg; do
+    actual=$(mktemp "$base/verify.XXXXXXXX")
+    if ! curl -fsS --max-time 5 "http://127.0.0.1:3000/assets/$revision/$file" -o "$actual" || ! cmp -s "$actual" "$new_front/$file"; then
+      rm -f "$actual"; return 1
+    fi
+    rm -f "$actual"
+  done
 }
 if [[ $mode == frontend ]]; then
   switch_front "$new_front"
@@ -74,6 +92,7 @@ previous=$(readlink -f "$live")
 [[ -d $previous && $previous == "$releases/"* ]] || { echo 'Live release is not managed' >&2; exit 1; }
 panel() { ( cd /www/server/panel && /www/server/panel/pyenv/bin/python "$base/bt-restart.py" "$1" ); }
 port_free() { ! ss -lnt | awk 'NR > 1 {print $4}' | grep -Eq '(^|:)3001$'; }
+wait_free() { local i; for i in {1..15}; do port_free && return 0; sleep 1; done; return 1; }
 healthy() {
   local i
   for i in {1..20}; do
@@ -83,7 +102,11 @@ healthy() {
   return 1
 }
 switch_backend() { rm -f "$base/current.next"; ln -s "$1" "$base/current.next"; mv -Tf "$base/current.next" "$live"; }
-if ! panel stop || ! port_free; then echo 'Could not stop backend' >&2; exit 1; fi
+if ! panel stop || ! wait_free; then
+  echo 'Could not stop backend; attempting to start old release' >&2
+  port_free && panel start || true
+  exit 1
+fi
 if ! switch_backend "$release"; then panel start || true; exit 1; fi
 if panel start && healthy; then
   switch_front "$new_front"
@@ -92,7 +115,7 @@ fi
 echo 'Deployment failed; rolling back backend and frontend' >&2
 switch_front "$previous_front"
 panel stop || true
-port_free || { echo 'Rollback aborted: port 3001 occupied' >&2; exit 1; }
+wait_free || { echo 'Rollback aborted: port 3001 occupied' >&2; exit 1; }
 switch_backend "$previous"
 if panel start && healthy; then echo 'Rollback succeeded' >&2; else echo 'Rollback failed; manual intervention required' >&2; fi
 exit 1
