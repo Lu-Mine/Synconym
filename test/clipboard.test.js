@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
-const source = readFileSync(new URL('../public/clipboard.js', import.meta.url), 'utf8').replace('export ', '');
+const source = readFileSync(new URL('../public/clipboard.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
 function setup(clipboard, result = true) {
   const calls = [];
@@ -81,4 +81,24 @@ test('手动复制使用站内弹窗并支持打开、关闭和焦点恢复', as
   context.closeInvite();
   assert.deepEqual(calls.slice(5), ['close', 'disable', 'scroll', 'restore']);
   assert.equal(context.inviteTrigger, null);
+});
+
+test('读取剪贴板文本，权限拒绝或接口不可用时安全回退', async () => {
+  const { readClipboardText } = await import('../public/clipboard.js');
+  assert.equal(await readClipboardText({ readText: async () => 'http://example.com/?r=12345' }), 'http://example.com/?r=12345');
+  assert.equal(await readClipboardText({ readText: async () => { throw new Error('denied'); } }), null);
+  assert.equal(await readClipboardText({}), null);
+});
+
+test('粘贴按钮填入内容，读取失败保留输入并提示', async () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const branch = app.match(/if \(button\.dataset\.action === 'paste-invite'\) \{([\s\S]*?)\n  \}/)[1];
+  for (const text of ['http://example.com/?r=12345', null]) {
+    const calls = [];
+    const input = { isConnected: true, value: 'old', focus: () => calls.push('focus'), dispatchEvent: () => calls.push('input') };
+    const context = { button: { closest: () => ({ querySelector: () => input }) }, readClipboardText: async () => text, toast: (message) => calls.push(message), Event };
+    await runInNewContext(`(async () => {${branch}})()`, context);
+    assert.equal(input.value, text ?? 'old');
+    assert.deepEqual(calls, text === null ? ['focus', '无法读取剪贴板，请手动粘贴邀请链接'] : ['input', 'focus']);
+  }
 });

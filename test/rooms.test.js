@@ -322,7 +322,8 @@ test('加入房间输入框支持房号和邀请链接，并调起数字键盘',
   const home = homeMarkup(DEFAULT_SETTINGS, false);
   assert.match(home, /id="room-code"[^>]*inputmode="numeric"/);
   assert.doesNotMatch(home, /id="room-code"[^>]*(?:pattern|maxlength)=/);
-  assert.match(home, /输入房号或粘贴邀请链接/);
+  assert.match(home, /placeholder="输入房号"/);
+  assert.match(home, /data-action="paste-invite">粘贴邀请链接/);
   assert.equal(parseRoomCode('63068'), '63068');
   assert.equal(parseRoomCode(' ６３０６８ '), '63068');
   assert.equal(parseRoomCode('http://example.com:3000/?r=63068'), '63068');

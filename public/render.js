@@ -287,7 +287,7 @@ export function homeMarkup(settings, settingsOpen = false) {
 
       <form id="join-form" class="join-form">
         <label class="sr-only" for="room-code">5 位房号或邀请链接</label>
-        <input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入房号或粘贴邀请链接" autocomplete="off" spellcheck="false" required>
+        <div class="join-input-wrap"><input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入房号" autocomplete="off" spellcheck="false" required><button class="paste-invite" type="button" data-action="paste-invite">粘贴邀请链接</button></div>
         <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
       </form>
     </div>

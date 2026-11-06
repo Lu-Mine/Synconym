@@ -2,7 +2,7 @@ import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
-import { copyText } from './clipboard.js';
+import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode } from './room-code.js';
 import {
   avatarDetails,
@@ -1065,6 +1065,16 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+  if (button.dataset.action === 'paste-invite') {
+    const input = button.closest('form')?.querySelector('#room-code');
+    const text = await readClipboardText();
+    if (!input?.isConnected) return;
+    if (text === null) { input.focus(); toast('无法读取剪贴板，请手动粘贴邀请链接'); return; }
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    return;
+  }
   if (button.dataset.action === 'close-invite') {
     event.preventDefault();
     closeInvite();
