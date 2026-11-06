@@ -30,6 +30,19 @@ export function createSynconymServer({
         }));
         return;
       }
+      if (pathname.startsWith('/api/rooms/')) {
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.setHeader('Cache-Control', 'no-store');
+        const code = pathname.slice('/api/rooms/'.length);
+        const room = /^[0-9]{5}$/.test(code) ? manager.rooms.get(code) : null;
+        const error = !room ? '没有找到这个房间' : room.phase !== 'lobby' ? '这局已经开始' : room.players.length >= 4 ? '房间已满' : '';
+        const host = room?.players.find((player) => player.uid === room.hostUid);
+        if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
+        if (error || !host) { response.writeHead(404); response.end(JSON.stringify({ error: error || '没有找到这个房间' })); return; }
+        response.writeHead(200);
+        response.end(JSON.stringify({ code, host: { uid: host.uid, name: host.name, seat: host.seat, connected: host.connected } }));
+        return;
+      }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
         if (!mock) { response.writeHead(404); response.end('Not found'); return; }
         const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js' };

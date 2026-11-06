@@ -98,6 +98,9 @@ let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
 let pendingConfirm = null;
+let pendingJoin = null;
+let joinCheckTimer;
+let joinCheckVersion = 0;
 let inviteTrigger = null;
 let toastTimer;
 let previousRoomCode = '';
@@ -170,6 +173,54 @@ function closeInvite() {
   modal?.setAttribute('inert', '');
   syncModalScrollLock();
   if (trigger.isConnected) trigger.focus({ preventScroll: true });
+}
+
+function closeJoin() {
+  if (!pendingJoin) return;
+  const trigger = pendingJoin.trigger;
+  pendingJoin = null;
+  const modal = app.querySelector('#join-modal');
+  modal?.classList.remove('is-open');
+  modal?.setAttribute('inert', '');
+  syncModalScrollLock();
+  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+
+async function checkJoinInput(input, version) {
+  if (!input.isConnected || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+  const value = input.value.trim();
+  const hint = app.querySelector('#join-hint');
+  if (!value) { if (hint) hint.textContent = ''; return; }
+  const code = parseRoomCode(value);
+  if (!code) { if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接'; return; }
+  if (hint) hint.textContent = '';
+  try {
+    const response = await fetch(`/api/rooms/${code}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+    if (!response.ok) { if (hint) hint.textContent = data.error || '房间不存在或无法加入'; return; }
+    const modal = app.querySelector('#join-modal');
+    const host = app.querySelector('#join-host');
+    if (!modal || !host || !data.host) return;
+    app.querySelector('#join-room-number').textContent = `房号 ${code}`;
+    host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
+    hydrateAvatars(host);
+    pendingJoin = { code, trigger: input };
+    modal.removeAttribute('inert');
+    modal.classList.add('is-open');
+    syncModalScrollLock();
+    modal.querySelector('.button[data-action="cancel-join"]').focus({ preventScroll: true });
+  } catch {
+    if (version === joinCheckVersion && input.isConnected && !state.room && !profileOpen && hint) hint.textContent = '无法查询房间，请稍后重试';
+  }
+}
+
+function scheduleJoinCheck(input, delay = 600) {
+  clearTimeout(joinCheckTimer);
+  const version = ++joinCheckVersion;
+  const hint = app.querySelector('#join-hint');
+  if (hint) hint.textContent = '';
+  joinCheckTimer = setTimeout(() => checkJoinInput(input, version), delay);
 }
 
 function confirmAction(kind) {
@@ -514,7 +565,7 @@ function syncHomeDrawerDOM() {
 }
 
 function syncModalScrollLock() {
-  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(inviteTrigger) || pathOpen);
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(pendingJoin) || Boolean(inviteTrigger) || pathOpen);
 }
 
 function syncRenameModalDOM(focusInput = false) {
@@ -910,6 +961,7 @@ const socket = new Socket({
     const phaseChanged = previous?.code !== nextRoom?.code || previous?.phase !== nextRoom?.phase || previous?.round !== nextRoom?.round;
     if (phaseChanged) {
       closeConfirm(false);
+      closeJoin();
       closeInvite();
       clearTimeout(typingTimer);
       writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady'].includes(item.type)));
@@ -969,9 +1021,8 @@ app.addEventListener('submit', (event) => {
   if (event.target.id === 'create-form') {
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
-    const code = parseRoomCode(new FormData(event.target).get('code'));
-    if (!code) { toast('请输入 5 位房号或有效的邀请链接'); return; }
-    enqueueWrite({ type: 'joinRoom', code });
+    const input = event.target.querySelector('#room-code');
+    if (input) scheduleJoinCheck(input, 0);
   } else if (event.target.id === 'rename-form') {
     const input = app.querySelector('#player-name');
     const name = input?.value.trim() || '';
@@ -993,14 +1044,26 @@ app.addEventListener('submit', (event) => {
 });
 
 app.addEventListener('input', (event) => {
+  if (event.target.id === 'room-code' && !event.isComposing) scheduleJoinCheck(event.target);
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
 });
 
 app.addEventListener('compositionend', (event) => {
+  if (event.target.id === 'room-code') scheduleJoinCheck(event.target);
   if (event.target.id === 'word-input') acceptWordInput(event.target);
 });
 
 app.addEventListener('keydown', (event) => {
+  if (pendingJoin) {
+    if (event.key === 'Escape') { event.preventDefault(); closeJoin(); return; }
+    if (event.key === 'Tab') {
+      const controls = [...app.querySelectorAll('#join-modal .rename-dialog button:not(:disabled)')];
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (inviteTrigger) {
     if (event.key === 'Escape') { event.preventDefault(); closeInvite(); return; }
     if (event.key === 'Tab') {
@@ -1065,6 +1128,13 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+  if (button.dataset.action === 'cancel-join') { closeJoin(); return; }
+  if (button.dataset.action === 'confirm-join') {
+    const code = pendingJoin?.code;
+    closeJoin();
+    if (code) enqueueWrite({ type: 'joinRoom', code });
+    return;
+  }
   if (button.dataset.action === 'paste-invite') {
     const input = button.closest('form')?.querySelector('#room-code');
     const text = await readClipboardText();

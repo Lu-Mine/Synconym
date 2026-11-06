@@ -179,6 +179,15 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </div>
     </section>
   </div>
+  <div class="rename-modal confirm-modal" id="join-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="cancel-join" aria-label="取消加入房间"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="join-title" aria-describedby="join-room-number">
+      <div class="rename-dialog-heading"><h2 id="join-title">确认加入房间？</h2><button class="icon-button" type="button" data-action="cancel-join" aria-label="取消">${icon('x')}</button></div>
+      <p class="transfer-hint" id="join-room-number"></p>
+      <ul class="player-list" id="join-host"></ul>
+      <div class="rename-dialog-actions"><button class="button secondary" type="button" data-action="cancel-join"><span>取消</span>${icon('x')}</button><button class="button primary" type="button" data-action="confirm-join"><span>加入房间</span>${icon('check')}</button></div>
+    </section>
+  </div>
   <div class="rename-modal" id="invite-modal" inert>
     <button class="rename-modal-backdrop" type="button" data-action="close-invite" aria-label="关闭邀请链接窗口"></button>
     <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" aria-describedby="invite-hint">
@@ -288,7 +297,7 @@ export function homeMarkup(settings, settingsOpen = false) {
       <form id="join-form" class="join-form">
         <label class="sr-only" for="room-code">5 位房号或邀请链接</label>
         <div class="join-input-wrap"><input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入房号" autocomplete="off" spellcheck="false" required><button class="paste-invite" type="button" data-action="paste-invite">粘贴邀请链接</button></div>
-        <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
+        <p class="join-hint" id="join-hint" role="status" aria-live="polite"></p>
       </form>
     </div>
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
