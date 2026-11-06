@@ -796,10 +796,10 @@ p {
 }
 
 .join-input-wrap { position: relative; flex: 1 1 0; min-width: 0; }
-.join-input-wrap .code-input { padding-right: 150px; }
+.join-input-wrap .code-input { padding-right: 155px; }
 .paste-invite {
   position: absolute;
-  right: 5px;
+  right: 10px;
   top: 5px;
   height: 40px;
   display: inline-flex;
@@ -809,7 +809,7 @@ p {
   padding: 0 8px;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: transparent;
   color: var(--accent);
   font-size: 12px;
   white-space: nowrap;
@@ -824,7 +824,7 @@ p {
   pointer-events: none;
 }
 .paste-invite .icon { width: 15px; height: 15px; flex: none; }
-.paste-invite:hover { background: var(--surface-hover, rgba(61, 90, 254, .08)); }
+.paste-invite:hover::before { background: var(--surface-hover, rgba(61, 90, 254, .08)); }
 .paste-invite:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .code-input {
@@ -834,6 +834,8 @@ p {
   letter-spacing: .2em;
   font-variant-numeric: tabular-nums;
 }
+
+.code-input:placeholder-shown { padding-bottom: 4px; }
 
 .code-input::placeholder {
   font-size: 14px;
