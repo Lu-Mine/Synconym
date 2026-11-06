@@ -4,6 +4,7 @@ import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode } from './room-code.js';
+import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
 import {
   avatarDetails,
@@ -126,6 +127,7 @@ let lastTypingAt = 0;
 let finalTypingSent = false;
 let roomHistoryGuard = false;
 
+let stopJoinPlaceholder = () => {};
 let stopStoryMotion = () => {};
 let connectionStatus = 'connecting';
 
@@ -857,7 +859,9 @@ function replaceScene(stage, nextScreen, generation) {
     // 否则会用旧内容覆盖新内容（例如点头像进档案页时被「正在读取档案…」盖掉）。
     if (generation !== renderGeneration) return;
     stopStoryMotion();
+    stopJoinPlaceholder();
     stage.innerHTML = html;
+    stopJoinPlaceholder = observeJoinPlaceholder(stage);
     if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
     stopStoryMotion = observeStoryMotion(stage);
     hydrateAvatars(stage);

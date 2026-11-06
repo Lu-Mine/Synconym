@@ -324,7 +324,7 @@ export function homeMarkup(settings, settingsOpen = false) {
 
       <form id="join-form" class="join-form">
         <label class="sr-only" for="room-code">5 位房号或邀请链接</label>
-        <div class="join-input-wrap"><input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入 5 位数房间号，或直接粘贴邀请链接" autocomplete="off" spellcheck="false" required><button class="paste-invite" type="button" data-action="paste-invite">${icon('clipboard-paste')}<span>粘贴邀请链接</span></button></div>
+        <div class="join-input-wrap"><input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入 5 位数房间号，或直接粘贴邀请链接" autocomplete="off" spellcheck="false" required><span class="join-placeholder" aria-hidden="true"><span class="join-placeholder-text">输入 5 位数房间号，或直接粘贴邀请链接</span></span><button class="paste-invite" type="button" data-action="paste-invite">${icon('clipboard-paste')}<span>粘贴邀请链接</span></button></div>
         <p class="join-hint" id="join-hint" role="status" aria-live="polite"></p>
       </form>
     </div>
