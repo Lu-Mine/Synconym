@@ -3,6 +3,7 @@ import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import { copyText } from './clipboard.js';
+import { parseRoomCode } from './room-code.js';
 import {
   avatarDetails,
   homeMarkup,
@@ -968,8 +969,9 @@ app.addEventListener('submit', (event) => {
   if (event.target.id === 'create-form') {
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
-    const code = String(new FormData(event.target).get('code') || '').trim();
-    if (code) enqueueWrite({ type: 'joinRoom', code });
+    const code = parseRoomCode(new FormData(event.target).get('code'));
+    if (!code) { toast('请输入 5 位房号或有效的邀请链接'); return; }
+    enqueueWrite({ type: 'joinRoom', code });
   } else if (event.target.id === 'rename-form') {
     const input = app.querySelector('#player-name');
     const name = input?.value.trim() || '';
@@ -991,12 +993,6 @@ app.addEventListener('submit', (event) => {
 });
 
 app.addEventListener('input', (event) => {
-  if (event.target.id === 'room-code') {
-    // 全角数字先转半角，再只留数字，长度限 5 位
-    event.target.value = event.target.value
-      .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
-      .replace(/[^0-9]/g, '').slice(0, 5);
-  }
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
 });
 
