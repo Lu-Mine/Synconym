@@ -30,6 +30,19 @@ export function createSynconymServer({
         }));
         return;
       }
+      if (pathname === '/api/playing') {
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.setHeader('Cache-Control', 'no-store');
+        if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
+        const playing = new Set();
+        for (const room of manager.rooms.values()) {
+          if (!['writing', 'voting', 'prepare', 'breakVote'].includes(room.phase)) continue;
+          for (const player of room.players) if (player.connected) playing.add(player.uid);
+        }
+        response.writeHead(200);
+        response.end(JSON.stringify({ playing: playing.size }));
+        return;
+      }
       if (pathname.startsWith('/api/rooms/')) {
         response.setHeader('Content-Type', 'application/json; charset=utf-8');
         response.setHeader('Cache-Control', 'no-store');
