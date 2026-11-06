@@ -4,15 +4,19 @@ import { once } from 'node:events';
 import WebSocket from 'ws';
 import { createSynconymServer } from '../server/index.js';
 import { createDatabase } from '../server/db.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
+const credentials = new Map();
 function openClient(port, uid, roomCode, extra = {}) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     const client = { ws, uid, states: [], errors: [] };
-    ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', uid, roomCode, ...extra })));
+    ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', uid, credential: credentials.get(uid), roomCode, ...extra })));
     ws.on('message', (data) => {
       const message = JSON.parse(data);
-      if (message.type === 'hello') { client.uid = message.uid; client.restored = message.restored; resolve(client); }
+      if (message.type === 'hello') { client.uid = message.uid; client.credential = message.credential || credentials.get(message.uid); if (message.credential) credentials.set(message.uid, message.credential); client.restored = message.restored; resolve(client); }
       if (message.type === 'state') client.states.push(message);
       if (message.type === 'error') { client.errors.push(message.message); resolve(client); }
     });
@@ -36,6 +40,67 @@ function nextState(client, predicate = () => true, timeout = 2000) {
   });
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('公开 UID 不可用于读取档案、接管或退出房间，合法凭证可恢复', async (t) => {
+  const db = createDatabase(':memory:');
+  const { server, wss, manager } = createSynconymServer({ db });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
+  const port = server.address().port;
+  const victim = await openClient(port);
+  assert.match(victim.credential, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(db.getCredentialHash(victim.uid).toString(), victim.credential);
+  victim.ws.send(JSON.stringify({ type: 'createRoom' }));
+  const room = (await nextState(victim, s => s.room)).room;
+  for (const credential of [undefined, 'x'.repeat(43)]) {
+    const attacker = await openClient(port, victim.uid, room.code, { credential, leaveRoom: true });
+    assert.deepEqual(attacker.errors, ['身份验证失败']);
+    if (attacker.ws.readyState !== WebSocket.CLOSED) await once(attacker.ws, 'close');
+    assert.equal(attacker.closeCode, 4003);
+    assert.deepEqual(attacker.states, []);
+    assert.equal(victim.ws.readyState, WebSocket.OPEN);
+    assert.equal(manager.rooms.get(room.code).players[0].uid, victim.uid);
+  }
+  const replacement = await openClient(port, victim.uid, room.code);
+  assert.equal(replacement.restored, true);
+  await nextState(replacement, s => s.room?.code === room.code);
+});
+
+test('resetIdentity 签发独立凭证并允许重连', async (t) => {
+  const { server, wss } = createSynconymServer({ db: createDatabase(':memory:') });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
+  const port = server.address().port;
+  const client = await openClient(port);
+  const identity = new Promise(resolve => client.ws.on('message', data => { const m = JSON.parse(data); if (m.type === 'identity') resolve(m); }));
+  client.ws.send(JSON.stringify({ type: 'resetIdentity' }));
+  const fresh = await identity;
+  assert.notEqual(fresh.uid, client.uid); assert.notEqual(fresh.credential, client.credential);
+  const wrong = await openClient(port, fresh.uid, undefined, { credential: client.credential });
+  assert.deepEqual(wrong.errors, ['身份验证失败']);
+  credentials.set(fresh.uid, fresh.credential);
+  const restored = await openClient(port, fresh.uid);
+  assert.equal(restored.uid, fresh.uid);
+  await nextState(restored, s => s.room === null);
+});
+
+test('文件数据库重启后仍可验证凭证并读取原档案', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'synconym-auth-'));
+  const path = join(dir, 'db.sqlite');
+  let instance = createSynconymServer({ db: createDatabase(path) });
+  instance.server.listen(0, '127.0.0.1'); await once(instance.server, 'listening');
+  const first = await openClient(instance.server.address().port);
+  first.ws.close(); await once(first.ws, 'close');
+  await new Promise(resolve => instance.server.close(resolve));
+  instance = createSynconymServer({ db: createDatabase(path) });
+  instance.server.listen(0, '127.0.0.1'); await once(instance.server, 'listening');
+  t.after(async () => { for (const ws of instance.wss.clients) ws.terminate(); await new Promise(resolve => instance.server.close(resolve)); rmSync(dir, { recursive: true, force: true }); });
+  const restored = await openClient(instance.server.address().port, first.uid);
+  assert.equal(restored.uid, first.uid);
+  const profile = new Promise(resolve => restored.ws.on('message', data => { const m = JSON.parse(data); if (m.type === 'profile') resolve(m.profile); }));
+  restored.ws.send(JSON.stringify({ type: 'openProfile' }));
+  assert.equal((await profile).user.uid, first.uid);
+});
 
 test('同 UID 新页面接管连接并保留房间席位', async (t) => {
   const { server, wss, manager } = createSynconymServer({ db: createDatabase(':memory:') });

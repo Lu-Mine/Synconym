@@ -518,7 +518,8 @@ export class RoomManager {
       connection.uid = this.makeUid();
       const player = this.db.createPlayer(connection.uid, createName());
       this.clients.set(connection.uid, connection);
-      connection.ws?.send(JSON.stringify({ type: 'identity', uid: connection.uid, name: player.name, serverNow: Date.now() }));
+      const credential = this.issueCredential?.(connection.uid);
+      connection.ws?.send(JSON.stringify({ type: 'identity', uid: connection.uid, credential, name: player.name, serverNow: Date.now() }));
       this.sendState(connection, null);
       return;
     }

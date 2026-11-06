@@ -28,7 +28,7 @@ test('档案展示身份、曾用名、对局与隐私说明，并转义所有�
     assert.ok(html.includes(text), text);
   }
   assert.ok(html.includes('&lt;甲&gt;'));
-  assert.match(html, /本设备保存随机 UID；服务器保存名字和完成过的对局记录/);
+  assert.match(html, /本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录/);
   assert.ok(!html.includes('<甲>'));
   assert.ok(!html.includes('>乙、'));
   for (const button of html.matchAll(/<button\b[^>]*>/g)) assert.match(button[0], /\btype="button"/);

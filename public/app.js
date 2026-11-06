@@ -136,6 +136,7 @@ function syncConnectionUI() {
   if (banner) {
     banner.hidden = connectionStatus === 'connected' || connectionStatus === 'connecting';
     banner.textContent = connectionStatus === 'replaced' ? '此身份已在其他页面连接，本页已停止重连。'
+      : connectionStatus === 'auth-failed' ? '身份验证失败，已停止重连。请检查本地身份数据。'
       : connectionStatus === 'uid-in-use' ? '此身份仍在其他页面连接，正在等待连接释放并重试。'
       : connectionStatus === 'connecting' ? '正在连接服务器…'
       : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';

@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,6 +20,12 @@ export function createSynconymServer({
   db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD
 } = {}) {
   const manager = new RoomManager({ db, maxRooms });
+  const issueCredential = (uid) => {
+    const credential = randomBytes(32).toString('base64url');
+    db.setCredentialHash(uid, createHash('sha256').update(credential).digest());
+    return credential;
+  };
+  manager.issueCredential = issueCredential;
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -85,16 +92,29 @@ export function createSynconymServer({
     wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
   });
   wss.on('connection', (ws) => {
-    let connection;
+    let connection, authenticationFailed = false;
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (data) => {
       try {
-        if (connection?.replaced) return;
+        if (authenticationFailed || connection?.replaced) return;
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
+          let credential;
+          if (message.uid !== undefined || message.credential !== undefined) {
+            const hash = typeof message.uid === 'string' && db.getCredentialHash(message.uid);
+            const valid = typeof message.credential === 'string' && /^[A-Za-z0-9_-]{43}$/.test(message.credential);
+            const candidate = valid ? createHash('sha256').update(message.credential).digest() : null;
+            if (!hash || !candidate || hash.length !== candidate.length || !timingSafeEqual(hash, candidate)) {
+              ws.send(JSON.stringify({ type: 'error', message: '身份验证失败' }));
+              ws.close(4003, 'Authentication failed');
+              authenticationFailed = true;
+              return;
+            }
+          }
           connection = manager.connect(message.uid);
+          if (message.uid === undefined) credential = issueCredential(connection.uid);
           connection.ws = ws;
           const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : null;
           if (message.leaveRoom === true) {
@@ -104,19 +124,19 @@ export function createSynconymServer({
               connection.roomCode = roomCode;
             }
             manager.detach(connection, true);
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, serverNow: Date.now() }));
             manager.sendState(connection, null);
             return;
           }
           const restored = manager.restore(connection, roomCode, () => {
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: true, serverNow: Date.now() }));
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: true, serverNow: Date.now() }));
           });
           if (!restored) {
             if (roomCode && !manager.clients.get(connection.uid)?.roomCode) {
               const oldRoom = [...manager.rooms.values()].find((room) => room.players.some((player) => player.uid === connection.uid));
               if (oldRoom && oldRoom.code !== roomCode) manager.detach({ uid: connection.uid, roomCode: oldRoom.code }, true);
             }
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, restored: false, serverNow: Date.now() }));
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, serverNow: Date.now() }));
             manager.detach(connection, true);
             manager.sendState(connection, null);
           }

@@ -227,10 +227,10 @@ export function privacyMarkup() {
       </div>
     </nav>
     <section id="identity"><h2>浏览器里的身份</h2>
-      <p>首次访问时，服务端会分配随机 UID 和昵称。浏览器会把 UID 保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的同名 Cookie。主动退出遇到断线时，还会在会话存储中暂存退出意图。</p>
-      <p>清除浏览器数据可能让你失去原身份和档案的访问方式。UID 不是密码，请谨慎分享。</p></section>
+      <p>首次访问时，服务端会分配随机 UID、昵称和独立身份凭证。浏览器将 UID 和凭证保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的 UID Cookie。主动退出遇到断线时，还会在会话存储中暂存退出意图。</p>
+      <p>清除浏览器数据可能让你失去原身份和档案的访问方式。UID 不是密码；身份凭证可以用于恢复你的身份，请勿分享。</p></section>
     <section id="records"><h2>游戏中会记录什么</h2>
-      <p>服务器保存 UID、当前昵称、曾用名及相关时间。完成的对局会保存房号、模式、时间、结果、参与者昵称和 UID，以及每轮词语、标记和投票记录，用于游戏结算与档案展示。</p>
+      <p>服务器保存 UID、身份凭证的哈希值、当前昵称、曾用名及相关时间。完成的对局会保存房号、模式、时间、结果、参与者昵称和 UID，以及每轮词语、标记和投票记录，用于游戏结算与档案展示。</p>
       <p>游玩时的房间状态和输入内容会在服务器内存中临时处理。写词阶段的内容不会提前展示给其他玩家；揭晓后，同房间玩家可以看到词语和相应的投票结果。崩局或中断的对局不会作为完成记录保存。</p></section>
     <section id="deletion"><h2>保存与删除</h2>
       <p>当前版本没有设置服务器数据的自动删除期限，也没有自助删除服务器记录的功能。档案中的「我是新人」只会生成新 UID 和昵称，不会删除旧身份或旧对局记录。</p>
@@ -412,7 +412,7 @@ export function profileMarkup(state) {
         : '<p class="profile-empty">还没有完成的对局。开一局，回来就能看到。</p>'}
       ${pager}
     </section>
-    <p class="profile-privacy">本设备保存随机 UID；服务器保存名字和完成过的对局记录。</p>
+    <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
     <div class="profile-actions">
       <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
       <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
