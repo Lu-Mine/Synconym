@@ -2071,12 +2071,15 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 
 /* 页脚隐私入口与独立阅读页 */
 .site-footer { display: flex; align-items: center; justify-content: center; gap: 12px 24px; margin-top: 32px; text-align: center; }
-.footer-links { display: flex; align-items: center; gap: 16px; }
-.site-footer .footer-privacy { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 13px; }
-.site-footer .footer-privacy .icon { width: 15px; height: 15px; }
-.site-footer .footer-privacy, .privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
-@media (max-width: 380px) { .site-footer { gap: 8px; } .site-footer .brand { gap: 5px; } .site-footer .brand-cn, .site-footer .brand-en { font-size: 15px; } .footer-links { gap: 8px; } }
-.site-footer .footer-privacy:hover, .privacy-back:hover { color: var(--accent-hover); }
+.footer-links { display: flex; align-items: center; gap: 4px; }
+.site-footer .footer-privacy { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 8px; color: var(--ink-secondary); white-space: nowrap; font-size: 13px; text-decoration: none; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
+.site-footer .footer-privacy .icon, .footer-github-icon { width: 16px; height: 16px; flex: none; }
+.footer-github-icon { opacity: .68; }
+.site-footer .footer-privacy:hover { color: var(--ink); background: var(--card-hover); }
+.site-footer .footer-privacy:hover .footer-github-icon { opacity: 1; }
+.privacy-back { color: var(--ink-secondary); text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 380px) { .site-footer { gap: 4px; } .site-footer .brand { gap: 5px; } .site-footer .brand-cn, .site-footer .brand-en { font-size: 15px; } .footer-links { gap: 0; } .site-footer .footer-privacy { padding-inline: 5px; } }
+.privacy-back:hover { color: var(--accent-hover); }
 .site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }
 .privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }

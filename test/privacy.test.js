@@ -11,7 +11,7 @@ test('站点标题、主内容与包含隐私说明的页脚分开', () => {
   for (const inRoom of [false, true]) {
     const shell = shellMarkup(inRoom);
     assert.match(shell, /<header class="site-header"[\s\S]*<\/header>[\s\S]*<main id="stage" class="stage"><\/main>\s*<footer class="site-footer">[\s\S]*class="brand"[\s\S]*近[\s\S]*Syn[\s\S]*<nav class="footer-links" aria-label="页脚链接">[\s\S]*href="\/privacy\.html">[\s\S]*icon-shield-check[\s\S]*隐私说明[\s\S]*<\/nav><\/footer>/);
-    assert.match(shell, /href="https:\/\/github\.com\/Lu-Mine">[\s\S]*icon-code-2[\s\S]*GitHub/);
+    assert.match(shell, /href="https:\/\/github\.com\/Lu-Mine"><img class="footer-github-icon" src="\/github-mark\.svg"[^>]*><span>GitHub<\/span>/);
   }
   assert.doesNotMatch(homeMarkup(DEFAULT_SETTINGS), /隐私说明/);
 });
