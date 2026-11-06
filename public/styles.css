@@ -694,11 +694,11 @@ p {
   margin: 4px 8px 4px;
 }
 
-/* === 宽屏：创建占左侧 40%，设置占右侧 60%，展开面板横跨整行 === */
+/* === 宽屏：创建与设置平分，展开面板横跨整行 === */
 @media (min-width: 561px) {
   .create-card {
     display: grid;
-    grid-template-columns: 40% 60%;
+    grid-template-columns: 1fr 1fr;
     gap: 0;
     align-items: stretch;
   }
