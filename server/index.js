@@ -152,7 +152,7 @@ export function createSynconymServer({
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const port = Number(process.env.PORT || 3000);
   const { server } = createSynconymServer({ mock: process.argv.includes('--mock') });
-  server.listen(port, () => {
+  server.listen(port, process.env.HOST || undefined, () => {
     console.log(`Synconym listening on http://localhost:${port}`);
     if (vectorInfo) console.log(`词向量已加载：${vectorInfo.count} 个词，构建于 ${vectorInfo.builtAt}`);
   });

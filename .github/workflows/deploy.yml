@@ -1,17 +1,13 @@
 name: Deploy Synconym
-
 on:
   push:
     branches: [master]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: production-deploy
   cancel-in-progress: false
-
 jobs:
   deploy:
     if: github.ref == 'refs/heads/master'
@@ -19,14 +15,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
       - run: npm ci
       - run: npm test
-      # 服务器尚未迁移至独立前端发布，暂用已安装的后端部署入口。
-      - name: Package and deploy
+      - name: Deploy
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
@@ -36,6 +33,19 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/synconym_deploy
           chmod 600 ~/.ssh/synconym_deploy
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          ssh_opts=(-i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10)
+          current=$(ssh "${ssh_opts[@]}" root@example.com status)
+          [[ $current =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid deployed revision' >&2; exit 1; }
+          if [[ $current == "$GITHUB_SHA" ]]; then echo 'Already deployed'; exit 0; fi
+          mode=backend
+          if git cat-file -e "$current^{commit}" && git merge-base --is-ancestor "$current" "$GITHUB_SHA"; then
+            git diff --name-only -z --no-renames "$current" "$GITHUB_SHA" > /tmp/changed-files
+            mode=frontend
+            while IFS= read -r -d '' file; do
+              if [[ $file != public/* ]]; then mode=backend; break; fi
+            done < /tmp/changed-files
+          fi
+          echo "Deploying $mode; baseline $current"
           git archive --format=tar.gz "$GITHUB_SHA" > /tmp/synconym.tar.gz
           checksum=$(sha256sum /tmp/synconym.tar.gz | cut -d ' ' -f 1)
-          ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10 root@example.com "deploy $GITHUB_SHA $checksum" < /tmp/synconym.tar.gz
+          ssh "${ssh_opts[@]}" root@example.com "deploy $mode $GITHUB_SHA $checksum $current" < /tmp/synconym.tar.gz
