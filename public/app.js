@@ -4,12 +4,14 @@ import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode } from './room-code.js';
+import { refreshPlayingCount } from './playing.js';
 import {
   avatarDetails,
   homeMarkup,
   icon,
   lobbyMarkup,
   playerItemMarkup,
+  privacyMarkup,
   profileMarkup,
   rematchMarkup,
   resultMarkup,
@@ -94,6 +96,7 @@ let settings = {
 let homeSettingsOpen = false;
 let renameOpen = false;
 let profileOpen = new URLSearchParams(location.search).has('me');
+let privacyOpen = new URLSearchParams(location.search).has('privacy');
 let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
@@ -259,6 +262,7 @@ function confirmBreakVote() { return confirmAction('break'); }
 window.addEventListener('popstate', async () => {
   if (!state.room) {
     profileOpen = new URLSearchParams(location.search).has('me');
+    privacyOpen = new URLSearchParams(location.search).has('privacy');
     state.profile = null;
     if (profileOpen && socket.ready) requestProfile(1);
     render();
@@ -621,6 +625,7 @@ function requestProfile(page = 1) {
 
 function openProfile() {
   if (state.room) return;
+  privacyOpen = false;
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', '/?me');
@@ -747,13 +752,14 @@ function patchLobbyDOM(nextState) {
 }
 
 function screenKeyFor(nextState) {
-  if (!nextState.room) return profileOpen ? 'profile' : 'home';
+  if (!nextState.room) return privacyOpen ? 'privacy' : profileOpen ? 'profile' : 'home';
   return nextState.room.phase || 'writing';
 }
 
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
   if (screen === 'profile') return profileMarkup(state);
+  if (screen === 'privacy') return privacyMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
   return writingMarkup(state, gameUi);
@@ -852,6 +858,7 @@ function replaceScene(stage, nextScreen, generation) {
     if (generation !== renderGeneration) return;
     stopStoryMotion();
     stage.innerHTML = html;
+    if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
     stopStoryMotion = observeStoryMotion(stage);
     hydrateAvatars(stage);
     syncTransferModalDOM();
@@ -974,7 +981,7 @@ const socket = new Socket({
     }
     const profile = state.profile;
     state = { ...next, profile };
-    if (nextRoom) { profileOpen = false; state.profile = null; }
+    if (nextRoom) { profileOpen = false; privacyOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -995,7 +1002,7 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (!profileOpen && location.search) history.replaceState(null, '', '/');
+      if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', '/');
     }
     render();
     // 名字或身份变了：档案页跟着刷新一次
@@ -1102,6 +1109,26 @@ app.addEventListener('click', async (event) => {
     }
     return;
   }
+  const privacySection = event.target.closest('.privacy-nav a');
+  if (privacySection && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    document.getElementById(privacySection.hash.slice(1))?.scrollIntoView({ block: 'start' });
+    return;
+  }
+
+  const privacyLink = event.target.closest('[data-action="open-privacy"]');
+  if (privacyLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    if (state.room || privacyOpen) return;
+    profileOpen = false;
+    privacyOpen = true;
+    state.profile = null;
+    history.pushState({ privacy: true }, '', '/?privacy');
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
+
 
   const homeLink = event.target.closest('[data-action="home"]');
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -1112,6 +1139,7 @@ app.addEventListener('click', async (event) => {
       socket.roomCode = '';
       previousRoomCode = '';
       profileOpen = false;
+      privacyOpen = false;
       state.profile = null;
       if (location.search) history.replaceState(null, '', '/');
       render();
@@ -1343,3 +1371,7 @@ document.addEventListener('keydown', (event) => {
     syncRenameModalDOM(false);
   }
 });
+
+setInterval(() => {
+  if (!document.hidden) refreshPlayingCount(app.querySelector('#playing-count'));
+}, 30000);
