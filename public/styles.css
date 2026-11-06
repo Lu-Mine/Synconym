@@ -574,7 +574,7 @@ p {
 .create-submit-label {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   flex: 1;
   gap: 4px 20px;
