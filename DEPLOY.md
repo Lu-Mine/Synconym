@@ -1,6 +1,8 @@
 # 部署上线
 
-三条路，按你手上有什么选一条就行。共同前提：**Node 20+**，`better-sqlite3` 固定在 `^12`（升 13 需要 Node 22+，在 Node 20 上会直接崩）。
+本文区分**当前 ECS 的目标架构**与其他部署方式。目标是 **Apache 对外监听 `:3000`，直接提供独立前端快照；`/ws`、`/api/`、`/healthz` 反代至 Node `127.0.0.1:3001`**。仓库配置不是线上生效证明，迁移及验收见 [deploy/MIGRATION.md](deploy/MIGRATION.md)。
+
+共同前提：**Node 20+**，当前依赖为 `better-sqlite3 ^12.4.1`；升级 Node 或原生依赖前，应在目标运行环境重新安装并验证。下列 Docker、systemd、容器平台是替代方案，不要与当前 ECS 的宝塔进程管理混用。
 
 - [一、Docker（推荐，ECS 和容器托管都能用）](#一docker)
 - [二、裸机 + systemd（ECS 直接跑）](#二裸机--systemd)
@@ -77,7 +79,8 @@ HTTPS、域名、证书这些平台全包，你不用管。
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `PORT` | `3000` | 监听端口 |
+| `PORT` | `3000` | Node 监听端口；当前 ECS 目标设为 `3001`，Apache 对外端口仍为 `3000` |
+| `HOST` | 未设置 | Node 绑定地址；当前 ECS 必须设为 `127.0.0.1`，不要将后端 `3001` 暴露公网；容器需按容器网络设置 |
 | `PUBLIC_URL` | 空 | 生成邀请链接用的对外地址，例如 `https://game.example.com`。**不设的话邀请链接会指向请求时的 Host，反代后可能变成内网地址** |
 | `DB_PATH` | `data/synconym.db` | SQLite 文件路径，线上指到持久卷 |
 | `MAX_ROOMS` | `500` | 单进程最多同时存在多少间房，满了再建房会提示「服务器房间已满」 |
@@ -89,11 +92,24 @@ HTTPS、域名、证书这些平台全包，你不用管。
 
 ## 五、反向代理与 HTTPS
 
-**必须全站 HTTPS**。页面是 `https://` 而 WebSocket 走 `ws://` 会被浏览器按混合内容直接掐断，表现就是「一直连接中断」。
+### 当前 ECS：Apache `:3000` → Node `127.0.0.1:3001`
 
-**身份凭证升级注意**：前端和后端须同步发布，并让已打开的旧页面刷新；旧版 WebSocket 客户端与新版认证协议不兼容。旧版只保存 UID 的身份不会迁移，升级后浏览器会创建新身份，旧档案无法通过 UID 恢复。新身份凭证保存在浏览器本地存储，清除站点数据会丢失访问方式。生产环境必须使用 HTTPS/WSS，避免凭证在传输中泄露。
+使用 [deploy/apache.synconym.conf](deploy/apache.synconym.conf)：
 
-### Caddy（最省事，证书自动申请和续期）
+- `DocumentRoot /opt/synconym-deploy/frontend-current` 提供首页和静态文件。
+- `/assets/<完整提交 SHA>/...` 映射到 `/opt/synconym-deploy/frontend/<SHA>/...`，保存版本化资源；首页及非版本化资源使用 `no-cache`，版本化资源使用长期不可变缓存。
+- `/ws` 转发至 `ws://127.0.0.1:3001/ws`；`/api/`、`/healthz` 转发至同一 Node 后端。
+- [deploy/bt-start.sh](deploy/bt-start.sh) 设置 `HOST=127.0.0.1`、`PORT=3001`，数据库固定在 `/var/lib/synconym/synconym.db`；宝塔项目管理 Node 生命周期。
+
+管理员需确认 Apache 的 `proxy`、`proxy_http`、`proxy_wstunnel`、`headers` 等模块及实际配置加载路径，检查端口占用，再语法检查并平滑重载；不能直接覆盖其他站点。首次从 Node `:3000` 迁移会涉及后端重启及端口交接，详见迁移指南。
+
+**HTTP 明文限制**：仓库当前 Apache 示例没有 TLS，启动脚本的公开地址为 `http://example.com:3000`，因此此入口使用 HTTP/WS，**身份凭证和游戏数据可能被窃听或篡改，不应视为安全的生产入口**。正式使用应配置 HTTPS/WSS（可在 Apache 或上游终止 TLS），同步调整 `PUBLIC_URL`。HTTPS 页面不能连接明文 `ws://`；浏览器按页面协议选择 WebSocket 协议。仅将后端绑定回环地址不能保护公网这一段。
+
+**身份凭证升级**：前后端须作为兼容版本一同发布，并通知已打开旧页面的用户刷新；旧版 WebSocket 客户端与新认证协议不兼容。旧版仅保存 UID 的身份不会自动迁移，新页面会创建新身份；旧档案仍在数据库，但不能只凭 UID 恢复访问。新身份的 UID 和凭证保存在浏览器 `localStorage` 的 `sy_identity` 中，清除站点数据会失去访问方式。更换协议、域名或端口也会改变存储源，不会自动带入原身份；HTTPS 迁移需单独规划，不要在日志或工单中暴露凭证。
+
+以下 Caddy / Nginx 是替代入口示例，不是当前 ECS 的 Apache 安装步骤；按部署方式调整其上游端口，不要照搬默认 `3000` 指向 Apache 自身。
+
+### Caddy（替代方案，自动管理证书）
 
 ```bash
 sudo apt install caddy        # 或按官网方式安装
@@ -122,7 +138,10 @@ proxy_set_header Connection $connection_upgrade;
 ## 六、健康检查
 
 ```bash
-curl -s localhost:3000/healthz
+# 当前 ECS：分别检查 Node 和 Apache 转发
+curl -fsS http://127.0.0.1:3001/healthz
+curl -fsS http://127.0.0.1:3000/healthz
+# 响应示例（不是线上实测结果）：
 # {"status":"ok","rooms":3,"clients":7,"vectors":true,"uptime":812}
 ```
 
@@ -157,61 +176,49 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 ---
 
 ## 八、升级与发布
-### GitHub Actions 自动部署（当前 ECS）
+### GitHub Actions 自动部署（当前 ECS 目标）
 
-推送到 `master` 会自动运行测试，通过后打包该提交并通过 SSH 上传到 ECS。
+`.github/workflows/deploy.yml` 在 `master` 推送或手动触发时执行 `npm ci`、`npm test`，成功后打包提交，经受限 SSH 入口上传。需要 Secrets：`DEPLOY_SSH_KEY`、`DEPLOY_SSH_HOST_KEY`。这描述仓库工作流行为，不代表某次发布或线上迁移已成功。
 
-#### 自动部署类型判断
+#### 部署类型与兼容边界
 
-工作流会比较当前线上版本和即将部署的版本，自动判断变更类型：
+工作流通过 `status` 读取**当前前端及后端**的两个 `.deployed-revision`，调用部署脚本的 `--classify` 与目标提交比较：
 
-- **纯前端发布**：只有 `public/` 目录下的文件变更。只切换静态文件，不重启 Node 服务，**不会中断进行中的对局**。
-- **后端发布**：包含 `server/`、`scripts/`、`deploy/`、`test/`、依赖文件或基础设施配置的变更。停止旧服务、切换完整版本并重启，**进行中的对局会中断**。
+- 前后端基线可识别、前端是目标提交的祖先且后端是前端的祖先，并且**从当前后端到目标的全部差异都在 `public/`** 时，才可走 `frontend`。它生成新快照、原子切换前端链接并校验 HTTP 内容，失败则尝试恢复旧前端链接，**不重启 Node**。
+- 任意非 `public/` 变更（包括仅修改文档）、提交未知或基线关系不满足安全比较时，走 `backend`。目标已在当前前端祖先链上时标为过时任务而不倒退；已达目标且后端无待更新差异时跳过。`status` 无法返回两个有效 SHA 时不能继续发布。
+- 工作流最多尝试三次，每次重新获取双基线并分类。后端发布安装依赖后停止旧后端、切换版本、启动并检查健康，再切换前端并校验。失败时尝试恢复前后端，回滚本身仍可能失败，需人工处理。
 
-#### 部署架构
+**不重启不等于协议兼容**：纯前端发布必须同时兼容当前后端及已打开页面。认证协议、消息格式或 API 变化应按前后端配套升级处理；版本化静态资源只能避免混用 JS/CSS，不能让旧页面自动获得新协议。当前后端脚本要求健康响应的 `status=ok` 且 `vectors=true`，但这些检查不能代替浏览器对局、身份和重连验收。
 
-前后端分离部署：
-- Nginx 直接提供 `/opt/synconym-deploy/frontend-current` 中的静态文件
-- `/ws`、`/healthz` 和 `/api/*` 请求转发给 Node 服务器
-- 前端版本目录独立于后端服务版本，可单独切换
+#### 版本、数据与基础设施
 
-服务器使用符号链接管理版本：
-- `/www/wwwroot/synconym` → 后端服务当前版本（完整项目目录）
-- `/opt/synconym-deploy/frontend-current` → 前端当前版本（只包含 public/）
-- 版本文件保留在 `/opt/synconym-deploy/releases/` 和 `/opt/synconym-deploy/frontend/`
+- `/www/wwwroot/synconym` → `/opt/synconym-deploy/releases/` 中的后端完整版本。
+- `/opt/synconym-deploy/frontend-current` → `/opt/synconym-deploy/frontend/<完整 SHA>` 中的前端快照；`prepare-frontend.py` 改写首页及图标引用，浏览器通过 `/assets/<SHA>/` 加载同一快照中的模块。
+- SQLite 在 `/var/lib/synconym/synconym.db`，不随版本链接切换。保留当前、前一组兼容前后端及其 `.deployed-revision`；旧页面还可能请求旧 `/assets/<SHA>/`，不可只保留当前前端目录。清理前先确认引用和回滚窗口。
 
-SQLite 数据库位于 `/var/lib/synconym`，与服务版本分离。
+服务器入口 `/opt/synconym-deploy/github-deploy.sh` 和基础设施文件由管理员独立安装，普通发布不会更新它们。以下仓库文件修改后须核对服务器实际路径、备份并手动安装：
 
-#### 基础设施维护
+| 仓库文件 | 服务器目标 |
+|---|---|
+| `deploy/github-deploy.sh` | `/opt/synconym-deploy/github-deploy.sh` |
+| `deploy/prepare-frontend.py` | `/opt/synconym-deploy/prepare-frontend.py` |
+| `deploy/bt-restart.py` | `/opt/synconym-deploy/bt-restart.py` |
+| `deploy/bt-start.sh` | `/opt/synconym-deploy/bt-start.sh`，并核对当前版本中的启动脚本及宝塔启动命令 |
+| `deploy/apache.synconym.conf` | 管理员确认的 Apache 配置加载位置，不能直接套用 Nginx 路径 |
 
-工作流需要仓库 Secrets：`DEPLOY_SSH_KEY` 和 `DEPLOY_SSH_HOST_KEY`。
+受限命令格式为 `status`（返回 `前端SHA 后端SHA`）或 `deploy frontend|backend <目标40位SHA> <归档64位SHA256> <预期前端40位SHA> <预期后端40位SHA>`。入口验证双基线、部署锁和归档安全；工作流与服务器脚本必须同步升级，旧单基线及 `deploy-frontend` 调用方式不适用。`deploy.pending` 记录未完成事务；残留时拒绝新发布，管理员须根据其中旧版本路径和实际链接完成恢复、验收后再清理标记，不能为重试直接删除。
 
-服务器部署入口位于 `/opt/synconym-deploy/github-deploy.sh`，受限 SSH 密钥只能调用该入口。服务器上的部署入口、Nginx 配置和宝塔控制脚本是独立安装的基础设施。修改 `deploy/` 目录中的这些文件后，需由管理员检查并手动更新服务器上的对应文件：
+#### 发布、回滚与重启风险
 
-- `deploy/github-deploy.sh` → `/opt/synconym-deploy/github-deploy.sh`
-- `deploy/nginx.synconym-split.conf` → Nginx 配置目录
-- `deploy/bt-restart.py` → `/opt/synconym-deploy/bt-restart.py`
-- `deploy/bt-start.sh` → `/opt/synconym-deploy/bt-start.sh`
+**房间和进行中的对局在内存中，后端停止、重启、故障回滚均会中断它们，不能通过切回版本恢复。** 已写入持久数据库的历史记录不随代码切换丢失。纯前端发布不主动重启 Node，但仍需验证新旧客户端兼容。
 
-普通代码部署不会自动替换这些脚本。
+1. 查看 Actions、前后端 `.deployed-revision`、当前链接及 `http://127.0.0.1:3001/healthz`；`rooms` 不为 0 时等待低峰并提前公告。
+2. 首次迁移、认证升级或有数据结构变化前，用 SQLite 备份接口备份数据库，保存前后端链接、启动环境及 Apache 配置，见[迁移指南](deploy/MIGRATION.md)。
+3. 当前 ECS 只通过宝塔项目控制后端，不能再启动同名 systemd 或额外 Node 实例。其他部署方式才使用 `systemctl restart synconym` 或重建容器。
+4. 发布后分别验证 Node、Apache 的健康、版本化资源、WebSocket、身份及实际对局；自动校验成功不等于完整业务验收。
+5. 回滚时恢复**兼容的前后端组合**，必要时恢复基础设施。脚本不备份或回滚数据库；数据库还原前必须停止写入并备份现状，接受备份时间点之后数据丢失的风险。不要为常规代码回滚直接覆盖数据库。
 
-#### 监控与回滚
-
-可在 GitHub Actions 中查看发布结果和部署类型。失败时检查日志；网络波动可重试。
-
-服务器保留版本目录，需由管理员按磁盘情况定期清理未使用的旧版本。切勿删除当前版本及回滚版本。
-
-
-**房间状态存在内存里，后端重启会丢掉正在进行的对局**（已完成的对局已经入库，不会丢）。纯前端发布不重启服务，不影响现有对局。
-
-手动后端发布建议：
-
-1. `curl -s localhost:3000/healthz` 看 `rooms` 是否为 0
-2. 不是 0 就等到没人在玩，或者在群里说一声
-3. 拉新代码 → `npm ci --omit=dev` → `systemctl restart synconym`（或重建容器）
-4. 再 `curl` 一次确认 healthy
-
-Docker 换镜像时记得保留 `/data` 挂载，卷在容器重建后依然存在。
+Docker 换镜像时仍须保留 `/data` 挂载。这里的迁移、回滚及线上验证步骤均需实际执行并记录结果，不能将文档中的预期结果当作验证记录。
 
 ---
 
@@ -220,12 +227,12 @@ Docker 换镜像时记得保留 `/data` 挂载，卷在容器重建后依然存�
 | 现象 | 多半是 |
 |---|---|
 | 一直显示「连接中断，正在重连」 | 反代没转发 `Upgrade` / `Connection`；或套了不支持 WebSocket 的 CDN |
-| 页面能打开，但建房后没反应 | 页面是 https 而 WebSocket 连的是 ws（混合内容被拦）。检查反代是否透传了 `X-Forwarded-Proto`，前端会按 `location.protocol` 自动选 `wss` |
-| 打开就是 502 / 空白 | 服务没起来，或反代端口写错；`systemctl status` 或 `docker logs` 看启动日志 |
+| 页面能打开，但建房后没反应 | 检查浏览器 `/ws` 握手及协议，HTTPS 页面应使用 WSS；确认入口支持 WebSocket、转发至 `127.0.0.1:3001`，旧认证页面须刷新 |
+| 打开就是 502 / 空白 | 核对 Apache 与 Node 的监听、反代端口及宝塔项目日志；systemd / Docker 替代部署才用对应服务日志 |
 | 邀请链接是 `localhost:3000` 或内网 IP | 没设 `PUBLIC_URL` |
 | 重启后玩家档案里的记录没了 | `/data`(或 `DB_PATH`) 没指向持久卷 |
 | 结算页显示「无法计算」，曲线是虚线 | `data/vectors/` 缺失，看启动日志里「词向量已加载」那行 |
-| 启动报 `better-sqlite3` 相关错误 | Node 版本不对（需要 20+），或误升到了 13.x |
+| 启动报 `better-sqlite3` 相关错误 | 核对 Node 20+、依赖锁文件和原生模块构建环境，切换 Node 后重新安装依赖 |
 
 ---
 
@@ -233,8 +240,8 @@ Docker 换镜像时记得保留 `/data` 挂载，卷在容器重建后依然存�
 
 这个应用是**单进程、房间状态在内存里**的结构：
 
-- 朋友局、几十到几百人同时在线，一台小机器完全够（实测 10 房 × 4 人并发操作无异常）
+- 适合单实例的小规模朋友局；容量应按目标机器、词向量及实际负载测试，不在此承诺未经验证的并发人数
 - 但**不能多开实例做负载均衡**——两个实例各管一半房间，玩家重连会跑到另一台上去
 - 想要多实例，得先把房间状态挪到 Redis 之类的地方，那是另一次改造
 
-在此之前，正确做法是：单实例 + 进程守护（systemd / `--restart`）+ 定期备份。
+在此之前，正确做法是：单实例 + 一种进程守护（当前 ECS 为宝塔，替代方案为 systemd / Docker `--restart`）+ 定期备份。
