@@ -13,6 +13,16 @@ function leftIcon(html, label, icon) {
   assert.ok(html.includes(`${svg(icon)}<span>${label}</span>`), `${label}: ${icon}`);
 }
 
+test('首页默认收起设置，演示写词显示输入提示', () => {
+  const html = homeMarkup(settings);
+  assert.match(html, /data-action="toggle-settings" aria-expanded="false"/);
+  assert.match(html, /id="home-settings-panel" inert/);
+  assert.match(homeMarkup(settings, true), /data-action="toggle-settings" aria-expanded="true"/);
+  assert.match(html, /data-demo-typed>[\s\S]*?<p class="game-hint">可使用空格；超时将提交输入框中的内容<\/p>/);
+  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.match(source, /if \(nextScreen === 'home' && currentScreen !== 'home'\) homeSettingsOpen = false/);
+});
+
 test('首页介绍的装饰图标各不重复且存在于图标资源中', () => {
   const html = homeMarkup(settings).split('<a class="home-story-link"')[1];
   const link = html.match(/^[^>]*>[^<]*<svg class="icon "[^>]*><use href="\/icons\.svg#icon-([\w-]+)"/)[1];

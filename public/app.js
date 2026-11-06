@@ -787,6 +787,7 @@ function replaceScene(stage, nextScreen, generation) {
 function render({ forceFull = false } = {}) {
   if (!state.room || state.room.phase === 'lobby') pathOpen = false;
   const nextScreen = screenKeyFor(state);
+  if (nextScreen === 'home' && currentScreen !== 'home') homeSettingsOpen = false;
   syncModalScrollLock();
   const stage = ensureShell(Boolean(state.room));
   syncConnectionUI();
