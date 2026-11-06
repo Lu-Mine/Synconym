@@ -322,7 +322,7 @@ test('加入房间输入框支持房号和邀请链接，并调起数字键盘',
   const home = homeMarkup(DEFAULT_SETTINGS, false);
   assert.match(home, /id="room-code"[^>]*inputmode="numeric"/);
   assert.doesNotMatch(home, /id="room-code"[^>]*(?:pattern|maxlength)=/);
-  assert.match(home, /placeholder="房号或邀请链接"/);
+  assert.match(home, /placeholder="输入 5 位数房间号，或直接粘贴邀请链接"/);
   assert.match(home, /data-action="paste-invite"><svg[^>]*><use href="\/icons\.svg#icon-clipboard-paste"><\/use><\/svg><span>粘贴邀请链接<\/span>/);
   assert.doesNotMatch(home, /class="button secondary join-submit"/);
   assert.match(home, /id="join-hint" role="status"/);
