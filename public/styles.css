@@ -160,7 +160,7 @@ button svg {
   min-height: 100dvh;
   width: min(100% - 40px, 600px);
   margin: 0 auto;
-  padding: 36px 0 64px;
+  padding: 36px 0 24px;
 }
 
 .site-header {
@@ -1715,7 +1715,7 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none; }
 @media (max-width: 560px) {
   .app {
     width: min(100% - 28px, 600px);
-    padding: 24px 0 48px;
+    padding: 24px 0 20px;
   }
 
   h1 {
