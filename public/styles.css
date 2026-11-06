@@ -2241,3 +2241,49 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (prefers-reduced-motion: reduce) {
   .story-demo *, .story-demo *::before, .story-demo *::after { animation: none !important; }
 }
+
+/* 宽屏保留组件原有顺序和移动端布局，只重新分配页面空间。 */
+@media (min-width: 1000px) {
+  .app:has(.lobby-page), .app:has(.writing-page),
+  .app:has(.result-page), .app:has(.profile-page) {
+    width: min(100% - 64px, 1120px);
+  }
+
+  .lobby-page, .writing-page, .result-page, .profile-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 16px 24px;
+    align-content: start;
+    align-items: start;
+  }
+  .lobby-page > *, .writing-page > *, .result-page > *, .profile-page > * { min-width: 0; }
+  .lobby-page .room-banner { grid-column: 1 / -1; }
+  .lobby-page .players-block { grid-column: 1; }
+  .lobby-page .settings-block { grid-column: 2; grid-row: 2 / span 2; }
+  .lobby-page .lobby-actions { grid-column: 1; }
+  .lobby-page .surface-block, .writing-page .surface-block, .writing-page .writing-stage { margin-bottom: 0; }
+
+  .writing-page .writing-stage { grid-column: 1 / -1; }
+  .writing-page > #previous-words, .writing-page > .game-form,
+  .writing-page > .surface-block:not(:has(.game-status-list)),
+  .writing-page > .game-actions, .writing-page > .game-hint,
+  .writing-page > .game-wide { grid-column: 1; }
+  .writing-page > .surface-block:has(.game-status-list) { grid-column: 2; grid-row: 2 / span 3; }
+  .writing-page > #previous-words:empty { display: none; }
+
+  .result-page .result-heading { grid-column: 1 / -1; }
+  .result-page[data-screen="interrupted"] > .result-rematch { grid-column: 1; }
+  .result-page > .result-rematch-group, .result-page > .result-rematch { grid-column: 2; grid-row: 2; }
+  .result-page > .surface-block:not(.result-rematch) { grid-column: 1; }
+  .result-page > .surface-block { margin-bottom: 0; }
+
+  .profile-page { grid-template-areas: 'identity history' 'privacy history' 'actions history' '. history'; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); grid-template-rows: auto auto auto 1fr; }
+  .profile-identity { grid-area: identity; }
+  .profile-history { grid-area: history; }
+  .profile-privacy { grid-area: privacy; }
+  .profile-actions { grid-area: actions; }
+  .profile-page > .profile-empty { grid-column: 1 / -1; }
+
+  .privacy-page { width: min(100% - 64px, 960px); }
+  .privacy-content { max-width: 680px; margin-inline: auto; }
+}
