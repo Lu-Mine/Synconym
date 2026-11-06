@@ -96,9 +96,9 @@ test('粘贴按钮填入内容，读取失败保留输入并提示', async () =>
   for (const text of ['http://example.com/?r=12345', null]) {
     const calls = [];
     const input = { isConnected: true, value: 'old', focus: () => calls.push('focus'), dispatchEvent: () => calls.push('input') };
-    const context = { button: { closest: () => ({ querySelector: () => input }) }, readClipboardText: async () => text, toast: (message) => calls.push(message), InputEvent: Event };
+    const context = { button: { closest: () => ({ querySelector: () => input }) }, readClipboardText: async () => text, toast: (message) => calls.push(message), applyRoomPaste: (target, value) => { target.value = new URL(value).searchParams.get('r'); calls.push('input'); } };
     await runInNewContext(`(async () => {${branch}})()`, context);
-    assert.equal(input.value, text ?? 'old');
+    assert.equal(input.value, text === null ? 'old' : '12345');
     assert.deepEqual(calls, text === null ? ['focus', '无法读取剪贴板，请手动粘贴邀请链接'] : ['input', 'focus']);
   }
 });

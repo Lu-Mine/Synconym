@@ -3,7 +3,7 @@ import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import { copyText, readClipboardText } from './clipboard.js';
-import { parseRoomCode } from './room-code.js';
+import { parseRoomCode, sanitizeRoomInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
 import {
@@ -1053,13 +1053,41 @@ app.addEventListener('submit', (event) => {
   }
 });
 
+function applyRoomPaste(input, text) {
+  const code = parseRoomCode(text);
+  if (!code) {
+    ++joinCheckVersion;
+    const hint = app.querySelector('#join-hint');
+    if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接';
+    return;
+  }
+  input.value = code;
+  checkJoinOnInput(input, true);
+}
+
+app.addEventListener('paste', (event) => {
+  if (event.target.id !== 'room-code') return;
+  event.preventDefault();
+  applyRoomPaste(event.target, event.clipboardData?.getData('text/plain') || '');
+});
+
 app.addEventListener('input', (event) => {
-  if (event.target.id === 'room-code' && !event.isComposing) checkJoinOnInput(event.target, event.inputType === 'insertFromPaste');
+  if (event.target.id === 'room-code' && !event.isComposing) {
+    const input = event.target;
+    const cursor = input.selectionStart;
+    const before = cursor == null ? null : sanitizeRoomInput(input.value.slice(0, cursor)).length;
+    input.value = sanitizeRoomInput(input.value);
+    if (before != null) input.setSelectionRange(before, before);
+    checkJoinOnInput(input);
+  }
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
 });
 
 app.addEventListener('compositionend', (event) => {
-  if (event.target.id === 'room-code') checkJoinOnInput(event.target);
+  if (event.target.id === 'room-code') {
+    event.target.value = sanitizeRoomInput(event.target.value);
+    checkJoinOnInput(event.target);
+  }
   if (event.target.id === 'word-input') acceptWordInput(event.target);
 });
 
@@ -1172,8 +1200,7 @@ app.addEventListener('click', async (event) => {
     const text = await readClipboardText();
     if (!input?.isConnected) return;
     if (text === null) { input.focus(); toast('无法读取剪贴板，请手动粘贴邀请链接'); return; }
-    input.value = text;
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+    applyRoomPaste(input, text);
     input.focus();
     return;
   }

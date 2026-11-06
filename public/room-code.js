@@ -10,3 +10,8 @@ export function parseRoomCode(value) {
     return '';
   }
 }
+
+export function sanitizeRoomInput(value) {
+  return String(value || '').replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+    .replace(/[^0-9]/g, '').slice(0, 5);
+}
