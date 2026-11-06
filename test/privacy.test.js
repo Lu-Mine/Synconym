@@ -30,6 +30,16 @@ test('隐私说明可直接访问并如实说明身份重置', async (t) => {
   assert.match(html, /href="\/"/);
 });
 
+test('隐私说明目录对应各章节并保留主站返回入口', async () => {
+  const html = await readFile(new URL('../public/privacy.html', import.meta.url), 'utf8');
+  assert.match(html, /class="brand" href="\/"/);
+  assert.match(html, /<nav class="privacy-nav" aria-label="隐私说明目录">/);
+  for (const id of ['identity', 'records', 'deletion', 'hosting']) {
+    assert.match(html, new RegExp(`href="#${id}"`));
+    assert.match(html, new RegExp(`<section id="${id}">`));
+  }
+});
+
 test('版权声明保留独立词向量许可', async () => {
   const license = await readFile(new URL('../LICENSE', import.meta.url), 'utf8');
   assert.match(license, /All rights reserved/);

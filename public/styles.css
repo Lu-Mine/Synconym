@@ -2080,16 +2080,23 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 @media (max-width: 380px) { .site-footer { gap: 4px; } .site-footer .brand { gap: 5px; } .site-footer .brand-cn, .site-footer .brand-en { font-size: 15px; } .footer-links { gap: 0; } .site-footer .footer-privacy { padding-inline: 5px; } }
 .privacy-back:hover { color: var(--accent-hover); }
 .site-footer a:focus-visible, .privacy-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
-.privacy-page { width: min(100% - 40px, 680px); margin: 0 auto; padding: 36px 0 72px; }
+.privacy-page { width: min(100% - 40px, 760px); margin: 0 auto; padding: 32px 0 72px; }
+.privacy-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .privacy-back { display: inline-block; padding: 8px 0; font-size: 14px; }
-.privacy-content { margin-top: 24px; padding: clamp(24px, 5vw, 48px); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.privacy-content h1 { margin: 0; font-size: clamp(28px, 5vw, 36px); line-height: 1.2; }
+.privacy-content { margin-top: 28px; padding: clamp(24px, 5vw, 48px); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.privacy-title { padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+.privacy-content h1 { margin: 0; font-size: 32px; line-height: 1.25; letter-spacing: -.02em; }
 .privacy-content h2 { margin: 0 0 12px; font-size: 19px; line-height: 1.4; }
-.privacy-content section { margin-top: 32px; }
-.privacy-content p { margin: 0; color: var(--ink-secondary); line-height: 1.8; overflow-wrap: anywhere; }
+.privacy-content section { padding-top: 32px; scroll-margin-top: 24px; }
+.privacy-content section + section { margin-top: 32px; border-top: 1px solid var(--line); }
+.privacy-content p { margin: 0; color: var(--ink-secondary); line-height: 1.85; overflow-wrap: anywhere; text-wrap: pretty; }
 .privacy-content p + p { margin-top: 12px; }
-.privacy-content .privacy-intro { margin-top: 16px; }
-@media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-content { margin-top: 16px; } }
+.privacy-content .privacy-intro { margin-top: 14px; }
+.privacy-nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 20px 0 0; }
+.privacy-nav a { padding: 7px 11px; border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-secondary); font-size: 14px; text-decoration: none; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
+.privacy-nav a:hover { color: var(--accent-hover); background: var(--accent-soft); }
+.privacy-nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 480px) { .privacy-page { width: calc(100% - 32px); padding-top: 20px; } .privacy-header .brand { gap: 6px; } .privacy-header .brand-cn, .privacy-header .brand-en { font-size: 17px; } .privacy-content { margin-top: 20px; } .privacy-content h1 { font-size: 28px; } .privacy-nav { gap: 6px; } }
 
 /* 首页玩法介绍：让词语本身展示游戏的过程。 */
 .home-story-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; min-height: 46px; margin: 32px auto 0; padding: 10px 20px; color: var(--accent); font-size: 14px; font-weight: 650; text-decoration: none; background: rgba(61, 90, 254, .08); border: 1px solid rgba(61, 90, 254, .24); border-radius: var(--radius-sm); transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
@@ -2315,6 +2322,5 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .profile-actions { grid-area: actions; }
   .profile-page > .profile-empty { grid-column: 1 / -1; }
 
-  .privacy-page { width: min(100% - 64px, 960px); }
-  .privacy-content { max-width: 680px; margin-inline: auto; }
+  .privacy-page { width: min(100% - 64px, 760px); }
 }
