@@ -806,14 +806,22 @@ p {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
+  padding: 0 8px;
+  border: 0;
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--accent);
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
+}
+.paste-invite::before {
+  content: '';
+  position: absolute;
+  inset: 4px 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
 }
 .paste-invite .icon { width: 15px; height: 15px; flex: none; }
 .paste-invite:hover { background: var(--surface-hover, rgba(61, 90, 254, .08)); }
