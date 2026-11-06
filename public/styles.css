@@ -2297,6 +2297,9 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .game-controls > .button, .game-form .button { align-self: center; }
   .lobby-actions, .game-actions, .profile-actions, .rename-dialog-actions { justify-content: center; }
   .lobby-actions .button, .game-actions .button { flex: 1 1 0; min-width: 0; }
+  .writing-page[data-screen="prepare"] .game-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 10px; align-content: start; }
+  .writing-page[data-screen="prepare"] .game-controls > .surface-block { grid-column: 1 / -1; }
+  .writing-page[data-screen="prepare"] .game-controls > .button { width: 100%; height: 100%; align-self: stretch; }
   .rematch-actions { justify-content: center; }
 
   .result-page .result-heading { grid-column: 1 / -1; }
