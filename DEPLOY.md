@@ -157,16 +157,52 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 ## 八、升级与发布
 ### GitHub Actions 自动部署（当前 ECS）
 
-推送到 `master` 会自动运行测试，通过后打包该提交并通过 SSH 上传到 ECS。宝塔中的 `synconym` Node 项目使用 `/www/wwwroot/synconym` 符号链接指向版本目录，SQLite 仍在 `/var/lib/synconym`。部署会停止项目、切换版本并重启；健康检查或词向量加载失败时尝试回滚。进行中的对局会中断。
+推送到 `master` 会自动运行测试，通过后打包该提交并通过 SSH 上传到 ECS。
 
-工作流需要仓库 Secrets：`DEPLOY_SSH_KEY` 和 `DEPLOY_SSH_HOST_KEY`。服务器部署入口位于 `/opt/synconym-deploy/github-deploy.sh`，受限 SSH 密钥只能调用该入口。服务器上的部署入口和宝塔控制脚本是独立安装的基础设施；修改 `deploy/github-deploy.sh`、`deploy/bt-restart.py` 或 `deploy/bt-start.sh` 后，需由管理员检查并手动更新 `/opt/synconym-deploy/` 中的对应文件，普通代码部署不会自动替换这些脚本。
+#### 自动部署类型判断
 
-可在 GitHub Actions 中查看发布结果，失败时检查日志；网络波动可重试。服务器保留版本目录，需由管理员按磁盘情况定期清理未使用的旧版本，切勿删除当前版本及回滚版本。
+工作流会比较当前线上版本和即将部署的版本，自动判断变更类型：
+
+- **纯前端发布**：只有 `public/` 目录下的文件变更。只切换静态文件，不重启 Node 服务，**不会中断进行中的对局**。
+- **后端发布**：包含 `server/`、`scripts/`、`deploy/`、`test/`、依赖文件或基础设施配置的变更。停止旧服务、切换完整版本并重启，**进行中的对局会中断**。
+
+#### 部署架构
+
+前后端分离部署：
+- Nginx 直接提供 `/opt/synconym-deploy/frontend-current` 中的静态文件
+- `/ws`、`/healthz` 和 `/api/*` 请求转发给 Node 服务器
+- 前端版本目录独立于后端服务版本，可单独切换
+
+服务器使用符号链接管理版本：
+- `/www/wwwroot/synconym` → 后端服务当前版本（完整项目目录）
+- `/opt/synconym-deploy/frontend-current` → 前端当前版本（只包含 public/）
+- 版本文件保留在 `/opt/synconym-deploy/releases/` 和 `/opt/synconym-deploy/frontend/`
+
+SQLite 数据库位于 `/var/lib/synconym`，与服务版本分离。
+
+#### 基础设施维护
+
+工作流需要仓库 Secrets：`DEPLOY_SSH_KEY` 和 `DEPLOY_SSH_HOST_KEY`。
+
+服务器部署入口位于 `/opt/synconym-deploy/github-deploy.sh`，受限 SSH 密钥只能调用该入口。服务器上的部署入口、Nginx 配置和宝塔控制脚本是独立安装的基础设施。修改 `deploy/` 目录中的这些文件后，需由管理员检查并手动更新服务器上的对应文件：
+
+- `deploy/github-deploy.sh` → `/opt/synconym-deploy/github-deploy.sh`
+- `deploy/nginx.synconym-split.conf` → Nginx 配置目录
+- `deploy/bt-restart.py` → `/opt/synconym-deploy/bt-restart.py`
+- `deploy/bt-start.sh` → `/opt/synconym-deploy/bt-start.sh`
+
+普通代码部署不会自动替换这些脚本。
+
+#### 监控与回滚
+
+可在 GitHub Actions 中查看发布结果和部署类型。失败时检查日志；网络波动可重试。
+
+服务器保留版本目录，需由管理员按磁盘情况定期清理未使用的旧版本。切勿删除当前版本及回滚版本。
 
 
-**房间状态存在内存里，重启会丢掉正在进行的对局**（已完成的对局已经入库，不会丢）。
+**房间状态存在内存里，后端重启会丢掉正在进行的对局**（已完成的对局已经入库，不会丢）。纯前端发布不重启服务，不影响现有对局。
 
-发布流程建议：
+手动后端发布建议：
 
 1. `curl -s localhost:3000/healthz` 看 `rooms` 是否为 0
 2. 不是 0 就等到没人在玩，或者在群里说一声

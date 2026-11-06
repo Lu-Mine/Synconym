@@ -25,17 +25,84 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Determine deployment type
+        id: deploy-type
+        run: |
+          set -euo pipefail
+          
+          # 获取当前线上部署的版本
+          current_sha=$(ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@example.com 'cat /www/wwwroot/synconym/.deployed-revision 2>/dev/null || echo ""')
+          
+          if [[ -z "$current_sha" ]]; then
+            echo "无法获取当前版本，使用后端部署"
+            echo "mode=backend" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "当前线上版本：$current_sha"
+          echo "即将部署版本：$GITHUB_SHA"
+          
+          # 获取两个版本之间的变更文件
+          changed_files=$(git diff --name-only "$current_sha" "$GITHUB_SHA" || echo "")
+          
+          if [[ -z "$changed_files" ]]; then
+            echo "没有文件变更"
+            echo "mode=skip" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "变更的文件："
+          echo "$changed_files"
+          
+          # 判断是否只有前端文件变更
+          frontend_only=true
+          backend_pattern='^(server/|scripts/|deploy/|test/|package\.json|package-lock\.json|\.github/|Dockerfile|\.dockerignore)'
+          
+          while IFS= read -r file; do
+            if [[ "$file" =~ $backend_pattern ]]; then
+              echo "检测到后端或基础设施变更：$file"
+              frontend_only=false
+              break
+            fi
+          done <<< "$changed_files"
+          
+          if [[ "$frontend_only" == "true" ]]; then
+            echo "纯前端变更，使用前端发布"
+            echo "mode=frontend" >> $GITHUB_OUTPUT
+          else
+            echo "包含后端变更，使用后端发布"
+            echo "mode=backend" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Package and deploy
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
+          DEPLOY_MODE: ${{ steps.deploy-type.outputs.mode }}
         run: |
           set -euo pipefail
+          
+          if [[ "$DEPLOY_MODE" == "skip" ]]; then
+            echo "没有需要部署的变更"
+            exit 0
+          fi
+          
           install -d -m 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/synconym_deploy
           chmod 600 ~/.ssh/synconym_deploy
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          
           git archive --format=tar.gz "$GITHUB_SHA" > /tmp/synconym.tar.gz
           sha256sum /tmp/synconym.tar.gz > /tmp/synconym.sha256
           checksum=$(cut -d ' ' -f 1 /tmp/synconym.sha256)
-          ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10 root@example.com "deploy $GITHUB_SHA $checksum" < /tmp/synconym.tar.gz
+          
+          # 根据部署类型调用不同的命令
+          if [[ "$DEPLOY_MODE" == "frontend" ]]; then
+            deploy_cmd="deploy-frontend $GITHUB_SHA $checksum"
+            echo "执行前端发布（不重启服务）..."
+          else
+            deploy_cmd="deploy $GITHUB_SHA $checksum"
+            echo "执行后端发布（将重启服务）..."
+          fi
+          
+          ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10 root@example.com "$deploy_cmd" < /tmp/synconym.tar.gz
