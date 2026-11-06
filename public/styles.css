@@ -2071,11 +2071,9 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 
 /* 页脚隐私入口与独立阅读页 */
 .site-footer { display: flex; align-items: center; justify-content: center; gap: 12px 24px; margin-top: 32px; text-align: center; }
-.footer-links { display: flex; align-items: center; gap: 4px; }
+.footer-links { display: flex; align-items: center; gap: 4px; position: relative; top: 2px; }
 .site-footer .footer-privacy { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 8px; color: var(--ink-secondary); white-space: nowrap; font-size: 13px; text-decoration: none; transition: color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
 .site-footer .footer-privacy .icon, .footer-github-icon { width: 16px; height: 16px; flex: none; }
-/* 微调页脚文字的视觉对齐。 */
-.site-footer .brand-cn, .site-footer .brand-en, .site-footer .footer-privacy > span { position: relative; top: 1px; }
 .footer-github-icon { opacity: .68; }
 .site-footer .footer-privacy:hover { color: var(--ink); background: var(--card-hover); }
 .site-footer .footer-privacy:hover .footer-github-icon { opacity: 1; }
