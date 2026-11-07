@@ -67,6 +67,28 @@ test('曲线含未知虚线、玩家颜色、轮次和可独立导出的SVG', ()
   assert.ok(!html.includes('NaN'));
 });
 
+test('曲线渐变仅覆盖连续已知区间，未知值单独标识', () => {
+  const state = fixture();
+  state.room.chart = [0.2, 0.4, null, 0.7, 0.9].map((similarity, index) => ({ n: index + 1, similarity }));
+  const html = chartMarkup(state.room);
+  assert.equal((html.match(/fill="url\(#chart-area-gradient\)"/g) || []).length, 2);
+  assert.match(html, /gradientUnits="userSpaceOnUse"/);
+  assert.match(html, />未知<\/text>/);
+  assert.match(html, /fill="white" stroke="#3D5AFE"/);
+  assert.match(html, /stroke-dasharray="5 5"/);
+});
+
+test('单轮与长局曲线保持可导出且避免无效坐标', () => {
+  const state = fixture();
+  for (const count of [1, 20]) {
+    state.room.chart = Array.from({ length: count }, (_, index) => ({ n: index + 1, similarity: index % 2 ? null : 0 }));
+    const html = chartMarkup(state.room);
+    assert.doesNotMatch(html, /NaN|Infinity/);
+    assert.match(html, /xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+    if (count > 6) assert.match(html, /min-width:1530px/);
+  }
+});
+
 test('未相遇与单轮曲线不会出现错误胜利标题或非法坐标', () => {
   const state = fixture(); state.room.outcome = 'none'; state.room.history = [state.room.history[0]]; state.room.chart = [state.room.chart[0]];
   const html = resultMarkup(state);
