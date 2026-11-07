@@ -328,7 +328,7 @@ test('加入房间输入框支持房号和邀请链接，并调起数字键盘',
   assert.match(home, /id="join-hint" role="status"/);
   assert.equal(parseRoomCode('63068'), '63068');
   assert.equal(parseRoomCode(' ６３０６８ '), '63068');
-  assert.equal(parseRoomCode('http://example.com:3000/?r=63068'), '63068');
+  assert.equal(parseRoomCode('http://example.com/?r=63068'), '63068');
   assert.equal(parseRoomCode('https://example.com/?x=1&r=01234#section'), '01234');
   for (const input of ['1234', '123456', 'http://example.com/?r=1234', 'http://12345.example/?x=63068', 'http://example.com/?r=12345&r=67890', 'javascript:?r=12345', 'invalid']) {
     assert.equal(parseRoomCode(input), '', input);

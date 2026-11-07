@@ -128,7 +128,7 @@ HTTPS、域名、证书这些平台全包，你不用管。
 
 管理员需确认 Apache 的 `proxy`、`proxy_http`、`proxy_wstunnel`、`headers` 等模块及实际配置加载路径，检查端口占用，再语法检查并平滑重载；不能直接覆盖其他站点。首次从 Node `:3000` 迁移会涉及后端重启及端口交接，详见迁移指南。
 
-**HTTP 明文限制**：仓库当前 Apache 示例没有 TLS，启动脚本的公开地址为 `http://example.com:3000`，因此此入口使用 HTTP/WS，**身份凭证和游戏数据可能被窃听或篡改，不应视为安全的生产入口**。正式使用应配置 HTTPS/WSS（可在 Apache 或上游终止 TLS），同步调整 `PUBLIC_URL`。HTTPS 页面不能连接明文 `ws://`；浏览器按页面协议选择 WebSocket 协议。仅将后端绑定回环地址不能保护公网这一段。
+**HTTP 明文限制**：仓库当前 Apache 示例没有 TLS，启动脚本的公开地址为 `http://example.com:3000`（示例值，替换为你的实际地址），因此此入口使用 HTTP/WS，**身份凭证和游戏数据可能被窃听或篡改，不应视为安全的生产入口**。正式使用应配置 HTTPS/WSS（可在 Apache 或上游终止 TLS），同步调整 `PUBLIC_URL`。HTTPS 页面不能连接明文 `ws://`；浏览器按页面协议选择 WebSocket 协议。仅将后端绑定回环地址不能保护公网这一段。
 
 **身份凭证升级**：前后端须作为兼容版本一同发布，并通知已打开旧页面的用户刷新；旧版 WebSocket 客户端与新认证协议不兼容。旧版仅保存 UID 的身份不会自动迁移，新页面会创建新身份；旧档案仍在数据库，但不能只凭 UID 恢复访问。新身份的 UID 和凭证保存在浏览器 `localStorage` 的 `sy_identity` 中，清除站点数据会失去访问方式。更换协议、域名或端口也会改变存储源，不会自动带入原身份；HTTPS 迁移需单独规划，不要在日志或工单中暴露凭证。
 
@@ -203,7 +203,7 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 ## 八、升级与发布
 ### GitHub Actions 自动部署（当前 ECS 目标）
 
-`.github/workflows/deploy.yml` 在 `master` 推送或手动触发时执行 `npm ci`、`npm test`，成功后打包提交，经受限 SSH 入口上传。需要 Secrets：`DEPLOY_SSH_KEY`、`DEPLOY_SSH_HOST_KEY`。这描述仓库工作流行为，不代表某次发布或线上迁移已成功。
+`.github/workflows/deploy.yml` 在 `master` 推送或手动触发时执行 `npm ci`、`npm test`，成功后打包提交，经受限 SSH 入口上传。需要 Secrets：`DEPLOY_SSH_KEY`、`DEPLOY_SSH_HOST_KEY`、`DEPLOY_HOST`（目标主机地址，仓库中不保存真实地址）。这描述仓库工作流行为，不代表某次发布或线上迁移已成功。
 
 #### 部署类型与兼容边界
 

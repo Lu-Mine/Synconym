@@ -17,7 +17,7 @@
 - 宝塔项目 `synconym` 管理 Node；不要同时用 systemd、手动 Node 或另一进程守护启动第二实例。
 - 纯前端发布不主动重启 Node；后端发布、首次改端口及后端回滚都会中断内存中的房间和进行中对局。切回代码不能恢复这些状态。
 
-**明文限制**：`deploy/apache.synconym.conf` 仅配置 HTTP `:3000`，`deploy/bt-start.sh` 的 `PUBLIC_URL` 是 `http://example.com:3000`。HTTP/WS 会明文传输身份凭证和游戏数据，存在窃听、冒用及篡改风险；这不是安全生产入口。正式开放应配置 HTTPS/WSS，并同步更新 `PUBLIC_URL`。后端绑定回环仅保护内网监听，不能保护公网明文流量。更换协议、域名或端口会改变浏览器存储源，身份不会自动带入新入口，须另行规划迁移。
+**明文限制**：`deploy/apache.synconym.conf` 仅配置 HTTP `:3000`，`deploy/bt-start.sh` 的 `PUBLIC_URL` 是 `http://example.com:3000`（示例值，替换为你的实际地址）。HTTP/WS 会明文传输身份凭证和游戏数据，存在窃听、冒用及篡改风险；这不是安全生产入口。正式开放应配置 HTTPS/WSS，并同步更新 `PUBLIC_URL`。后端绑定回环仅保护内网监听，不能保护公网明文流量。更换协议、域名或端口会改变浏览器存储源，身份不会自动带入新入口，须另行规划迁移。
 
 ## 迁移前检查
 

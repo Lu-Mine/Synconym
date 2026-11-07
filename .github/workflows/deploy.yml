@@ -27,6 +27,7 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
@@ -40,7 +41,7 @@ jobs:
           checksum=$(sha256sum "$archive" | cut -d ' ' -f 1)
           # Re-query and reclassify on every retry: status and deploy are separate SSH sessions.
           for attempt in 1 2 3; do
-            if current=$(ssh "${ssh_opts[@]}" root@example.com status); then
+            if current=$(ssh "${ssh_opts[@]}" "root@$DEPLOY_HOST" status); then
               [[ $current =~ ^([0-9a-f]{40})\ ([0-9a-f]{40})$ ]] || { echo 'Invalid deployed revisions (update server deploy script first)' >&2; exit 1; }
               frontend=${BASH_REMATCH[1]}
               backend=${BASH_REMATCH[2]}
@@ -52,7 +53,7 @@ jobs:
                 *) echo 'Invalid deployment classification' >&2; exit 1 ;;
               esac
               echo "Deploying $mode; frontend $frontend; backend $backend; attempt $attempt"
-              if ssh "${ssh_opts[@]}" root@example.com "deploy $mode $GITHUB_SHA $checksum $frontend $backend" < "$archive"; then exit 0; fi
+              if ssh "${ssh_opts[@]}" "root@$DEPLOY_HOST" "deploy $mode $GITHUB_SHA $checksum $frontend $backend" < "$archive"; then exit 0; fi
             fi
             if (( attempt < 3 )); then sleep $((attempt * 5)); fi
           done

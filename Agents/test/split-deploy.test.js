@@ -301,7 +301,7 @@ ssh() {
   const code = workflowCode.replace('bash deploy/github-deploy.sh --classify', 'bash "$DEPLOY_SCRIPT" --classify');
   const result = bash(setup + code, { cwd: root, env: {
     TEST_SHELL: shell.replaceAll('\\', '/'), RUNNER_TEMP: root.replaceAll('\\', '/'),
-    BASELINE: baseline, GITHUB_SHA: revision, DEPLOY_KEY: 'fixture', DEPLOY_HOST_KEY: 'fixture',
+    BASELINE: baseline, GITHUB_SHA: revision, DEPLOY_KEY: 'fixture', DEPLOY_HOST_KEY: 'fixture', DEPLOY_HOST: 'deploy.invalid',
   } });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(join(root, 'status-count'), 'utf8').trim(), '3');
