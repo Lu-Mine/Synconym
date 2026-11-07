@@ -1,0 +1,20 @@
+{
+  "host": "",
+  "port": 3000,
+  "publicUrl": "",
+  "dbPath": "data/synconym.db",
+  "maxRooms": 500,
+  "wsMaxPayload": 65536,
+  "security": {
+    "trustProxy": false,
+    "maxGlobalConnections": 1000,
+    "maxConnectionsPerSource": 50,
+    "maxAccountsPerSource": 20,
+    "accountWindowMs": 60000,
+    "messageBurst": 60,
+    "messageRefillPerSecond": 30,
+    "globalMessageBurst": 1000,
+    "globalMessageRefillPerSecond": 500,
+    "handshakeTimeoutMs": 10000
+  }
+}

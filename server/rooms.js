@@ -22,8 +22,9 @@ function randomString(chars, length, random) {
 }
 
 export class RoomManager {
-  constructor({ db = createMemoryDb(), random = Math.random, maxRooms = Infinity } = {}) {
+  constructor({ db = createMemoryDb(), random = Math.random, maxRooms = Infinity, publicUrl = process.env.PUBLIC_URL || '' } = {}) {
     this.db = db;
+    this.publicUrl = publicUrl;
     this.random = random;
     this.maxRooms = maxRooms;
     this.rooms = new Map();
@@ -106,7 +107,7 @@ export class RoomManager {
     const user = this.db.getPlayer(connection.uid);
     connection.ws.send(JSON.stringify({
       type: 'state', uid: connection.uid, user: { uid: user.uid, name: user.name },
-      publicUrl: process.env.PUBLIC_URL?.replace(/\/$/, ''),
+      publicUrl: this.publicUrl?.replace(/\/$/, '') || undefined,
       room: room ? {
         code: room.code, mode: room.mode, themeId: room.themeId ?? null, themeName: room.themeName ?? null,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,

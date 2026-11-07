@@ -74,6 +74,29 @@ sudo systemctl status synconym
 HTTPS、域名、证书这些平台全包，你不用管。
 
 ---
+## 配置文件
+
+项目根目录的 `synconym.config.json` 是完整默认配置，直接启动即可使用。生产环境建议把仅含需要修改字段的 JSON 放在版本目录之外，例如 `/etc/synconym/config.json`，通过 `SYNCONYM_CONFIG=/etc/synconym/config.json` 指定；未指定字段继承默认值。修改后需重启 Node。配置解析失败、字段未知或数值非法时服务拒绝启动。
+
+优先级：**现有环境变量 > 外部配置文件 > 仓库默认配置**。数据库相对路径相对于启动工作目录；生产环境请使用绝对路径。Docker 可将外部配置只读挂载进容器并设置 `SYNCONYM_CONFIG`。注意镜像及已有启动脚本设置的环境变量仍会覆盖文件。
+
+| 配置项 | 默认值 | 作用 |
+|---|---:|---|
+| `host` / `port` | 空 / 3000 | Node 监听地址和端口；空地址使用 Node 默认绑定 |
+| `publicUrl` | 空 | 对外邀请地址，生产应使用 HTTPS 地址 |
+| `dbPath` | `data/synconym.db` | SQLite 路径 |
+| `maxRooms` / `wsMaxPayload` | 500 / 65536 | 房间上限 / 单条 WS 消息字节上限 |
+| `security.trustProxy` | false | 是否使用反向代理提供的来源 IP |
+| `security.maxGlobalConnections` / `maxConnectionsPerSource` | 1000 / 50 | 全局 / 每来源并发 WS 连接上限 |
+| `security.maxAccountsPerSource` / `accountWindowMs` | 20 / 60000 | 每来源在窗口内创建或重置身份的次数 / 窗口毫秒数 |
+| `security.messageBurst` / `messageRefillPerSecond` | 60 / 30 | 每连接消息令牌桶容量 / 每秒恢复数 |
+| `security.globalMessageBurst` / `globalMessageRefillPerSecond` | 1000 / 500 | 全局消息令牌桶容量 / 每秒恢复数 |
+| `security.handshakeTimeoutMs` | 10000 | WS 建连后完成 hello 的最长毫秒数 |
+
+**反向代理安全**：默认不信任转发头，代理后的用户会共享代理 IP 的配额。仅当 Node 无法被客户端直接访问，且最后一跳受信代理会覆盖或追加真实对端地址到 `X-Forwarded-For` 时，才设 `trustProxy: true`；程序使用该头最右侧 IP。多层代理时此地址可能是上游代理，须按实际链路配置并验证。不要让不受信客户端直接访问后端并伪造该头。限额是单进程内存状态，重启后重置；仍需网关限流、磁盘监控及 HTTPS。
+
+---
+
 
 ## 四、环境变量
 

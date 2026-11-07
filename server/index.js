@@ -7,6 +7,8 @@ import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
 import { vectorInfo } from './similarity.js';
+import { createSecurityPolicy } from './security.js';
+import { loadConfig } from './config.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -17,9 +19,11 @@ const DEF_MAX_ROOMS = Number(process.env.MAX_ROOMS || 500);
 const DEF_MAX_PAYLOAD = Number(process.env.WS_MAX_PAYLOAD || 64 * 1024);
 
 export function createSynconymServer({
-  db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD
+  db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD,
+  security: securityConfig = {}, publicUrl
 } = {}) {
-  const manager = new RoomManager({ db, maxRooms });
+  const security = createSecurityPolicy(securityConfig);
+  const manager = new RoomManager({ db, maxRooms, publicUrl });
   const issueCredential = (uid) => {
     const credential = randomBytes(32).toString('base64url');
     db.setCredentialHash(uid, createHash('sha256').update(credential).digest());
@@ -89,15 +93,28 @@ export function createSynconymServer({
   const wss = new WebSocketServer({ noServer: true, maxPayload });
   server.on('upgrade', (request, socket, head) => {
     if (new URL(request.url, 'http://localhost').pathname !== '/ws') { socket.destroy(); return; }
-    wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    const ip = security.ipOf(request, socket);
+    if (!security.tryAcquireConnection(ip)) { socket.destroy(); return; }
+    let established = false;
+    socket.once('close', () => { if (!established) security.releaseConnection(ip); });
+    wss.handleUpgrade(request, socket, head, (ws) => { established = true; wss.emit('connection', ws, request); });
   });
-  wss.on('connection', (ws) => {
-    let connection, authenticationFailed = false;
+  wss.on('connection', (ws, request) => {
+    const ip = security.ipOf(request, { remoteAddress: ws._socket?.remoteAddress });
+    let connection, authenticationFailed = false, handshaken = false;
+    const bucket = security.createMessageBucket();
+    const handshakeTimer = setTimeout(() => ws.terminate(), security.options.handshakeTimeoutMs);
+    handshakeTimer.unref();
+    const release = () => { clearTimeout(handshakeTimer); security.releaseConnection(ip); };
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', (data) => {
       try {
         if (authenticationFailed || connection?.replaced) return;
+        if (!bucket.take() || !security.tryAcquireGlobalMessage()) {
+          ws.close(4002, 'Rate limit exceeded'); return;
+        }
+        if (!handshaken && data.length > 4096) { ws.close(4002, 'Message too large'); return; }
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
@@ -113,8 +130,16 @@ export function createSynconymServer({
               return;
             }
           }
+          if (message.uid === undefined && !security.allowAccount(ip)) {
+            ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
+            ws.close(4004, 'Account rate limit');
+            authenticationFailed = true;
+            return;
+          }
           connection = manager.connect(message.uid);
           if (message.uid === undefined) credential = issueCredential(connection.uid);
+          handshaken = true;
+          clearTimeout(handshakeTimer);
           connection.ws = ws;
           const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : null;
           if (message.leaveRoom === true) {
@@ -141,6 +166,10 @@ export function createSynconymServer({
             manager.sendState(connection, null);
           }
         } else if (connection) {
+          if (message.type === 'resetIdentity' && !security.allowAccount(ip)) {
+            ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
+            return;
+          }
           manager.handle(connection, message);
         } else {
           throw new Error('连接尚未就绪');
@@ -149,7 +178,7 @@ export function createSynconymServer({
         ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
       }
     });
-    ws.on('close', () => { if (connection) manager.disconnect(connection); });
+    ws.on('close', () => { release(); if (connection) manager.disconnect(connection); });
     ws.on('error', () => {});
   });
   const heartbeat = setInterval(() => {
@@ -161,7 +190,7 @@ export function createSynconymServer({
   const cleanup = setInterval(() => manager.cleanup(), 30000);
   heartbeat.unref(); cleanup.unref();
   server.on('close', () => {
-    clearInterval(heartbeat); clearInterval(cleanup);
+    clearInterval(heartbeat); clearInterval(cleanup); security.close();
     manager.close();
     for (const ws of wss.clients) ws.terminate();
     wss.close(); db.close();
@@ -170,10 +199,11 @@ export function createSynconymServer({
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  const port = Number(process.env.PORT || 3000);
-  const { server } = createSynconymServer({ mock: process.argv.includes('--mock') });
-  server.listen(port, process.env.HOST || undefined, () => {
-    console.log(`Synconym listening on http://localhost:${port}`);
+  const config = loadConfig();
+  const { server } = createSynconymServer({ db: createDatabase(config.dbPath), mock: process.argv.includes('--mock'),
+    maxRooms: config.maxRooms, maxPayload: config.wsMaxPayload, security: config.security, publicUrl: config.publicUrl });
+  server.listen(config.port, config.host || undefined, () => {
+    console.log(`Synconym listening on http://localhost:${config.port}`);
     if (vectorInfo) console.log(`词向量已加载：${vectorInfo.count} 个词，构建于 ${vectorInfo.builtAt}`);
   });
   const shutdown = () => server.close(() => process.exit(0));
