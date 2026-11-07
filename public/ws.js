@@ -1,6 +1,6 @@
 export class Socket {
-  constructor({ onHello, onState, onProfile, onIdentity, onError, onToast, onConnection }) {
-    this.handlers = { onHello, onState, onProfile, onIdentity, onError, onToast, onConnection };
+  constructor({ onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection }) {
+    this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection };
     let identity;
     try { identity = JSON.parse(localStorage.getItem('sy_identity')); } catch { /* 无效的本地身份 */ }
     this.uid = typeof identity?.uid === 'string' && typeof identity?.credential === 'string' ? identity.uid : '';
@@ -49,6 +49,8 @@ export class Socket {
         for (const item of this.queue.splice(0)) this.send(item);
       } else if (message.type === 'profile') {
         this.handlers.onProfile?.(message.profile);
+      } else if (message.type === 'matchDetail') {
+        this.handlers.onMatchDetail?.(message);
       } else if (message.type === 'identity') {
         // 我是新人：换掉本地身份，后续重连与请求都用新 uid。
         this.uid = message.uid;

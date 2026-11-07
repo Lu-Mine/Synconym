@@ -2,6 +2,48 @@ import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import Database from 'better-sqlite3';
 
+// Search inputs are normalized once for both count and list (including the memory DB).
+export function normalizeMatchFilter(filter) {
+  if (filter == null) return null;
+  if (typeof filter !== 'object' || Array.isArray(filter)) throw new Error('历史筛选无效');
+  if (Object.keys(filter).length === 0) return null;
+  if (filter.type === 'room' || filter.type === 'uid') {
+    if (typeof filter.value !== 'string') throw new Error('历史筛选无效');
+    const value = filter.value.trim().toUpperCase();
+    if (!value) return null;
+    if (!(filter.type === 'room' ? /^[1-9][0-9]{4}$/ : /^[A-Z0-9]{8}$/).test(value)) throw new Error('历史筛选无效');
+    return { type: filter.type, value };
+  }
+  if (filter.type === 'time') {
+    const result = { type: 'time' };
+    for (const key of ['from', 'to']) {
+      if (filter[key] === undefined) continue;
+      if (!Number.isSafeInteger(filter[key]) || filter[key] < 0 || filter[key] > 8640000000000000) throw new Error('时间范围无效');
+      result[key] = filter[key];
+    }
+    if (result.from === undefined && result.to === undefined) throw new Error('时间范围无效');
+    if (result.from !== undefined && result.to !== undefined && result.from >= result.to) throw new Error('时间范围无效');
+    return result;
+  }
+  throw new Error('历史筛选无效');
+}
+
+function matchWhere(uid, input) {
+  const filter = normalizeMatchFilter(input);
+  let sql = 'p.uid = ?';
+  const params = [uid];
+  if (filter?.type === 'room') { sql += ' AND m.room_code = ?'; params.push(filter.value); }
+  if (filter?.type === 'uid') {
+    sql += ' AND EXISTS (SELECT 1 FROM match_players other WHERE other.match_id = m.id AND other.uid = ?)';
+    params.push(filter.value);
+  }
+  if (filter?.type === 'time') {
+    if (filter.from !== undefined) { sql += ' AND m.started_at >= ?'; params.push(filter.from); }
+    if (filter.to !== undefined) { sql += ' AND m.started_at < ?'; params.push(filter.to); }
+  }
+  return { sql, params };
+}
+
 export function createDatabase(filename = process.env.DB_PATH || resolve('data/synconym.db')) {
   if (filename !== ':memory:') mkdirSync(dirname(resolve(filename)), { recursive: true });
   const db = new Database(filename);
@@ -44,11 +86,7 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   const recordName = db.prepare('INSERT INTO name_history (uid, name, changed_at) VALUES (?, ?, ?)');
   const profileRow = db.prepare('SELECT uid, name, created_at FROM players WHERE uid = ?');
   const nameHistoryRows = db.prepare('SELECT name, changed_at FROM name_history WHERE uid = ? ORDER BY changed_at DESC, rowid DESC LIMIT ?');
-  const countMatches = db.prepare('SELECT COUNT(*) AS total FROM matches m JOIN match_players p ON p.match_id = m.id WHERE p.uid = ?');
-  const matchRows = db.prepare(`SELECT m.id, m.room_code, m.mode, m.theme_id, m.total_rounds, m.converged_round,
-      m.outcome, m.started_at, m.ended_at
-    FROM matches m JOIN match_players p ON p.match_id = m.id
-    WHERE p.uid = ? ORDER BY m.started_at DESC, m.id DESC LIMIT ? OFFSET ?`);
+  const matchSource = 'FROM matches m JOIN match_players p ON p.match_id = m.id';
   const matchMembers = db.prepare('SELECT uid, seat, name_at_time AS name FROM match_players WHERE match_id = ? ORDER BY seat');
 
   const insertMatch = db.prepare(`INSERT INTO matches
@@ -74,9 +112,14 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     },
     getNameHistory: (uid, limit = 20) => nameHistoryRows.all(uid, limit)
       .map((row) => ({ name: row.name, changedAt: row.changed_at })),
-    countMatchesFor: (uid) => countMatches.get(uid).total,
-    listMatchesFor(uid, { limit = 10, offset = 0 } = {}) {
-      return matchRows.all(uid, limit, offset).map((row) => ({
+    countMatchesFor(uid, filter) {
+      const { sql, params } = matchWhere(uid, filter);
+      return db.prepare(`SELECT COUNT(*) AS total ${matchSource} WHERE ${sql}`).get(...params).total;
+    },
+    listMatchesFor(uid, { limit = 10, offset = 0, filter } = {}) {
+      const { sql, params } = matchWhere(uid, filter);
+      return db.prepare(`SELECT m.* ${matchSource} WHERE ${sql} ORDER BY m.started_at DESC, m.id DESC LIMIT ? OFFSET ?`)
+        .all(...params, limit, offset).map((row) => ({
         id: row.id, roomCode: row.room_code, mode: row.mode, themeId: row.theme_id,
         totalRounds: row.total_rounds, convergedRound: row.converged_round, outcome: row.outcome,
         startedAt: row.started_at, endedAt: row.ended_at, players: matchMembers.all(row.id)

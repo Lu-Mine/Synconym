@@ -1,3 +1,4 @@
+import { historyHref, historySearchMarkup } from './match-history.js';
 import { chartMarkup } from './chart.js';
 
 export function escapeHtml(value) {
@@ -365,16 +366,20 @@ function profileDate(timestamp) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function profileMatchMarkup(match) {
+export function profileMatchMarkup(match, query = {}) {
   const outcome = match.outcome === 'none'
     ? `打满 ${match.totalRounds} 轮未相遇`
     : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
-  const details = [match.themeName ? `主题 · ${match.themeName}` : '自由模式',
-    match.players.join('、')];
+  const mode = match.themeName ? `主题：${match.themeName}` : '自由模式';
   return `<li class="profile-match">
+        <a class="profile-match-link" href="${escapeHtml(historyHref(query, match.id))}">
+        <div class="profile-match-heading">
+          <span class="profile-match-players">${escapeHtml(match.players.join('、'))}</span>
+          <time class="profile-match-date">${escapeHtml(profileDate(match.startedAt))}</time>
+        </div>
         <span class="profile-match-outcome" data-outcome="${escapeHtml(match.outcome)}">${escapeHtml(outcome)}</span>
-        <span class="profile-match-date">${escapeHtml(profileDate(match.startedAt))}</span>
-        <span class="profile-match-meta">${roomCodeMarkup(match.roomCode)}<span aria-hidden="true"> · </span>${escapeHtml(details.join(' · '))}</span>
+        <div class="profile-match-meta">${roomCodeMarkup(match.roomCode)}<span class="profile-match-mode">${escapeHtml(mode)}</span></div>
+        <span class="profile-match-open">查看详情 ${icon('arrow-right')}</span></a>
       </li>`;
 }
 
@@ -382,7 +387,7 @@ export function profileMatchMarkup(match) {
 export function profileMarkup(state) {
   const profile = state.profile;
   if (!profile) {
-    return `<div class="page profile-page" data-screen="profile"><p class="profile-empty">正在读取档案…</p></div>`;
+    return `<div class="page profile-page" data-screen="profile"><p class="profile-empty" role="status">${escapeHtml(state.profileError || '正在读取档案…')}</p>${state.profileError ? '<a class="history-clear" href="?me">清除搜索条件并重试</a>' : ''}</div>`;
   }
   const { user } = profile;
   const matches = profile.matches || [];
@@ -407,9 +412,10 @@ export function profileMarkup(state) {
     </section>
     <section class="surface-block profile-history">
       <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span></div>
+      ${historySearchMarkup(state.historyQuery)}
       ${matches.length
-        ? `<ol class="profile-matches">${matches.map(profileMatchMarkup).join('')}</ol>`
-        : '<p class="profile-empty">还没有完成的对局。开一局，回来就能看到。</p>'}
+        ? `<ol class="profile-matches">${matches.map((match) => profileMatchMarkup(match, state.historyQuery)).join('')}</ol>`
+        : `<p class="profile-empty">${profile.filter?.type ? '没有符合条件的对局，请调整搜索条件。' : '还没有完成的对局。开一局，回来就能看到。'}</p>`}
       ${pager}
     </section>
     <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
@@ -666,5 +672,24 @@ export function resultMarkup(state) {
     <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词向量估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>
     <details class="surface-block result-votes"><summary><span class="result-votes-label">投票记录<span>按需查看每轮选择</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
+  </div>`;
+}
+
+export function matchDetailMarkup(detail, query = {}) {
+  const back = `<a class="history-back" href="${escapeHtml(historyHref(query))}">返回对局记录</a>`;
+  if (!detail || detail.error) return `<div class="page match-detail-page" data-screen="match-detail">${back}<h1>对局详情</h1><p role="status">${escapeHtml(detail?.error || '正在读取对局…')}</p></div>`;
+  const match = detail.match;
+  const room = { ...match, code: match.roomCode, history: match.history || match.rounds, resultPlayers: match.players };
+  const outcome = match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
+  const date = (value) => new Date(value).toLocaleString('zh-CN', { hour12: false });
+  return `<div class="page match-detail-page" data-screen="match-detail">${back}
+    <header class="match-detail-heading"><h1>${escapeHtml(outcome)}</h1><p>${roomCodeMarkup(match.roomCode)}<span>${escapeHtml(match.themeName ? `主题：${match.themeName}` : '自由模式')}</span></p><dl class="match-detail-facts"><div><dt>开始时间</dt><dd>${escapeHtml(date(match.startedAt))}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(date(match.endedAt))}</dd></div><div><dt>轮次</dt><dd>${match.totalRounds} / ${match.maxRounds}</dd></div></dl></header>
+    <div class="match-detail-main">
+    <section class="surface-block"><div class="section-heading"><h2>同局玩家</h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
+    <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup(room)}</section>
+    </div><div class="match-detail-aside">
+    <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2></div><div class="result-chart-scroll">${chartMarkup(room)}</div><p class="game-hint">按当前词向量重新计算，仅供回顾，不参与胜负判定。空心点和虚线表示无法计算，并非 0%。</p></section>
+    <details class="surface-block result-votes"><summary>逐轮投票记录 ${icon('chevron-down')}</summary><ol class="result-vote-records">${room.history.map((round) => `<li class="result-vote-round"><h3>第 ${round.n} 轮：${round.outcome === 'exact' ? '精确相遇，无需投票' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${match.players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('')}</ol></details>
+    </div>
   </div>`;
 }

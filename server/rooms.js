@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { buildChart } from './similarity.js';
+import { normalizeMatchFilter } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
 import { createName } from './names.js';
@@ -138,13 +139,14 @@ export class RoomManager {
   }
 
   // 档案：身份、改名历史与分页后的对局记录，只发给发起请求的人。
-  profileFor(uid, page = 1) {
+  profileFor(uid, page = 1, filter) {
+    filter = normalizeMatchFilter(filter);
     const user = this.db.getProfile(uid);
     if (!user) throw new Error('身份不存在');
-    const total = this.db.countMatchesFor(uid);
+    const total = this.db.countMatchesFor(uid, filter);
     const pages = Math.max(1, Math.ceil(total / PROFILE_PAGE_SIZE));
     const current = Math.min(Math.max(Math.floor(Number(page)) || 1, 1), pages);
-    const matches = this.db.listMatchesFor(uid, { limit: PROFILE_PAGE_SIZE, offset: (current - 1) * PROFILE_PAGE_SIZE })
+    const matches = this.db.listMatchesFor(uid, { limit: PROFILE_PAGE_SIZE, offset: (current - 1) * PROFILE_PAGE_SIZE, filter })
       .map((match) => ({
         id: match.id, roomCode: match.roomCode, outcome: match.outcome,
         totalRounds: match.totalRounds, convergedRound: match.convergedRound,
@@ -152,12 +154,27 @@ export class RoomManager {
         startedAt: match.startedAt, players: match.players.map((player) => player.name)
       }));
     return { user, nameHistory: this.db.getNameHistory(uid, PROFILE_NAME_HISTORY),
-      matches, page: current, pageSize: PROFILE_PAGE_SIZE, total };
+      matches, page: current, pageSize: PROFILE_PAGE_SIZE, total, filter };
   }
 
-  sendProfile(connection, page) {
+  sendProfile(connection, page, filter) {
     if (connection.ws?.readyState !== 1) return;
-    connection.ws.send(JSON.stringify({ type: 'profile', profile: this.profileFor(connection.uid, page), serverNow: Date.now() }));
+    connection.ws.send(JSON.stringify({ type: 'profile', profile: this.profileFor(connection.uid, page, filter), serverNow: Date.now() }));
+  }
+
+  sendMatch(connection, id) {
+    if (connection.ws?.readyState !== 1) return;
+    const match = typeof id === 'string' && id.length > 0 && id.length <= 128 ? this.db.getMatch(id) : null;
+    if (!match || !match.players.some((player) => player.uid === connection.uid)) {
+      connection.ws.send(JSON.stringify({ type: 'matchDetail', id: id ?? null, match: null, error: '对局不存在或无权查看' }));
+      return;
+    }
+    connection.ws.send(JSON.stringify({ type: 'matchDetail', id, match: {
+      ...match,
+      themeName: match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null,
+      history: match.rounds.map((round) => ({ ...round, wordKeys: wordKeys(round) })),
+      chart: buildChart(match.players, match.rounds)
+    } }));
   }
 
   touch(room) {
@@ -479,9 +496,10 @@ export class RoomManager {
 
   handle(connection, message) {
     if (!message || typeof message !== 'object') throw new Error('消息格式无效');
-    const { type } = message;
+    let { type } = message;
     // 档案只读，不占用写操作限流：改名后立刻刷新档案不该被 500ms 冷却拦下。
-    if (type === 'openProfile') { this.sendProfile(connection, message.page); return; }
+    if (type === 'openProfile') { this.sendProfile(connection, message.page, message.filter); return; }
+    if (type === 'openMatch') { this.sendMatch(connection, message.id); return; }
     const typing = type === 'typing' || type === 'draft';
     const now = Date.now();
     if (typing ? now - connection.lastTyping < 300 : now - connection.lastWrite < 500) {
@@ -734,6 +752,13 @@ export function createMemoryDb() {
   const players = new Map();
   const nameHistory = new Map();
   const matches = new Map();
+  const filteredMatches = (uid, input) => {
+    const filter = normalizeMatchFilter(input);
+    return [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid)
+      && (!filter || (filter.type === 'room' ? match.roomCode === filter.value
+        : filter.type === 'uid' ? match.players.some((p) => p.uid === filter.value)
+          : (filter.from === undefined || match.startedAt >= filter.from) && (filter.to === undefined || match.startedAt < filter.to))));
+  };
   return {
     getPlayer: (uid) => players.get(uid),
     getProfile: (uid) => players.get(uid),
@@ -753,10 +778,10 @@ export function createMemoryDb() {
     saveMatch(match) { if (!matches.has(match.id)) matches.set(match.id, structuredClone(match)); },
     getMatch: (id) => structuredClone(matches.get(id)),
     listMatches: () => structuredClone([...matches.values()]),
-    countMatchesFor: (uid) => [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid)).length,
-    listMatchesFor(uid, { limit = 10, offset = 0 } = {}) {
-      return [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid))
-        .sort((a, b) => b.startedAt - a.startedAt)
+    countMatchesFor: (uid, filter) => filteredMatches(uid, filter).length,
+    listMatchesFor(uid, { limit = 10, offset = 0, filter } = {}) {
+      return filteredMatches(uid, filter)
+        .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
         .slice(offset, offset + limit)
         .map(({ rounds, ...match }) => structuredClone(match));
     },

@@ -1,3 +1,4 @@
+import { historyQuery, historyFilter, historyHref, historyInputs } from './match-history.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
@@ -11,6 +12,7 @@ import {
   homeMarkup,
   icon,
   lobbyMarkup,
+  matchDetailMarkup,
   playerItemMarkup,
   privacyMarkup,
   profileMarkup,
@@ -267,7 +269,7 @@ window.addEventListener('popstate', async () => {
     profileOpen = new URLSearchParams(location.search).has('me');
     privacyOpen = new URLSearchParams(location.search).has('privacy');
     state.profile = null;
-    if (profileOpen && socket.ready) requestProfile(1);
+    if (profileOpen && socket.ready) requestProfile(historyQuery(location.search).page);
     render();
     return;
   }
@@ -623,7 +625,13 @@ function closePath() {
 }
 
 function requestProfile(page = 1) {
-  socket.send({ type: 'openProfile', page }, true);
+  state.profileError = null;
+  const query = historyQuery(location.search);
+  if (query.id) { socket.send({ type: 'openMatch', id: query.id }, true); return; }
+  query.page = page;
+  state.historyQuery = query;
+  history.replaceState(null, '', `/${historyHref(query)}`);
+  socket.send({ type: 'openProfile', page: query.page, filter: historyFilter(query) }, true);
 }
 
 function openProfile() {
@@ -761,7 +769,7 @@ function screenKeyFor(nextState) {
 
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
-  if (screen === 'profile') return profileMarkup(state);
+  if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search)) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
   if (screen === 'privacy') return privacyMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
@@ -794,7 +802,7 @@ function patchSameScene(stage, nextScreen) {
     }
   }
   if (nextScreen === 'profile' && stage.querySelector('.profile-page')) {
-    patchMarkup(stage, profileMarkup(state));
+    patchMarkup(stage, buildScreenMarkup('profile'));
     hydrateAvatars(stage);
     return true;
   }
@@ -959,8 +967,17 @@ const socket = new Socket({
     if (code && !message.restored) enqueueWrite({ type: 'joinRoom', code });
   },
   onProfile(profile) {
+    if (!profileOpen || historyQuery(location.search).id) return;
     state.profile = profile;
+    const query = historyQuery(location.search);
+    query.page = profile.page;
+    history.replaceState(null, '', `/${historyHref(query)}`);
     render();
+  },
+  onMatchDetail(detail) {
+    if (!profileOpen || historyQuery(location.search).id !== detail.id) return;
+    state.matchDetail = detail;
+    render({ forceFull: true });
   },
   onIdentity() {
     state.profile = null;
@@ -985,7 +1002,7 @@ const socket = new Socket({
       }
     }
     const profile = state.profile;
-    state = { ...next, profile };
+    state = { ...next, profile, matchDetail: state.matchDetail };
     if (nextRoom) { profileOpen = false; privacyOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
@@ -1011,10 +1028,13 @@ const socket = new Socket({
     }
     render();
     // 名字或身份变了：档案页跟着刷新一次
-    if (profileOpen) requestProfile(state.profile?.page || 1);
+    if (profileOpen) requestProfile(state.profile?.page || historyQuery(location.search).page);
   },
   onError(message) {
-    pendingLobbySettings = null;
+    if (profileOpen && !state.room && !historyQuery(location.search).id) {
+      state.profileError = message;
+      render();
+    }
     gameUi.submitted = false;
     gameUi.voted = false;
     gameUi.ready = false;
@@ -1026,7 +1046,20 @@ const socket = new Socket({
 
 render({ forceFull: true });
 
+app.addEventListener('change', (event) => {
+  if (event.target.id !== 'history-search-type') return;
+  document.getElementById('history-search-inputs').innerHTML = historyInputs({ type: event.target.value });
+});
+
 app.addEventListener('submit', (event) => {
+  if (event.target.matches('.history-search')) {
+    event.preventDefault();
+    const form = event.target;
+    const query = Object.fromEntries(new FormData(form));
+    if (query.type === 'time' && query.from && query.to && query.from > query.to) { toast('结束日期不能早于开始日期'); return; }
+    location.href = `/${historyHref(query)}`;
+    return;
+  }
   event.preventDefault();
   if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
   if (event.target.id === 'create-form') {
