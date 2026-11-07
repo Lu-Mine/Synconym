@@ -97,4 +97,6 @@ Docker、systemd、Caddy/Nginx 反向代理、备份与升级流程见 [DEPLOY.m
 
 ## 许可
 
-仓库代码及其他未另行标明的内容保留所有权利，详见 [LICENSE](LICENSE)。第三方组件和数据遵循各自许可；`data/vectors/` 的词向量数据以 CC BY-SA 3.0 发布，详见该目录的 [NOTICE.md](data/vectors/NOTICE.md)。
+本仓库的代码以 **GNU AGPL-3.0-only** 发布：可以自由运行、修改和再分发，但修改后对外提供网络服务时必须向使用者提供完整的对应源代码（§13）。许可全文见 [LICENSE](LICENSE)，版权主体、第三方依赖与数据例外见 [NOTICE.md](NOTICE.md)。
+
+`data/vectors/` 的词向量数据**不在** AGPL 覆盖范围内，仍以 CC BY-SA 3.0 发布——CC 的 ShareAlike 条件要求其衍生数据继续以同一许可提供，详见该目录的 [NOTICE.md](data/vectors/NOTICE.md)。

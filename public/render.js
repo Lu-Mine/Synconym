@@ -210,7 +210,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     </section>
   </div>
   <main id="stage" class="stage"></main>
-  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私说明</span></a></nav></footer>`;
+  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私说明</span></a></nav></footer>`;
 }
 
 export function privacyMarkup() {
