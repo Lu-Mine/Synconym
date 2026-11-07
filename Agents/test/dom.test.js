@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { patchChildren } from '../public/dom.js';
+import { patchChildren } from '../../public/dom.js';
 
 // 覆盖补丁使用的 DOM 协议，无需引入浏览器运行时依赖。
 class Node {
@@ -66,7 +66,7 @@ test('按 UID 复用玩家节点，支持换位、新增和删除', () => {
 });
 
 test('同场景分支覆盖投票、准备和结算；实际页面不使用 innerHTML 重建这些区块', () => {
-  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   assert.match(source, /nextScreen === 'voting' \|\| nextScreen === 'prepare'/);
   assert.match(source, /patchMarkup\(stage, writingMarkup\(state, gameUi\)\)/);
   assert.match(source, /patchMarkup\(panel, rematchMarkup\(state\)\)/);

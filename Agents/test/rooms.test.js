@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomManager, createMemoryDb } from '../server/rooms.js';
-import { DEFAULT_SETTINGS, isValidUid, normalizeWord, validateCode, validateName, validateSettings } from '../server/rules.js';
-import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../public/render.js';
-import { parseRoomCode } from '../public/room-code.js';
+import { RoomManager, createMemoryDb } from '../../server/rooms.js';
+import { DEFAULT_SETTINGS, isValidUid, normalizeWord, validateCode, validateName, validateSettings } from '../../server/rules.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../../public/render.js';
+import { parseRoomCode } from '../../public/room-code.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);

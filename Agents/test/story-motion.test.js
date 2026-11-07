@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { observeStoryMotion } from '../public/story-motion.js';
+import { observeStoryMotion } from '../../public/story-motion.js';
 
 test('演示仅在可见且页面未隐藏时播放，清理观察器', () => {
   const makeDemo = () => {

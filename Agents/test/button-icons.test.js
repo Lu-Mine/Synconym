@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { homeMarkup, shellMarkup, lobbyMarkup, writingMarkup, resultMarkup } from '../public/render.js';
+import { homeMarkup, shellMarkup, lobbyMarkup, writingMarkup, resultMarkup } from '../../public/render.js';
 
 const settings = { mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true };
 const state = (phase) => ({ uid: 'a', room: { code: '12345', phase, round: 1, maxRounds: 12, players: [{ uid: 'a', name: '甲', seat: 0 }] } });
@@ -19,7 +19,7 @@ test('首页默认收起设置，演示写词显示输入提示', () => {
   assert.match(html, /id="home-settings-panel" inert/);
   assert.match(homeMarkup(settings, true), /data-action="toggle-settings" aria-expanded="true"/);
   assert.match(html, /data-demo-typed>[\s\S]*?<p class="game-hint">可使用空格；超时将提交输入框中的内容<\/p>/);
-  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   assert.match(source, /if \(nextScreen === 'home' && currentScreen !== 'home'\) homeSettingsOpen = false/);
 });
 
@@ -31,7 +31,7 @@ test('首页介绍的装饰图标各不重复且存在于图标资源中', () =>
   const names = [link, ...decorative];
   assert.equal(names.length, 13);
   assert.equal(new Set(names).size, names.length);
-  const sprite = readFileSync(new URL('../public/icons.svg', import.meta.url), 'utf8');
+  const sprite = readFileSync(new URL('../../public/icons.svg', import.meta.url), 'utf8');
   for (const name of names) assert.ok(sprite.includes(`id="icon-${name}"`), name);
 });
 
@@ -75,7 +75,7 @@ test('大厅和结算状态变更保持对应图标顺序', () => {
 });
 
 test('大厅动态更新及确认和提交保留图标顺序', () => {
-  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   assert.ok(source.includes("${icon('play')}<span>开始</span>"));
   for (const [label, glyph] of [['准备', 'check'], ['取消准备', 'x']]) {
     assert.ok(source.includes(`<span>${label}</span>\${icon('${glyph}')}`), label);

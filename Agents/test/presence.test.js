@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomManager } from '../server/rooms.js';
+import { RoomManager } from '../../server/rooms.js';
 
 function setup(t) {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });

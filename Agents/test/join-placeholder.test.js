@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { observeJoinPlaceholder } from '../public/join-placeholder.js';
+import { observeJoinPlaceholder } from '../../public/join-placeholder.js';
 
 test('提示只在空间不足时滚动，宽度变化后更新并释放观察器', () => {
   const previous = globalThis.ResizeObserver;

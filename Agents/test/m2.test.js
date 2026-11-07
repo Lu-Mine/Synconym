@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomManager } from '../server/rooms.js';
-import { validateWord } from '../server/rules.js';
+import { RoomManager } from '../../server/rooms.js';
+import { validateWord } from '../../server/rules.js';
 
 function setup(t, settings = {}) {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });

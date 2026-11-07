@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { homeMarkup, shellMarkup, privacyMarkup } from '../public/render.js';
-import { createSynconymServer } from '../server/index.js';
-import { createDatabase } from '../server/db.js';
-import { DEFAULT_SETTINGS } from '../server/rules.js';
+import { homeMarkup, shellMarkup, privacyMarkup } from '../../public/render.js';
+import { createSynconymServer } from '../../server/index.js';
+import { createDatabase } from '../../server/db.js';
+import { DEFAULT_SETTINGS } from '../../server/rules.js';
 
 test('隐私说明使用站内路由，房间内从新标签打开', () => {
   const home = shellMarkup(false);
@@ -30,7 +30,7 @@ test('隐私说明保留原文、目录及返回入口', () => {
 });
 
 test('章节目录平滑滚动，并遵守减少动态效果设置', async () => {
-  const source = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
   const handler = source.match(/  const privacySection = event\.target\.closest\('\.privacy-nav a'\);[\s\S]*?\n  }/)[0];
   for (const reduced of [false, true]) {
     let options;
@@ -45,7 +45,7 @@ test('章节目录平滑滚动，并遵守减少动态效果设置', async () =>
     assert.equal(options.behavior, reduced ? 'instant' : 'smooth');
     assert.equal(options.block, 'start');
   }
-  const css = await readFile(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../../public/styles.css', import.meta.url), 'utf8');
   assert.match(css, /\.privacy-in-app\s*\{[^}]*margin-top:\s*clamp\(28px, 5vw, 36px\)/);
 });
 
@@ -62,13 +62,13 @@ test('隐私路由返回应用入口，旧独立页面不存在', async (t) => {
 });
 
 test('许可声明：代码 AGPL-3.0，词向量保留 CC BY-SA 3.0', async () => {
-  const license = await readFile(new URL('../LICENSE', import.meta.url), 'utf8');
+  const license = await readFile(new URL('../../LICENSE', import.meta.url), 'utf8');
   assert.match(license, /GNU AFFERO GENERAL PUBLIC LICENSE/);
   assert.match(license, /Version 3, 19 November 2007/);
   assert.doesNotMatch(license, /All rights reserved/);
-  const notice = await readFile(new URL('../NOTICE.md', import.meta.url), 'utf8');
+  const notice = await readFile(new URL('../../NOTICE.md', import.meta.url), 'utf8');
   assert.match(notice, /AGPL-3\.0-only/);
   assert.match(notice, /CC BY-SA 3\.0/);
-  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.license, 'AGPL-3.0-only');
 });

@@ -11,5 +11,6 @@ data/*.db-*
 
 # 只在本机用的东西
 dev
-test
+.pi
+Agents
 .agents

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import WebSocket from 'ws';
-import { createSynconymServer } from '../server/index.js';
-import { createDatabase } from '../server/db.js';
+import { createSynconymServer } from '../../server/index.js';
+import { createDatabase } from '../../server/db.js';
 
 async function listen(t, options = {}) {
   const { server, wss, manager } = createSynconymServer({ db: createDatabase(':memory:'), ...options });

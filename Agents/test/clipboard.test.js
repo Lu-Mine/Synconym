@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
-const source = readFileSync(new URL('../public/clipboard.js', import.meta.url), 'utf8').replaceAll('export ', '');
+const source = readFileSync(new URL('../../public/clipboard.js', import.meta.url), 'utf8').replaceAll('export ', '');
 
 function setup(clipboard, result = true) {
   const calls = [];
@@ -43,7 +43,7 @@ test('传统复制失败或抛错时报告失败并清理临时元素', async ()
 });
 
 test('房间复制按钮复制邀请链接，失败时提供实际链接手动复制', async () => {
-  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const branch = app.match(/} else if \(button\.dataset\.action === 'copy'\) \{([\s\S]*?)\n  \}\n\}\);/)[1];
   for (const success of [true, false]) {
     const calls = [];
@@ -62,12 +62,12 @@ test('房间复制按钮复制邀请链接，失败时提供实际链接手动�
 });
 
 test('手动复制使用站内弹窗并支持打开、关闭和焦点恢复', async () => {
-  const { shellMarkup } = await import('../public/render.js');
+  const { shellMarkup } = await import('../../public/render.js');
   const html = shellMarkup(true);
   assert.match(html, /id="invite-modal" inert/);
   assert.match(html, /role="dialog" aria-modal="true" aria-labelledby="invite-title"/);
   assert.match(html, /id="invite-link" aria-label="邀请链接" readonly/);
-  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const functions = source.match(/function openInvite\([\s\S]*?\n}\n\nfunction closeInvite\([\s\S]*?\n}/)[0];
   const calls = [];
   const modal = { classList: { add: () => calls.push('open'), remove: () => calls.push('close') }, removeAttribute: () => calls.push('enable'), setAttribute: () => calls.push('disable') };
@@ -84,14 +84,14 @@ test('手动复制使用站内弹窗并支持打开、关闭和焦点恢复', as
 });
 
 test('读取剪贴板文本，权限拒绝或接口不可用时安全回退', async () => {
-  const { readClipboardText } = await import('../public/clipboard.js');
+  const { readClipboardText } = await import('../../public/clipboard.js');
   assert.equal(await readClipboardText({ readText: async () => 'http://example.com/?r=12345' }), 'http://example.com/?r=12345');
   assert.equal(await readClipboardText({ readText: async () => { throw new Error('denied'); } }), null);
   assert.equal(await readClipboardText({}), null);
 });
 
 test('粘贴按钮填入内容，读取失败保留输入并提示', async () => {
-  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   const branch = app.match(/if \(button\.dataset\.action === 'paste-invite'\) \{([\s\S]*?)\n  \}/)[1];
   for (const text of ['http://example.com/?r=12345', null]) {
     const calls = [];

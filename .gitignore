@@ -6,3 +6,6 @@ synconym.config.json
 *.vec.gz
 *.log
 .DS_Store
+
+# PI-Desktop 会话产物（goal / plan），只在本机使用，不入库也不进镜像
+.pi/

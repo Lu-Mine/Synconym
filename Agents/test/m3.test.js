@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomManager } from '../server/rooms.js';
-import { createDatabase } from '../server/db.js';
-import { similarity, buildChart } from '../server/similarity.js';
+import { RoomManager } from '../../server/rooms.js';
+import { createDatabase } from '../../server/db.js';
+import { similarity, buildChart } from '../../server/similarity.js';
 
 function setup(t, count = 2, db) {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });

@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RoomManager } from '../server/rooms.js';
-import { createDatabase } from '../server/db.js';
-import { isValidUid } from '../server/rules.js';
+import { RoomManager } from '../../server/rooms.js';
+import { createDatabase } from '../../server/db.js';
+import { isValidUid } from '../../server/rules.js';
 
-const themes = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
+const themes = JSON.parse(readFileSync(new URL('../../data/themes.json', import.meta.url), 'utf8'));
 const lastProfile = (c) => c.messages.filter((m) => m.type === 'profile').at(-1).profile;
 
 function setup(t) {

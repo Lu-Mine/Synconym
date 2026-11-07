@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomManager } from '../server/rooms.js';
-import { createDatabase } from '../server/db.js';
-import { writingMarkup, resultMarkup } from '../public/render.js';
+import { RoomManager } from '../../server/rooms.js';
+import { createDatabase } from '../../server/db.js';
+import { writingMarkup, resultMarkup } from '../../public/render.js';
 
 function setup(t, count = 2, maxRounds = 12, db) {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });

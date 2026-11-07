@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createSynconymServer } from '../server/index.js';
-import { createDatabase } from '../server/db.js';
+import { createSynconymServer } from '../../server/index.js';
+import { createDatabase } from '../../server/db.js';
 
 for (const mock of [false, true]) {
   test(`状态预览仅在显式启用时开放（mock=${mock}）`, async (t) => {

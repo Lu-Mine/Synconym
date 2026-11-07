@@ -615,7 +615,10 @@ synconym/
 ├── scripts/
 │   ├── build-icons.js  // 从 lucide-static 抽 sprite
 │   └── build-vectors.js // 原始 cc.zh.300.vec(.gz) → data/vectors/（离线）
-└── test/               // node --test：单测、WebSocket 集成、UI 渲染
+└── Agents/             // AI 上下文与测试，不参与部署
+    ├── DESIGN.md       // 本文件
+    ├── PRODUCT.md      // 产品设计上下文
+    └── test/           // node --test：单测、WebSocket 集成、UI 渲染
 ```
 
 `data/vectors/` 由 `npm run build:vectors -- <cc.zh.300.vec.gz 的路径>` 生成；原始文件约 1.3 GB，从 fastText 官网下载，不入库。同一输入重跑得到相同的向量与标定值（`builtAt` 除外）。

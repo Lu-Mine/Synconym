@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { parseRoomCode } from '../public/room-code.js';
-import { playerItemMarkup, shellMarkup } from '../public/render.js';
+import { parseRoomCode } from '../../public/room-code.js';
+import { playerItemMarkup, shellMarkup } from '../../public/render.js';
 
-const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const check = source.match(/async function checkJoinInput\([\s\S]*?\n}\n/)[0];
 
 function setup(value, response) {

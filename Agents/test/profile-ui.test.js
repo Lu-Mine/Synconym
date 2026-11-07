@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileMarkup, shellMarkup } from '../public/render.js';
+import { profileMarkup, shellMarkup } from '../../public/render.js';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
@@ -70,14 +70,14 @@ test('读取中显示占位，首页名字区只在首页可点进档案', () =>
   assert.match(inRoom, /header-user-name[^>]*>甲</);
 });
 test('档案加载态与内容态共用顶部间距', () => {
-  const css = readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
   assert.match(css, /\.profile-page\s*\{[^}]*padding-top:\s*clamp\(28px, 5vw, 36px\)/);
   for (const state of [fixture(), { profile: null }]) assert.match(profileMarkup(state), /class="page profile-page"/);
 });
 
 
 test('浏览器后退和前进按地址切换档案，并仅在连接就绪时请求数据', async () => {
-  const source = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   const handler = source.match(/window\.addEventListener\('popstate', async \(\) => \{[\s\S]*?\n\}\);/)[0];
   let listener;
   const requests = [];

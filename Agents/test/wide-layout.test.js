@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lobbyMarkup, writingMarkup } from '../public/render.js';
+import { lobbyMarkup, writingMarkup } from '../../public/render.js';
 
 const players = [
   { uid: 'a', name: '甲', seat: 0, connected: true },

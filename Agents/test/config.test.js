@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfig, configPath } from '../server/config.js';
+import { loadConfig, configPath } from '../../server/config.js';
 
 function temp(t) {
   const dir = mkdtempSync(join(tmpdir(), 'synconym-config-'));

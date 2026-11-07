@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import WebSocket from 'ws';
-import { createSynconymServer } from '../server/index.js';
-import { createDatabase } from '../server/db.js';
-import { createSecurityPolicy } from '../server/security.js';
+import { createSynconymServer } from '../../server/index.js';
+import { createDatabase } from '../../server/db.js';
+import { createSecurityPolicy } from '../../server/security.js';
 
 async function listen(t, security = {}) {
   const { server, wss } = createSynconymServer({ db: createDatabase(':memory:'), security });

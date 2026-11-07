@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createSynconymServer } from '../server/index.js';
-import { createDatabase } from '../server/db.js';
-import { playingText, refreshPlayingCount } from '../public/playing.js';
-import { homeMarkup } from '../public/render.js';
+import { createSynconymServer } from '../../server/index.js';
+import { createDatabase } from '../../server/db.js';
+import { playingText, refreshPlayingCount } from '../../public/playing.js';
+import { homeMarkup } from '../../public/render.js';
 
 test('只统计进行中对局里在线的不同玩家', async (t) => {
   const { server, manager } = createSynconymServer({ db: createDatabase(':memory:') });

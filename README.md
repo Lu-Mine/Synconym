@@ -93,7 +93,7 @@ npm start        # 默认 http://localhost:3000
 
 Docker、systemd、Caddy/Nginx 反向代理、备份与升级流程见 [DEPLOY.md](DEPLOY.md)。
 
-完整的玩法细节、协议与设计规范见 [DESIGN.md](DESIGN.md)。
+完整的玩法细节、协议与设计规范见 [Agents/DESIGN.md](Agents/DESIGN.md)。
 
 
 ## 参与贡献

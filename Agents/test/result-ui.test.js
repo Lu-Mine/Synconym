@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resultMarkup, writingMarkup, resultTitle } from '../public/render.js';
-import { chartMarkup } from '../public/chart.js';
+import { resultMarkup, writingMarkup, resultTitle } from '../../public/render.js';
+import { chartMarkup } from '../../public/chart.js';
 
 function fixture() {
   const players = [{ uid: 'a', name: '<甲>', seat: 0, connected: true }, { uid: 'b', name: '乙', seat: 1, connected: false }];

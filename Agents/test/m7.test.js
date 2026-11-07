@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RoomManager } from '../server/rooms.js';
-import { createDatabase } from '../server/db.js';
-import { createSimilarity, loadSimilarity, similarity, vectorInfo } from '../server/similarity.js';
-import { loadVectors, VECTOR_DIR } from '../server/vectors.js';
+import { RoomManager } from '../../server/rooms.js';
+import { createDatabase } from '../../server/db.js';
+import { createSimilarity, loadSimilarity, similarity, vectorInfo } from '../../server/similarity.js';
+import { loadVectors, VECTOR_DIR } from '../../server/vectors.js';
 
 const SEEDS = ['苹果', '香蕉', '梨', '桃', '西瓜', '橘子', '白菜', '青菜', '萝卜', '土豆',
   '猫', '小猫', '狗', '小狗', '老虎', '狮子', '豹子', '晴天', '雨天', '下雨', '下雪', '春天', '夏天', '秋天', '冬天'];

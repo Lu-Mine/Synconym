@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { settingsMarkup, writingMarkup, resultMarkup } from '../public/render.js';
+import { settingsMarkup, writingMarkup, resultMarkup } from '../../public/render.js';
 import { readFileSync } from 'node:fs';
 
 const settings = { mode: 'theme', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true };
@@ -36,7 +36,7 @@ test('对局主题叠加在阶段卡片内，首轮仍可见', () => {
 
 
 test('同场景增量更新设置提示及主题，不重建写词表单', () => {
-  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
   assert.match(app, /themeHint\.hidden = values\.mode !== 'theme'/);
   assert.equal((app.match(/patchMarkup\(theme, themeMarkup\(state\.room\)\)/g) || []).length, 2);
   assert.match(writingMarkup({ uid: 'a', room }, { draft: '草稿' }), /value="草稿"/);

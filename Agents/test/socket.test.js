@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Socket } from '../public/ws.js';
+import { Socket } from '../../public/ws.js';
 
 function setup(t, savedLeave = '') {
   const storage = (entries = []) => { const values = new Map(entries); return { getItem: (k) => values.get(k) || null, setItem: (k, v) => values.set(k, v), removeItem: (k) => values.delete(k) }; };

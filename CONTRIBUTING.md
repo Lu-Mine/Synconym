@@ -7,7 +7,7 @@
 - 修 bug、改文档、补测试：直接发 Pull Request。
 - 新增玩法、改动房间规则、修改 WebSocket 协议或数据结构：请先开 issue 说明动机，避免白做。
 
-实现细节以 [DESIGN.md](DESIGN.md) 为准，产品与设计取向见 [PRODUCT.md](PRODUCT.md)。
+实现细节以 [Agents/DESIGN.md](Agents/DESIGN.md) 为准，产品与设计取向见 [Agents/PRODUCT.md](Agents/PRODUCT.md)。
 
 ## 本地开发
 
