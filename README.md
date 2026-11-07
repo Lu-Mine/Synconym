@@ -95,6 +95,11 @@ Docker、systemd、Caddy/Nginx 反向代理、备份与升级流程见 [DEPLOY.m
 
 完整的玩法细节、协议与设计规范见 [DESIGN.md](DESIGN.md)。
 
+
+## 参与贡献
+
+欢迎外部贡献。提交需用 `git commit -s` 签名（DCO 1.1），并同意贡献按 AGPL-3.0-only 授权——你保留自己那部分版权。完整流程、代码约束与许可细节见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
 ## 许可
 
 本仓库的代码以 **GNU AGPL-3.0-only** 发布：可以自由运行、修改和再分发，但修改后对外提供网络服务时必须向使用者提供完整的对应源代码（§13）。许可全文见 [LICENSE](LICENSE)，版权主体、第三方依赖与数据例外见 [NOTICE.md](NOTICE.md)。
