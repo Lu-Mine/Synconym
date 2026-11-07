@@ -86,7 +86,7 @@ npm start        # 默认 http://localhost:3000
 - 对局记录默认存在 `data/synconym.db`（SQLite）。部署时用 `DB_PATH` 指向持久卷上的文件，例如 `DB_PATH=/var/lib/synconym/synconym.db`。不要把持久卷挂到整个 `data/` 目录上，否则会盖住随代码发布的主题表和 `data/vectors/`。
 - 结算曲线的词义相似度来自 `data/vectors/` 里的裁剪词向量（约 6 MB），随代码发布，不用另外下载。启动日志会打印加载的词数；文件缺失时服务照常启动，曲线显示为无法计算。需要重新裁剪时运行 `npm run build:vectors -- <cc.zh.300.vec.gz 的路径>`。
 - 环境变量：`PORT`（默认 3000）、`PUBLIC_URL`（生成邀请链接用的对外地址）、`DB_PATH`（数据库路径）、`MAX_ROOMS`（同时存在的房间数上限，默认 500）、`WS_MAX_PAYLOAD`（单条 WebSocket 消息上限，默认 64 KB）。
-- 站点与防滥用默认配置见 `synconym.config.json`；可用 `SYNCONYM_CONFIG` 指定外部 JSON 覆盖，具体字段、环境变量优先级和反向代理安全注意事项见 [部署配置](DEPLOY.md#配置文件)。
+- 站点与防滥用配置在首次启动时自动生成；后续启动不会覆盖。默认文件位于工作目录；设置 `DB_PATH` 时位于数据库同一目录。字段、环境变量优先级和部署注意事项见 [部署配置](DEPLOY.md#配置文件)。
 - 健康检查：`GET /healthz` 返回 `{"status":"ok","rooms":…,"clients":…,"vectors":…,"uptime":…}`，可直接接到云平台探针或监控。
 - 反向代理需要把 `/ws` 的 Upgrade 头转发过来，并且全站用 HTTPS——页面是 https 时浏览器不允许连 `ws://`。
 - 开发时用 `npm run dev`（改动自动重启），此时还能打开 `/__mock` 预览各阶段界面；`npm start` 不开放这个入口。

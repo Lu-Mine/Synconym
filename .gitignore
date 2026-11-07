@@ -1,5 +1,6 @@
 node_modules/
 data/synconym.db*
+synconym.config.json
 # 原始 fastText 向量只在构建时使用，不入库；裁剪产物 data/vectors/ 需要入库
 *.vec
 *.vec.gz

@@ -7,6 +7,7 @@ node_modules
 data/synconym.db*
 data/*.db
 data/*.db-*
+**/synconym.config.json
 
 # 只在本机用的东西
 dev

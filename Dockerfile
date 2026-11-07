@@ -15,7 +15,6 @@ RUN npm ci --omit=dev
 COPY server ./server
 COPY public ./public
 COPY data ./data
-COPY synconym.config.json ./
 
 RUN mkdir -p /data && chown -R node:node /data /app
 USER node
