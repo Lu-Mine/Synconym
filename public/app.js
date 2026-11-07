@@ -2,13 +2,17 @@ import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
-import { copyText } from './clipboard.js';
+import { copyText, readClipboardText } from './clipboard.js';
+import { parseRoomCode, sanitizeRoomInput } from './room-code.js';
+import { observeJoinPlaceholder } from './join-placeholder.js';
+import { refreshPlayingCount } from './playing.js';
 import {
   avatarDetails,
   homeMarkup,
   icon,
   lobbyMarkup,
   playerItemMarkup,
+  privacyMarkup,
   profileMarkup,
   rematchMarkup,
   resultMarkup,
@@ -93,10 +97,13 @@ let settings = {
 let homeSettingsOpen = false;
 let renameOpen = false;
 let profileOpen = new URLSearchParams(location.search).has('me');
+let privacyOpen = new URLSearchParams(location.search).has('privacy');
 let pathOpen = false;
 let pathTrigger = null;
 let pendingTransfer = null;
 let pendingConfirm = null;
+let pendingJoin = null;
+let joinCheckVersion = 0;
 let inviteTrigger = null;
 let toastTimer;
 let previousRoomCode = '';
@@ -120,6 +127,7 @@ let lastTypingAt = 0;
 let finalTypingSent = false;
 let roomHistoryGuard = false;
 
+let stopJoinPlaceholder = () => {};
 let stopStoryMotion = () => {};
 let connectionStatus = 'connecting';
 
@@ -128,6 +136,7 @@ function syncConnectionUI() {
   if (banner) {
     banner.hidden = connectionStatus === 'connected' || connectionStatus === 'connecting';
     banner.textContent = connectionStatus === 'replaced' ? '此身份已在其他页面连接，本页已停止重连。'
+      : connectionStatus === 'auth-failed' ? '身份验证失败，已停止重连。请检查本地身份数据。'
       : connectionStatus === 'uid-in-use' ? '此身份仍在其他页面连接，正在等待连接释放并重试。'
       : connectionStatus === 'connecting' ? '正在连接服务器…'
       : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';
@@ -171,6 +180,54 @@ function closeInvite() {
   if (trigger.isConnected) trigger.focus({ preventScroll: true });
 }
 
+function closeJoin() {
+  if (!pendingJoin) return;
+  const trigger = pendingJoin.trigger;
+  pendingJoin = null;
+  const modal = app.querySelector('#join-modal');
+  modal?.classList.remove('is-open');
+  modal?.setAttribute('inert', '');
+  syncModalScrollLock();
+  if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+
+async function checkJoinInput(input, version) {
+  if (!input.isConnected || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+  const value = input.value.trim();
+  const hint = app.querySelector('#join-hint');
+  if (!value) { if (hint) hint.textContent = ''; return; }
+  const code = parseRoomCode(value);
+  if (!code) { if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接'; return; }
+  if (hint) hint.textContent = '';
+  try {
+    const response = await fetch(`/api/rooms/${code}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+    if (!response.ok) { if (hint) hint.textContent = data.error || '房间不存在或无法加入'; return; }
+    const modal = app.querySelector('#join-modal');
+    const host = app.querySelector('#join-host');
+    if (!modal || !host || !data.host) return;
+    app.querySelector('#join-room-number').textContent = `房号 ${code}`;
+    host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
+    hydrateAvatars(host);
+    pendingJoin = { code, trigger: input };
+    modal.removeAttribute('inert');
+    modal.classList.add('is-open');
+    syncModalScrollLock();
+    modal.querySelector('.button[data-action="cancel-join"]').focus({ preventScroll: true });
+  } catch {
+    if (version === joinCheckVersion && input.isConnected && !state.room && !profileOpen && hint) hint.textContent = '无法查询房间，请稍后重试';
+  }
+}
+
+function checkJoinOnInput(input, pasted = false) {
+  const version = ++joinCheckVersion;
+  const hint = app.querySelector('#join-hint');
+  if (hint) hint.textContent = '';
+  const value = input.value.trim();
+  if (pasted || parseRoomCode(value) || (/^[0-9０-９]+$/.test(value) && value.length > 5)) checkJoinInput(input, version);
+}
+
 function confirmAction(kind) {
   if (pendingConfirm) return Promise.resolve(false);
   const resetting = kind === 'reset';
@@ -208,6 +265,7 @@ function confirmBreakVote() { return confirmAction('break'); }
 window.addEventListener('popstate', async () => {
   if (!state.room) {
     profileOpen = new URLSearchParams(location.search).has('me');
+    privacyOpen = new URLSearchParams(location.search).has('privacy');
     state.profile = null;
     if (profileOpen && socket.ready) requestProfile(1);
     render();
@@ -513,7 +571,7 @@ function syncHomeDrawerDOM() {
 }
 
 function syncModalScrollLock() {
-  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(inviteTrigger) || pathOpen);
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(pendingJoin) || Boolean(inviteTrigger) || pathOpen);
 }
 
 function syncRenameModalDOM(focusInput = false) {
@@ -570,6 +628,7 @@ function requestProfile(page = 1) {
 
 function openProfile() {
   if (state.room) return;
+  privacyOpen = false;
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', '/?me');
@@ -696,13 +755,14 @@ function patchLobbyDOM(nextState) {
 }
 
 function screenKeyFor(nextState) {
-  if (!nextState.room) return profileOpen ? 'profile' : 'home';
+  if (!nextState.room) return privacyOpen ? 'privacy' : profileOpen ? 'profile' : 'home';
   return nextState.room.phase || 'writing';
 }
 
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
   if (screen === 'profile') return profileMarkup(state);
+  if (screen === 'privacy') return privacyMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
   return writingMarkup(state, gameUi);
@@ -800,7 +860,10 @@ function replaceScene(stage, nextScreen, generation) {
     // 否则会用旧内容覆盖新内容（例如点头像进档案页时被「正在读取档案…」盖掉）。
     if (generation !== renderGeneration) return;
     stopStoryMotion();
+    stopJoinPlaceholder();
     stage.innerHTML = html;
+    stopJoinPlaceholder = observeJoinPlaceholder(stage);
+    if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
     stopStoryMotion = observeStoryMotion(stage);
     hydrateAvatars(stage);
     syncTransferModalDOM();
@@ -909,6 +972,7 @@ const socket = new Socket({
     const phaseChanged = previous?.code !== nextRoom?.code || previous?.phase !== nextRoom?.phase || previous?.round !== nextRoom?.round;
     if (phaseChanged) {
       closeConfirm(false);
+      closeJoin();
       closeInvite();
       clearTimeout(typingTimer);
       writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady'].includes(item.type)));
@@ -922,7 +986,7 @@ const socket = new Socket({
     }
     const profile = state.profile;
     state = { ...next, profile };
-    if (nextRoom) { profileOpen = false; state.profile = null; }
+    if (nextRoom) { profileOpen = false; privacyOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -943,7 +1007,7 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (!profileOpen && location.search) history.replaceState(null, '', '/');
+      if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', '/');
     }
     render();
     // 名字或身份变了：档案页跟着刷新一次
@@ -968,8 +1032,8 @@ app.addEventListener('submit', (event) => {
   if (event.target.id === 'create-form') {
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
-    const code = String(new FormData(event.target).get('code') || '').trim();
-    if (code) enqueueWrite({ type: 'joinRoom', code });
+    const input = event.target.querySelector('#room-code');
+    if (input) checkJoinOnInput(input, true);
   } else if (event.target.id === 'rename-form') {
     const input = app.querySelector('#player-name');
     const name = input?.value.trim() || '';
@@ -990,21 +1054,55 @@ app.addEventListener('submit', (event) => {
   }
 });
 
+function applyRoomPaste(input, text) {
+  const code = parseRoomCode(text);
+  if (!code) {
+    ++joinCheckVersion;
+    const hint = app.querySelector('#join-hint');
+    if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接';
+    return;
+  }
+  input.value = code;
+  checkJoinOnInput(input, true);
+}
+
+app.addEventListener('paste', (event) => {
+  if (event.target.id !== 'room-code') return;
+  event.preventDefault();
+  applyRoomPaste(event.target, event.clipboardData?.getData('text/plain') || '');
+});
+
 app.addEventListener('input', (event) => {
-  if (event.target.id === 'room-code') {
-    // 全角数字先转半角，再只留数字，长度限 5 位
-    event.target.value = event.target.value
-      .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
-      .replace(/[^0-9]/g, '').slice(0, 5);
+  if (event.target.id === 'room-code' && !event.isComposing) {
+    const input = event.target;
+    const cursor = input.selectionStart;
+    const before = cursor == null ? null : sanitizeRoomInput(input.value.slice(0, cursor)).length;
+    input.value = sanitizeRoomInput(input.value);
+    if (before != null) input.setSelectionRange(before, before);
+    checkJoinOnInput(input);
   }
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
 });
 
 app.addEventListener('compositionend', (event) => {
+  if (event.target.id === 'room-code') {
+    event.target.value = sanitizeRoomInput(event.target.value);
+    checkJoinOnInput(event.target);
+  }
   if (event.target.id === 'word-input') acceptWordInput(event.target);
 });
 
 app.addEventListener('keydown', (event) => {
+  if (pendingJoin) {
+    if (event.key === 'Escape') { event.preventDefault(); closeJoin(); return; }
+    if (event.key === 'Tab') {
+      const controls = [...app.querySelectorAll('#join-modal .rename-dialog button:not(:disabled)')];
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (inviteTrigger) {
     if (event.key === 'Escape') { event.preventDefault(); closeInvite(); return; }
     if (event.key === 'Tab') {
@@ -1044,6 +1142,27 @@ app.addEventListener('click', async (event) => {
     }
     return;
   }
+  const privacySection = event.target.closest('.privacy-nav a');
+  if (privacySection && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(privacySection.hash.slice(1))?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' });
+    return;
+  }
+
+  const privacyLink = event.target.closest('[data-action="open-privacy"]');
+  if (privacyLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    if (state.room || privacyOpen) return;
+    profileOpen = false;
+    privacyOpen = true;
+    state.profile = null;
+    history.pushState({ privacy: true }, '', '/?privacy');
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
+
 
   const homeLink = event.target.closest('[data-action="home"]');
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -1054,6 +1173,7 @@ app.addEventListener('click', async (event) => {
       socket.roomCode = '';
       previousRoomCode = '';
       profileOpen = false;
+      privacyOpen = false;
       state.profile = null;
       if (location.search) history.replaceState(null, '', '/');
       render();
@@ -1069,6 +1189,22 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+  if (button.dataset.action === 'cancel-join') { closeJoin(); return; }
+  if (button.dataset.action === 'confirm-join') {
+    const code = pendingJoin?.code;
+    closeJoin();
+    if (code) enqueueWrite({ type: 'joinRoom', code });
+    return;
+  }
+  if (button.dataset.action === 'paste-invite') {
+    const input = button.closest('form')?.querySelector('#room-code');
+    const text = await readClipboardText();
+    if (!input?.isConnected) return;
+    if (text === null) { input.focus(); toast('无法读取剪贴板，请手动粘贴邀请链接'); return; }
+    applyRoomPaste(input, text);
+    input.focus();
+    return;
+  }
   if (button.dataset.action === 'close-invite') {
     event.preventDefault();
     closeInvite();
@@ -1268,3 +1404,7 @@ document.addEventListener('keydown', (event) => {
     syncRenameModalDOM(false);
   }
 });
+
+setInterval(() => {
+  if (!document.hidden) refreshPlayingCount(app.querySelector('#playing-count'));
+}, 30000);

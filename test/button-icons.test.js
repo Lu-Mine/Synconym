@@ -37,8 +37,7 @@ test('首页介绍的装饰图标各不重复且存在于图标资源中', () =>
 
 test('按钮图标按指定顺序排列', () => {
   const home = homeMarkup(settings);
-  leftIcon(home, '加入房间', 'arrow-right');
-  assert.match(home, /<span>创建房间<\/span><svg class="icon create-submit-arrow"[^>]*><use href="\/icons\.svg#icon-arrow-right"><\/use><\/svg>/);
+  assert.match(home, /<span>创建房间<\/span><span class="playing-count" id="playing-count" hidden><\/span><\/span><svg class="icon create-submit-arrow"[^>]*><use href="\/icons\.svg#icon-arrow-right"><\/use><\/svg>/);
   const shell = shellMarkup();
   for (const [label, icon] of [['取消', 'x'], ['保存', 'check'], ['退出房间', 'check']]) rightIcon(shell, label, icon);
   leftIcon(shell, '转让房主', 'user');

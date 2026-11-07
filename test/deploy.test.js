@@ -29,6 +29,25 @@ function openClient(port) {
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+test('房间预览只返回房主信息，不改变房间，拒绝不存在、已开始和已满房间', async (t) => {
+  const { port, manager } = await listen(t);
+  const host = { uid: 'ABCDEFGH', name: '房主', seat: 0, connected: true, secret: 'private' };
+  const room = { code: '12345', hostUid: host.uid, players: [host], phase: 'lobby' };
+  manager.rooms.set(room.code, room);
+  const url = `http://127.0.0.1:${port}/api/rooms/12345`;
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { code: '12345', host: { uid: host.uid, name: host.name, seat: 0, connected: true } });
+  assert.equal(room.players.length, 1);
+  assert.equal((await fetch(url, { method: 'POST' })).status, 405);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/api/rooms/99999`)).status, 404);
+  room.phase = 'writing';
+  assert.equal((await (await fetch(url)).json()).error, '这局已经开始');
+  room.phase = 'lobby'; room.players.push({}, {}, {});
+  assert.equal((await (await fetch(url)).json()).error, '房间已满');
+});
+
 
 test('健康检查端点返回 200 与运行指标', async (t) => {
   const { port } = await listen(t);

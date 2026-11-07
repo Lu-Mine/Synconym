@@ -179,6 +179,15 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </div>
     </section>
   </div>
+  <div class="rename-modal confirm-modal" id="join-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="cancel-join" aria-label="取消加入房间"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="join-title" aria-describedby="join-room-number">
+      <div class="rename-dialog-heading"><h2 id="join-title">确认加入房间？</h2><button class="icon-button" type="button" data-action="cancel-join" aria-label="取消">${icon('x')}</button></div>
+      <p class="transfer-hint" id="join-room-number"></p>
+      <ul class="player-list" id="join-host"></ul>
+      <div class="rename-dialog-actions"><button class="button secondary" type="button" data-action="cancel-join"><span>取消</span>${icon('x')}</button><button class="button primary" type="button" data-action="confirm-join"><span>加入房间</span>${icon('check')}</button></div>
+    </section>
+  </div>
   <div class="rename-modal" id="invite-modal" inert>
     <button class="rename-modal-backdrop" type="button" data-action="close-invite" aria-label="关闭邀请链接窗口"></button>
     <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" aria-describedby="invite-hint">
@@ -201,7 +210,35 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     </section>
   </div>
   <main id="stage" class="stage"></main>
-  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/privacy.html">${icon('shield-check')}<span>隐私说明</span></a></nav></footer>`;
+  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私说明</span></a></nav></footer>`;
+}
+
+export function privacyMarkup() {
+  return `<article class="privacy-content privacy-in-app">
+    <a class="button secondary privacy-back" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <header class="privacy-title"><h1>隐私说明</h1><p class="privacy-intro">这里说明近意词在游戏过程中使用和保存的数据。请不要在昵称或词语中填写不愿与同局玩家分享的信息。</p></header>
+    <nav class="privacy-nav" aria-label="隐私说明目录">
+      <span class="privacy-nav-title">页面目录</span>
+      <div class="privacy-nav-links">
+        <a href="#identity"><span>浏览器里的身份</span>${icon('arrow-down')}</a>
+        <a href="#records"><span>游戏中会记录什么</span>${icon('arrow-down')}</a>
+        <a href="#deletion"><span>保存与删除</span>${icon('arrow-down')}</a>
+        <a href="#hosting"><span>部署环境</span>${icon('arrow-down')}</a>
+      </div>
+    </nav>
+    <section id="identity"><h2>浏览器里的身份</h2>
+      <p>首次访问时，服务端会分配随机 UID、昵称和独立身份凭证。浏览器将 UID 和凭证保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的 UID Cookie。主动退出遇到断线时，还会在会话存储中暂存退出意图。</p>
+      <p>清除浏览器数据可能让你失去原身份和档案的访问方式。UID 不是密码；身份凭证可以用于恢复你的身份，请勿分享。</p></section>
+    <section id="records"><h2>游戏中会记录什么</h2>
+      <p>服务器保存 UID、身份凭证的哈希值、当前昵称、曾用名及相关时间。完成的对局会保存房号、模式、时间、结果、参与者昵称和 UID，以及每轮词语、标记和投票记录，用于游戏结算与档案展示。</p>
+      <p>游玩时的房间状态和输入内容会在服务器内存中临时处理。写词阶段的内容不会提前展示给其他玩家；揭晓后，同房间玩家可以看到词语和相应的投票结果。崩局或中断的对局不会作为完成记录保存。</p></section>
+    <section id="deletion"><h2>保存与删除</h2>
+      <p>当前版本没有设置服务器数据的自动删除期限，也没有自助删除服务器记录的功能。档案中的「我是新人」只会生成新 UID 和昵称，不会删除旧身份或旧对局记录。</p>
+      <p>你可以通过浏览器设置清除本地存储和 Cookie，但这不会删除服务器上的数据。如需了解或处理服务器上的数据，请联系你所使用的站点的运营者。</p></section>
+    <section id="hosting"><h2>部署环境</h2>
+      <p>游戏本身不要求注册手机号或密码。站点运营者使用的服务器、反向代理或托管平台可能另外处理网络连接信息或日志；这些做法取决于实际部署环境，请以该站点运营者提供的信息为准。</p></section>
+    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+  </article>`;
 }
 
 // 首页演示：只拼装游戏中真实使用的组件，数据取自默认昵称和真实主题。
@@ -268,7 +305,7 @@ export function homeMarkup(settings, settingsOpen = false) {
     <div class="entry-deck">
       <form id="create-form" class="create-card">
         <button class="button primary create-submit" type="submit">
-          <span class="create-submit-label"><span>创建房间</span>${icon('arrow-right', 'create-submit-arrow')}</span>
+          <span class="create-submit-content"><span class="create-submit-label"><span>创建房间</span><span class="playing-count" id="playing-count" hidden></span></span>${icon('arrow-right', 'create-submit-arrow')}</span>
         </button>
         <div class="drawer-shell ${settingsOpen ? 'is-open' : ''}" id="home-settings-drawer">
           <button class="drawer-trigger" type="button" data-action="toggle-settings" aria-expanded="${settingsOpen}" aria-controls="home-settings-panel">
@@ -286,9 +323,9 @@ export function homeMarkup(settings, settingsOpen = false) {
       <div class="entry-divider" role="separator"><span>或者加入朋友的房间</span></div>
 
       <form id="join-form" class="join-form">
-        <label class="sr-only" for="room-code">5 位数字房号</label>
-        <input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" pattern="[0-9]{5}" placeholder="输入 5 位房号" maxlength="5" autocomplete="off" spellcheck="false" required>
-        <button class="button secondary join-submit" type="submit">${icon('arrow-right')}<span>加入房间</span></button>
+        <label class="sr-only" for="room-code">5 位房号或邀请链接</label>
+        <div class="join-input-wrap"><input id="room-code" name="code" class="input code-input" type="text" inputmode="numeric" placeholder="输入 5 位数房间号，或直接粘贴邀请链接" autocomplete="off" spellcheck="false" required><span class="join-placeholder" aria-hidden="true"><span class="join-placeholder-text">输入 5 位数房间号，或直接粘贴邀请链接</span></span><button class="paste-invite" type="button" data-action="paste-invite">${icon('clipboard-paste')}<span>粘贴邀请链接</span></button></div>
+        <p class="join-hint" id="join-hint" role="status" aria-live="polite"></p>
       </form>
     </div>
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
@@ -375,7 +412,7 @@ export function profileMarkup(state) {
         : '<p class="profile-empty">还没有完成的对局。开一局，回来就能看到。</p>'}
       ${pager}
     </section>
-    <p class="profile-privacy">本设备保存随机 UID；服务器保存名字和完成过的对局记录。</p>
+    <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
     <div class="profile-actions">
       <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
       <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>

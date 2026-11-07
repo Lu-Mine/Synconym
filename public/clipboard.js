@@ -22,3 +22,11 @@ export async function copyText(text) {
     input.remove();
   }
 }
+
+export async function readClipboardText(clipboard = globalThis.navigator?.clipboard) {
+  try {
+    return typeof clipboard?.readText === 'function' ? await clipboard.readText() : null;
+  } catch {
+    return null;
+  }
+}

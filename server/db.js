@@ -14,6 +14,9 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     CREATE TABLE IF NOT EXISTS name_history (
       uid TEXT NOT NULL, name TEXT NOT NULL, changed_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS player_credentials (
+      uid TEXT PRIMARY KEY, credential_hash BLOB NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS matches (
       id TEXT PRIMARY KEY, room_code TEXT NOT NULL,
       mode TEXT NOT NULL, theme_id TEXT,
@@ -63,6 +66,8 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
 
   return {
     getPlayer: (uid) => getPlayer.get(uid),
+    setCredentialHash(uid, hash) { db.prepare('INSERT INTO player_credentials (uid, credential_hash) VALUES (?, ?)').run(uid, hash); },
+    getCredentialHash(uid) { return db.prepare('SELECT credential_hash FROM player_credentials WHERE uid = ?').get(uid)?.credential_hash; },
     getProfile(uid) {
       const row = profileRow.get(uid);
       return row ? { uid: row.uid, name: row.name, createdAt: row.created_at } : undefined;

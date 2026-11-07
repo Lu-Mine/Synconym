@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../server/rooms.js';
 import { DEFAULT_SETTINGS, isValidUid, normalizeWord, validateCode, validateName, validateSettings } from '../server/rules.js';
 import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../public/render.js';
+import { parseRoomCode } from '../public/room-code.js';
 
 function client(manager, uid) {
   const connection = manager.connect(uid);
@@ -317,12 +318,21 @@ test('新连接拿到 8 位 UID，旧的长 UID 会被换成新的短 UID', () =
   assert.notEqual(legacy.uid, '9d1c5f2a-7b3e-4c8d-9f10-2a3b4c5d6e7f');
 });
 
-test('加入房间输入框只收数字并调起数字键盘', () => {
+test('加入房间输入框支持房号和邀请链接，并调起数字键盘', () => {
   const home = homeMarkup(DEFAULT_SETTINGS, false);
   assert.match(home, /id="room-code"[^>]*inputmode="numeric"/);
-  assert.match(home, /id="room-code"[^>]*pattern="\[0-9\]\{5\}"/);
-  assert.match(home, /id="room-code"[^>]*maxlength="5"/);
-  assert.match(home, /输入 5 位房号/);
+  assert.doesNotMatch(home, /id="room-code"[^>]*(?:pattern|maxlength)=/);
+  assert.match(home, /placeholder="输入 5 位数房间号，或直接粘贴邀请链接"/);
+  assert.match(home, /data-action="paste-invite"><svg[^>]*><use href="\/icons\.svg#icon-clipboard-paste"><\/use><\/svg><span>粘贴邀请链接<\/span>/);
+  assert.doesNotMatch(home, /class="button secondary join-submit"/);
+  assert.match(home, /id="join-hint" role="status"/);
+  assert.equal(parseRoomCode('63068'), '63068');
+  assert.equal(parseRoomCode(' ６３０６８ '), '63068');
+  assert.equal(parseRoomCode('http://example.com:3000/?r=63068'), '63068');
+  assert.equal(parseRoomCode('https://example.com/?x=1&r=01234#section'), '01234');
+  for (const input of ['1234', '123456', 'http://example.com/?r=1234', 'http://12345.example/?x=63068', 'http://example.com/?r=12345&r=67890', 'javascript:?r=12345', 'invalid']) {
+    assert.equal(parseRoomCode(input), '', input);
+  }
 });
 
 test('各阶段玩家状态使用一致的语义颜色，投票选择保持隐藏', () => {

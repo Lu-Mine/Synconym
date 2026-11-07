@@ -113,3 +113,20 @@ test('普通断线窗口过期后不再自动加入等待房间', (t) => {
   reconnect.message({ type: 'state', room: null });
   assert.deepEqual(reconnect.sent.map(m => m.type), ['hello']);
 });
+
+test('保存凭证并在重连和重置身份后使用新的凭证', (t) => {
+  const { socket, ws, scheduled, FakeSocket } = setup(t);
+  ws.open();
+  assert.equal(ws.sent[0].uid, undefined);
+  ws.message({ type: 'hello', uid: 'ABCDEFGH', credential: 'secret-a', restored: false });
+  assert.deepEqual(JSON.parse(localStorage.getItem('sy_identity')), { uid: 'ABCDEFGH', credential: 'secret-a' });
+  ws.message({ type: 'identity', uid: 'BCDEFGHJ', credential: 'secret-b' });
+  assert.deepEqual(JSON.parse(localStorage.getItem('sy_identity')), { uid: 'BCDEFGHJ', credential: 'secret-b' });
+  ws.close(); scheduled.shift()();
+  const reconnect = FakeSocket.instances.at(-1); reconnect.open();
+  assert.equal(reconnect.sent[0].uid, 'BCDEFGHJ');
+  assert.equal(reconnect.sent[0].credential, 'secret-b');
+  reconnect.close(4003);
+  assert.equal(socket.closed, true);
+  assert.equal(scheduled.length, 0);
+});

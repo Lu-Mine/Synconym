@@ -1,17 +1,13 @@
 name: Deploy Synconym
-
 on:
   push:
     branches: [master]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: production-deploy
   cancel-in-progress: false
-
 jobs:
   deploy:
     if: github.ref == 'refs/heads/master'
@@ -19,13 +15,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Package and deploy
+      - name: Deploy
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
@@ -35,7 +33,28 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/synconym_deploy
           chmod 600 ~/.ssh/synconym_deploy
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
-          git archive --format=tar.gz "$GITHUB_SHA" > /tmp/synconym.tar.gz
-          sha256sum /tmp/synconym.tar.gz > /tmp/synconym.sha256
-          checksum=$(cut -d ' ' -f 1 /tmp/synconym.sha256)
-          ssh -i ~/.ssh/synconym_deploy -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10 root@example.com "deploy $GITHUB_SHA $checksum" < /tmp/synconym.tar.gz
+          trap 'rm -f ~/.ssh/synconym_deploy' EXIT
+          ssh_opts=(-i ~/.ssh/synconym_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10)
+          archive="$RUNNER_TEMP/synconym.tar.gz"
+          git archive --format=tar.gz "$GITHUB_SHA" > "$archive"
+          checksum=$(sha256sum "$archive" | cut -d ' ' -f 1)
+          # Re-query and reclassify on every retry: status and deploy are separate SSH sessions.
+          for attempt in 1 2 3; do
+            if current=$(ssh "${ssh_opts[@]}" root@example.com status); then
+              [[ $current =~ ^([0-9a-f]{40})\ ([0-9a-f]{40})$ ]] || { echo 'Invalid deployed revisions (update server deploy script first)' >&2; exit 1; }
+              frontend=${BASH_REMATCH[1]}
+              backend=${BASH_REMATCH[2]}
+              mode=$(bash deploy/github-deploy.sh --classify "$frontend" "$backend" "$GITHUB_SHA")
+              case "$mode" in
+                none) echo 'Already deployed'; exit 0 ;;
+                stale) echo 'A newer revision is already deployed'; exit 0 ;;
+                frontend|backend) ;;
+                *) echo 'Invalid deployment classification' >&2; exit 1 ;;
+              esac
+              echo "Deploying $mode; frontend $frontend; backend $backend; attempt $attempt"
+              if ssh "${ssh_opts[@]}" root@example.com "deploy $mode $GITHUB_SHA $checksum $frontend $backend" < "$archive"; then exit 0; fi
+            fi
+            if (( attempt < 3 )); then sleep $((attempt * 5)); fi
+          done
+          echo 'Deployment failed after three attempts' >&2
+          exit 1
