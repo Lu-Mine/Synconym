@@ -2,6 +2,8 @@
 
 本文区分**当前 ECS 的目标架构**与其他部署方式。目标是 **Apache 对外监听 `:3000`，直接提供独立前端快照；`/ws`、`/api/`、`/healthz` 反代至 Node `127.0.0.1:3001`**。仓库配置不是线上生效证明，迁移及验收见 [deploy/MIGRATION.md](deploy/MIGRATION.md)。
 
+注意 `deploy/` 里的资产并不都是通用的：`bt-start.sh`、`bt-restart.py` 只能在 aaPanel（宝塔）里用，`github-deploy.sh` 的部分默认值也绑定宝塔布局。用 Docker / systemd / Nginx / Caddy 时请先看 [deploy/README.md](deploy/README.md)，按自己的环境挑文件。
+
 共同前提：**Node 20+**，当前依赖为 `better-sqlite3 ^12.4.1`；升级 Node 或原生依赖前，应在目标运行环境重新安装并验证。下列 Docker、systemd、容器平台是替代方案，不要与当前 ECS 的宝塔进程管理混用。
 
 - [一、Docker（推荐，ECS 和容器托管都能用）](#一docker)

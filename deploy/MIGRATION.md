@@ -1,5 +1,7 @@
 # Apache 前后端分离部署迁移指南
 
+> **适用范围**：本文记录的是作者当前实例（aaPanel 宝塔 + Apache）的具体迁移过程，含该主机的实际目录布局。它**不是通用部署要求**——Docker、systemd、Nginx、Caddy 等做法见 [DEPLOY.md](../DEPLOY.md)，各文件适用哪种环境见 [README.md](README.md)。
+
 ## 目标与边界
 
 本指南描述**待实施和验收的目标**，不代表服务器已经完成迁移或回滚演练：

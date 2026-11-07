@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Forced SSH command. Infrastructure files are installed separately by an administrator.
 # Sourcing this file only defines functions; --classify is a local, read-only CI entrypoint.
+#
+# 可移植性：默认值对应作者的 aaPanel + Apache 实例。换主机时依次改 SYNCONYM_NODE_BIN_DIR、
+# SYNCONYM_DEPLOY_BASE、SYNCONYM_LIVE_DIR（configure_deployment 读取），不需要改代码。
+# 目录结构见 deploy/MIGRATION.md 的「服务器布局」一节。
 
 valid_revision() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
 
@@ -76,7 +80,14 @@ verify_front() {
   rm -f "$tmp" "$files"
 }
 
-panel() { ( cd /www/server/panel && /www/server/panel/pyenv/bin/python "$base/bt-restart.py" "$1" ); }
+# aaPanel（宝塔）负责本项目的进程启停。如果你的主机不用 aaPanel，把 SYNCONYM_PANEL_DIR
+# 设为空字符串（export SYNCONYM_PANEL_DIR=），下面的 panel stop/start 就变成空操作，
+# 进程改由 systemd / supervisor 等托管，可参考 deploy/synconym.service。
+panel() {
+  local dir=${SYNCONYM_PANEL_DIR-/www/server/panel}
+  [[ -n $dir ]] || return 0
+  ( cd "$dir" && "$dir/pyenv/bin/python" "$base/bt-restart.py" "$1" )
+}
 port_free() {
   local listeners
   listeners=$(ss -H -lnt) || return 1
@@ -206,9 +217,10 @@ deploy_release() {
 }
 
 configure_deployment() {
-  export PATH=/www/server/nodejs/v20.19.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-  base=/opt/synconym-deploy
-  live=/www/wwwroot/synconym
+  local node_bin=${SYNCONYM_NODE_BIN_DIR-/www/server/nodejs/v20.19.2/bin}
+  export PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  base=${SYNCONYM_DEPLOY_BASE-/opt/synconym-deploy}
+  live=${SYNCONYM_LIVE_DIR-/www/wwwroot/synconym}
   front=$base/frontend-current
   assets=$base/frontend
   releases=$base/releases

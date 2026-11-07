@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Start or stop only the Synconym project through aaPanel's Node model."""
+"""Start or stop only the Synconym project through aaPanel's Node model.
+
+Only usable on an aaPanel host: it imports aaPanel's own project model from the
+panel directory. Without aaPanel, manage the process with systemd instead (see
+synconym.service) and ignore this file.
+"""
 import os
 import sys
 import psutil
 
-os.chdir('/www/server/panel')
+panel_dir = os.environ.get('SYNCONYM_PANEL_DIR', '/www/server/panel')
+os.chdir(panel_dir)
 sys.path.insert(0, 'class')
 import public
 from projectModel.nodejsModel import main
@@ -13,7 +19,7 @@ args = public.dict_obj()
 args.project_name = 'synconym'
 manager = main()
 if len(sys.argv) > 1 and sys.argv[1] == 'stop':
-    pidfile = '/www/server/nodejs/vhost/pids/synconym.pid'
+    pidfile = os.environ.get('SYNCONYM_PANEL_PIDFILE', '/www/server/nodejs/vhost/pids/synconym.pid')
     processes = []
     try:
         with open(pidfile) as f:
