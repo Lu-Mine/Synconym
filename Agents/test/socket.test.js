@@ -21,9 +21,9 @@ function setup(t, savedLeave = '') {
   for (const [key, value] of Object.entries(values)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   t.after(() => { for (const [key, descriptor] of Object.entries(originals)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } });
   t.mock.method(globalThis, 'setTimeout', (callback) => { scheduled.push(callback); return 1; });
-  const states = [], statuses = [], hello = [];
-  const socket = new Socket({ onState: (m) => states.push(m), onHello: (m) => hello.push(m), onConnection: (status) => statuses.push(status) });
-  return { socket, states, statuses, hello, scheduled, FakeSocket, ws: socket.ws };
+  const states = [], statuses = [], hello = [], stateMetadata = [];
+  const socket = new Socket({ onState: (m, metadata) => { states.push(m); stateMetadata.push(metadata); }, onHello: (m) => hello.push(m), onConnection: (status) => statuses.push(status) });
+  return { socket, states, statuses, hello, stateMetadata, scheduled, FakeSocket, ws: socket.ws };
 }
 
 function ready(ws) { ws.open(); ws.message({ type: 'hello', uid: 'ABCDEFGH', restored: true }); ws.message({ type: 'state', room: { code: '12345' } }); }
@@ -41,6 +41,18 @@ test('普通断线保留恢复房号，但不排队重放投票或准备', (t) =
   reconnect.message({ type: 'state', room: { code: '12345' } });
   assert.deepEqual(reconnect.sent.map(m => m.type), ['hello']);
   assert.equal(statuses.at(-1), 'connected');
+});
+
+test('每次连接首个有效状态标记为同步，后续实时状态保持普通更新', (t) => {
+  const { ws, scheduled, FakeSocket, stateMetadata } = setup(t);
+  ready(ws);
+  ws.message({ type: 'state', room: { code: '12345', phase: 'writing' } });
+  ws.close(); scheduled.shift()();
+  const reconnect = FakeSocket.instances.at(-1); reconnect.open();
+  reconnect.message({ type: 'hello', uid: 'ABCDEFGH', restored: true });
+  reconnect.message({ type: 'state', room: { code: '12345', phase: 'voting' } });
+  reconnect.message({ type: 'state', room: { code: '12345', phase: 'prepare' } });
+  assert.deepEqual(stateMetadata.map(m => m.initialSync), [true, false, true, false]);
 });
 
 test('显式加入等权威快照之后才发送', (t) => {

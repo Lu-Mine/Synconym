@@ -20,6 +20,7 @@ export class Socket {
 
   connect() {
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${this.mock ? '/__mock/ws' : '/ws'}`);
+    let awaitingInitialState = true;
     this.ws = ws;
     ws.addEventListener('open', () => {
       this.send({ type: 'hello', uid: this.uid || undefined, credential: this.credential || undefined, roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave) }, true);
@@ -48,8 +49,10 @@ export class Socket {
         this.ready = true;
         this.reconnectDelay = 500;
         this.handlers.onConnection?.('connected');
+        const initialSync = awaitingInitialState;
+        awaitingInitialState = false;
         this.hadState = true;
-        this.handlers.onState?.(message);
+        this.handlers.onState?.(message, { initialSync });
         for (const item of this.queue.splice(0)) this.send(item);
       } else if (message.type === 'profile') {
         this.handlers.onProfile?.(message.profile);
