@@ -22,6 +22,7 @@ import {
   settingsBlockMarkup,
   settingsSummaryText,
   shellMarkup,
+  startCountdownMarkup,
   thoughtPathMarkup,
   themeMarkup,
   writingMarkup
@@ -369,7 +370,7 @@ function updateCountdown() {
     }
     const element = document.querySelector('#countdown');
     if (element) {
-      element.textContent = seconds === null ? '–' : `${seconds} 秒`;
+      element.textContent = seconds === null ? '–' : state.room?.phase === 'countdown' ? String(seconds) : `${seconds} 秒`;
       element.parentElement?.classList.toggle('urgent', urgent);
       element.parentElement?.classList.toggle('reconnect-grace', grace);
       const hint = document.querySelector('#prepare-grace-hint');
@@ -843,6 +844,7 @@ function buildScreenMarkup(screen) {
   if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search)) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
   if (screen === 'privacy') return privacyMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
+  if (screen === 'countdown') return startCountdownMarkup(state.room);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
   return writingMarkup(state, gameUi);
 }

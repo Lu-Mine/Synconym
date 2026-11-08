@@ -120,6 +120,14 @@ export function themeMarkup(room) {
   return room.mode === 'theme' ? `<p class="current-theme"><span>${['result', 'rematch', 'interrupted'].includes(room.phase) ? '本局主题' : '当前主题'}</span><strong>${escapeHtml(room.themeName || '等待抽取')}</strong></p>` : '';
 }
 
+export function startCountdownMarkup(room) {
+  return `<div class="start-countdown" data-screen="countdown" data-room="${escapeHtml(room.code || '')}" role="status">
+    <p class="start-countdown-label">准备开始</p>
+    <div id="countdown" class="start-countdown-number" role="timer" aria-live="off">5</div>
+    ${room.mode === 'theme' && room.themeName ? `<p class="start-countdown-theme"><span>本局主题</span><strong>${escapeHtml(room.themeName)}</strong></p>` : ''}
+  </div>`;
+}
+
 export function settingsSummaryText(settings) {
   const modeText = settings.mode === 'theme' ? '主题' : '自由';
   const repeatText = settings.banRepeat ? '禁重复' : '可重复';

@@ -23,6 +23,7 @@ function setup(t, count = 2, db) {
     send(c, { type: 'setReady', ready: true });
   }
   send(a, { type: 'start' });
+  manager.advanceDeadline(room);
   const exact = () => { for (const c of clients) send(c, { type: 'submitWord', word: '苹果' }); };
   return { manager, room, clients, send, connect, exact };
 }
@@ -87,6 +88,8 @@ test('result snapshot and in-memory persistence computed once; unanimous rematch
   assert.deepEqual(snapshot(b).rematchVotes, { [a.uid]: 'rematch' });
   const settings = Object.fromEntries(['mode', 'themeId', 'maxRounds', 'writeSeconds', 'prepareSeconds', 'banRepeat'].map((key) => [key, room[key]]));
   send(b, { type: 'rematch', choice: 'rematch' });
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing'); assert.equal(room.round, 1); assert.deepEqual(room.history, []);
   for (const key of ['endedAt', 'resultPlayers', 'chart', 'outcome', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) assert.equal(room[key], undefined, key);
   assert.equal(room.currentRecord, null);
@@ -204,6 +207,8 @@ test('offline result player retains seat and restores during rematch', (t) => {
   const restored = connect(b.uid);
   assert.equal(manager.restore(restored, room.code), true);
   send(restored, { type: 'rematch', choice: 'rematch' });
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing');
 });
 
@@ -337,6 +342,8 @@ test('disconnected yes vote persists; restoring final voter triggers unanimous s
   manager.checkRematch(room); manager.finishRematch(room);
   assert.equal(room.phase, 'rematch'); assert.equal(room.rematchDeadline, deadline);
   assert.equal(manager.restore(connect(c.uid), room.code), true);
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing'); assert.equal(room.players.length, 3);
 });
 

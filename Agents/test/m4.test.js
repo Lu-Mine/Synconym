@@ -18,6 +18,7 @@ function setup(t, count = 2, maxRounds = 12, db) {
   const room = manager.roomFor(clients[0]);
   for (const c of clients.slice(1)) { send(c, { type: 'joinRoom', code: room.code }); send(c, { type: 'setReady', ready: true }); }
   send(clients[0], { type: 'start' });
+  manager.advanceDeadline(room);
   const miss = (round) => {
     room.round = round;
     room.currentRecord = { n: round, words: {}, marks: {}, outcome: 'miss' };
@@ -47,6 +48,8 @@ test('两人一票通过，SQLite 无记录，且可重赛', (t) => {
   const deadline = room.rematchDeadline; manager.settle(room); assert.equal(room.rematchDeadline, deadline);
   assert.match(resultMarkup({ room, uid: a.uid }), /记录不会保存/);
   send(a, { type: 'rematch', choice: 'rematch' }); send(b, { type: 'rematch', choice: 'rematch' });
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing'); assert.equal(room.round, 1); assert.equal(room.dropped, false);
 });
 

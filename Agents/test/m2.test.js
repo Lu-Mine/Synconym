@@ -19,6 +19,7 @@ function setup(t, settings = {}) {
   send(b, { type: 'joinRoom', code: room.code });
   send(b, { type: 'setReady', ready: true });
   send(a, { type: 'start' });
+  manager.advanceDeadline(room);
   return { manager, connect, send, a, b, room };
 }
 

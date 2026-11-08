@@ -380,7 +380,7 @@ export class RoomManager {
   }
 
   checkProgress(room) {
-    if (['writing', 'voting', 'prepare', 'breakVote'].includes(room.phase) && room.players.length === 1) {
+    if (['countdown', 'writing', 'voting', 'prepare', 'breakVote'].includes(room.phase) && room.players.length === 1) {
       room.history = [];
       room.currentRecord = null;
       room.outcome = 'interrupted';
@@ -481,13 +481,14 @@ export class RoomManager {
       room.startedAt = Date.now();
       room.matchPlayers = room.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
       this.selectTheme(room);
-      this.startWriting(room);
+      this.setPhase(room, 'countdown', 5);
     } else this.setPhase(room, 'lobby', null);
     this.touch(room);
   }
 
   advanceDeadline(room) {
-    if (room.phase === 'writing') this.reveal(room);
+    if (room.phase === 'countdown') this.startWriting(room);
+    else if (room.phase === 'writing') this.reveal(room);
     else if (room.phase === 'voting') this.finishVote(room);
     else if (room.phase === 'prepare') this.startWriting(room);
     else if (room.phase === 'breakVote') this.finishBreakVote(room);
@@ -746,7 +747,7 @@ export class RoomManager {
         current.startedAt = Date.now();
         current.matchPlayers = current.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
         this.selectTheme(current);
-        this.startWriting(current);
+        this.setPhase(current, 'countdown', 5);
         break;
       }
       case 'rematch': {

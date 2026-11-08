@@ -17,7 +17,12 @@ function setup(t, mode = 'theme') {
     c.ws = { readyState: 1, send: (data) => c.messages.push(JSON.parse(data)) };
     return c;
   });
-  const send = (c, msg) => { t.mock.timers.tick(501); manager.handle(c, msg); };
+  const send = (c, msg) => {
+    t.mock.timers.tick(501);
+    const current = c.roomCode ? manager.rooms.get(c.roomCode) : null;
+    if (current?.phase === 'countdown' && msg.type === 'submitWord') manager.advanceDeadline(current);
+    manager.handle(c, msg);
+  };
   const [a, b] = clients;
   send(a, { type: 'createRoom', mode, themeId: 'pets', themeName: '伪造' });
   const room = manager.roomFor(a);

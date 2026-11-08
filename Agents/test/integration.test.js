@@ -41,6 +41,14 @@ function nextState(client, predicate = () => true, timeout = 2000) {
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function finishCountdown(manager, client, code) {
+  await nextState(client, state => state.room?.code === code && state.room.phase === 'countdown');
+  const room = manager.rooms.get(code);
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
+  manager.broadcast(room);
+}
+
 test('公开 UID 不可用于读取档案、接管或退出房间，合法凭证可恢复', async (t) => {
   const db = createDatabase(':memory:');
   const { server, wss, manager } = createSynconymServer({ db });
@@ -179,6 +187,7 @@ test('真实 WebSocket 完成 M1 流程并恢复原席位', async (t) => {
   restored.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
   await sleep(510);
   host.ws.send(JSON.stringify({ type: 'start' }));
+  await finishCountdown(manager, host, code);
   const started = await nextState(host, (state) => state.room?.phase === 'writing');
   assert.equal(started.room.round, 1);
   host.ws.close(); restored.ws.close();
@@ -193,7 +202,7 @@ test('SQLite 持久化玩家与改名历史', () => {
 });
 
 test('真实 WebSocket 完成投票、准备、回归和精确相遇', async (t) => {
-  const { server } = createSynconymServer({ db: createDatabase(':memory:') });
+  const { server, manager } = createSynconymServer({ db: createDatabase(':memory:') });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => server.close());
@@ -210,6 +219,7 @@ test('真实 WebSocket 完成投票、准备、回归和精确相遇', async (t)
   guest.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
   await nextState(host, (state) => state.room?.players.some((p) => p.uid === guest.uid && p.ready));
   host.ws.send(JSON.stringify({ type: 'start' }));
+  await finishCountdown(manager, host, code);
   await nextState(host, (state) => state.room?.phase === 'writing');
   await sleep(510);
   host.ws.send(JSON.stringify({ type: 'submitWord', word: '苹果' }));
@@ -241,7 +251,7 @@ test('真实 WebSocket 完成投票、准备、回归和精确相遇', async (t)
 });
 
 test('真实 WebSocket 断线回归保留本阶段的提交和投票', async (t) => {
-  const { server } = createSynconymServer({ db: createDatabase(':memory:') });
+  const { server, manager } = createSynconymServer({ db: createDatabase(':memory:') });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => server.close());
   const port = server.address().port;
@@ -256,6 +266,7 @@ test('真实 WebSocket 断线回归保留本阶段的提交和投票', async (t)
   guest.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
   await nextState(host, (s) => s.room?.players.some((p) => p.uid === guest.uid && p.ready));
   host.ws.send(JSON.stringify({ type: 'start' }));
+  await finishCountdown(manager, guest, code);
   await nextState(guest, (s) => s.room?.phase === 'writing');
   await sleep(520);
   guest.ws.send(JSON.stringify({ type: 'submitWord', word: '苹果' }));
@@ -405,6 +416,7 @@ test('真实 WebSocket 完整五轮进入崩局投票，提前结束且不保存
   await sleep(520); guest.ws.send(JSON.stringify({ type: 'setReady', ready: true }));
   await nextState(host, (s) => s.room?.players.some((p) => p.uid === guest.uid && p.ready));
   host.ws.send(JSON.stringify({ type: 'start' }));
+  await finishCountdown(manager, host, code);
   for (let round = 1; round <= 5; round++) {
     await nextState(host, (s) => s.room?.phase === 'writing' && s.room.round === round);
     await sleep(520);
@@ -429,6 +441,9 @@ test('真实 WebSocket 完整五轮进入崩局投票，提前结束且不保存
   await sleep(520);
   host.ws.send(JSON.stringify({ type: 'rematch', choice: 'rematch' }));
   guest.ws.send(JSON.stringify({ type: 'rematch', choice: 'rematch' }));
+  await nextState(guest, s => s.serverNow > result.serverNow && s.room?.phase === 'countdown');
+  manager.advanceDeadline(manager.rooms.get(code));
+  manager.broadcast(manager.rooms.get(code));
   await nextState(guest, (s) => s.serverNow > result.serverNow && s.room?.phase === 'writing' && s.room.round === 1 && s.room.history.length === 0);
   assert.deepEqual(host.errors, []); assert.deepEqual(guest.errors, []);
 });

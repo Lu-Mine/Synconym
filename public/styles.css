@@ -2417,6 +2417,24 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .profile-page > .profile-empty { grid-column: 1 / -1; }
 }
 
+/* 开局时以完整视口呈现同步倒计时。 */
+.start-countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--accent-soft);
+  text-align: center;
+}
+.start-countdown-label { margin: 0; color: var(--ink-secondary); font-size: 1.125rem; font-weight: 600; }
+.start-countdown-number { color: var(--accent); font-size: clamp(8rem, 27vw, 15rem); font-weight: 750; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.start-countdown-theme { display: grid; gap: 6px; margin: 16px 0 0; color: var(--ink-secondary); }
+.start-countdown-theme strong { color: var(--ink); font-size: clamp(1.5rem, 5vw, 2.25rem); overflow-wrap: anywhere; }
+
 /* 历史检索与独立对局回顾 */
 /* 历史检索：输入即搜，没有按钮；时间命中在输入框内右侧标出匹配区间 */
 .history-search { margin: 20px 0 4px; }

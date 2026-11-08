@@ -102,6 +102,8 @@ test('房主固定在第一位，其余按加入顺序，房主可点击转让',
   manager.handle(late, { type: 'setReady', ready: true });
   passRateLimit(t);
   manager.handle(mid, { type: 'start' });
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing');
   passRateLimit(t);
   assert.throws(() => manager.handle(mid, { type: 'transferHost', uid: host.uid }), /开局后/);
@@ -151,6 +153,8 @@ test('凭房号加入、改名、准备、取消、房主无需准备即可开�
   manager.handle(guest, { type: 'setReady', ready: true });
   passRateLimit(t);
   manager.handle(host, { type: 'start' });
+  assert.equal(room.phase, 'countdown');
+  manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing');
   assert.equal(room.round, 1);
   assert.equal(manager.playerFor(room, guest.uid).name, '同席新名字');

@@ -97,6 +97,7 @@ test('文件型数据库：关闭后重新打开，同一 uid 的档案与对局
   const room = manager.roomFor(a);
   send(b, { type: 'joinRoom', code: room.code }); send(b, { type: 'setReady', ready: true });
   send(a, { type: 'start' });
+  manager.advanceDeadline(room);
   send(a, { type: 'submitWord', word: '苹果' }); send(b, { type: 'submitWord', word: '苹果' });
   assert.equal(room.phase, 'result');
   const matchId = room.matchId;

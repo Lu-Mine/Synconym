@@ -12,6 +12,7 @@ function setup(t) {
   send(a, { type: 'createRoom', prepareSeconds: 15 }); const room = manager.roomFor(a);
   for (const client of [b, c]) { send(client, { type: 'joinRoom', code: room.code }); send(client, { type: 'setReady', ready: true }); }
   send(a, { type: 'start' });
+  manager.advanceDeadline(room);
   const miss = () => { manager.reveal(room); manager.finishVote(room); };
   return { manager, room, clients, send, miss };
 }
