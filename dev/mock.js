@@ -1,112 +1,124 @@
-import { avatarDetails, homeMarkup, lobbyMarkup, profileMarkup, resultMarkup, shellMarkup, writingMarkup } from '/render.js';
-import { observeStoryMotion } from '/story-motion.js';
-let stopStoryMotion = () => {};
+const $ = (selector) => document.querySelector(selector);
+const frame = $('#game');
+const select = $('#player');
+let room = null;
+let pausedAt = null;
+const phaseNames = { lobby: '等待大厅', countdown: '开局倒计时', writing: '写词', voting: '投票', prepare: '准备', breakVote: '崩局投票', result: '结算', rematch: '重赛选择', interrupted: '对局中断' };
 
-const settings = { mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true };
-const players = [
-  { uid: 'a', name: '迷人的橙子', seat: 0, connected: true, ready: true, submitted: true, voted: true },
-  { uid: 'b', name: '狡猾的蘑菇', seat: 1, connected: true, typing: true },
-  { uid: 'c', name: '快乐的苹果', seat: 2, connected: false },
-  { uid: 'd', name: '温柔的柠檬', seat: 3, connected: true, ready: true }
-];
-const history = [
-  { n: 1, words: { a: '海洋', b: '天空', c: '森林', d: '云朵' }, marks: {}, outcome: 'miss', votes: { a: true, b: false, c: false, d: true } },
-  { n: 2, words: { a: '蓝色', b: '大海', c: '天空', d: '海浪' }, marks: {}, outcome: 'miss', votes: { a: true, b: true, d: false } }
-];
-const scenes = [
-  ['home', '首页'], ['home-settings', '首页 · 展开设置'],
-  ['lobby-host', '等待大厅 · 房主'], ['lobby-player', '等待大厅 · 玩家'],
-  ['writing', '写词'], ['writing-submitted', '写词 · 已提交'],
-  ['voting', '投票'], ['voting-voted', '投票 · 已投票'],
-  ['prepare', '准备下一轮'], ['prepare-ready', '准备下一轮 · 已准备'],
-  ['breakVote', '崩局投票'], ['breakVote-voted', '崩局投票 · 已投票'],
-  ['result-exact', '结算 · 精确相遇'], ['result-voted', '结算 · 投票相遇'],
-  ['result-none', '结算 · 未相遇'], ['result-break', '结算 · 崩局'],
-  ['rematch', '结算 · 重赛选择'], ['interrupted', '对局中断'],
-  ['profile', '档案'], ['profile-empty', '档案 · 还没有对局']
-];
-const select = document.querySelector('#mock-scene');
-const app = document.querySelector('#app');
-for (const [value, label] of scenes) select.add(new Option(label, value));
-
-function roomFor(scene) {
-  const phase = scene.startsWith('writing') ? 'writing' : scene.startsWith('voting') ? 'voting'
-    : scene.startsWith('prepare') ? 'prepare' : scene.startsWith('breakVote') ? 'breakVote'
-    : scene.startsWith('lobby') ? 'lobby' : scene === 'interrupted' ? 'interrupted'
-    : scene === 'rematch' ? 'rematch' : 'result';
-  const outcome = scene === 'result-exact' ? 'exact' : scene === 'result-voted' || scene === 'rematch' ? 'voted' : scene === 'result-break' ? 'break' : 'none';
-  const resultHistory = [...history, { n: 3, words: { a: '海边', b: '海边', c: '海风', d: '海边' }, marks: {}, outcome: outcome === 'exact' ? 'exact' : outcome === 'voted' ? 'voted' : 'miss', votes: { a: true, b: true, d: true } }];
-  const roomPlayers = players.map((p) => ({ ...p }));
-  if (phase === 'writing') roomPlayers[0].submitted = scene === 'writing-submitted';
-  if (phase === 'voting') roomPlayers[0].voted = scene === 'voting-voted';
-  if (phase === 'prepare') roomPlayers[0].ready = scene === 'prepare-ready';
-  if (phase === 'breakVote') roomPlayers[0].breakVoted = scene === 'breakVote-voted';
-  return { ...settings, code: '12345', phase, round: 3, hostUid: scene === 'lobby-player' ? 'b' : 'a',
-    players: roomPlayers, resultPlayers: players.map((p) => ({ ...p })), outcome,
-    history: ['result', 'rematch'].includes(phase) ? resultHistory : history,
-    words: resultHistory[2].words, marks: {}, chart: [{ n: 1, similarity: .2 }, { n: 2, similarity: .5 }, { n: 3, similarity: outcome === 'exact' || outcome === 'voted' ? 1 : .65 }],
-    rematchDeadline: Date.now() + 30000, rematchEligibleUids: ['a', 'b', 'c', 'd'],
-    rematchVotes: scene === 'rematch' ? { a: 'rematch', b: 'room', c: 'rematch' } : {},
-    idleDeadline: Date.now() + 300000 };
+function render() {
+  const bots = room?.players?.filter(player => player.mockBot) || [];
+  const selected = select.value;
+  select.replaceChildren(...bots.map(player => new Option(player.name, player.uid)));
+  if (bots.some(player => player.uid === selected)) select.value = selected;
+  const bot = bots.find(player => player.uid === select.value);
+  const phase = room?.phase;
+  $('#status').textContent = room ? `房间 ${room.code} · ${phaseNames[phase] || phase}` : '等待进入房间';
+  select.disabled = !bot;
+  $('#add').disabled = phase !== 'lobby' || room.players.length >= 4;
+  $('#remove').disabled = !bot;
+  $('#ready').disabled = !bot || !['lobby', 'prepare'].includes(phase) || (phase === 'lobby' && room.hostUid === bot.uid);
+  $('#ready').checked = Boolean(bot?.ready);
+  $('#start').disabled = phase !== 'lobby' || room.players.length < 2 || !room.players.some(p => p.uid === room.hostUid && p.connected) || room.players.some(p => p.uid !== room.hostUid && (!p.ready || !p.connected));
+  $('#word').disabled = !bot || phase !== 'writing' || bot.submitted;
+  $('#submitWord').disabled = $('#word').disabled;
+  const canVote = bot && ((phase === 'voting' && !bot.voted) || (phase === 'breakVote' && !bot.breakVoted));
+  $('#yes').disabled = $('#no').disabled = !canVote;
+  $('#yes').textContent = phase === 'breakVote' ? '玩崩了' : '同意';
+  $('#no').textContent = phase === 'breakVote' ? '继续' : '否决';
+  const canRematch = bot && ['result', 'rematch'].includes(phase) && room.rematchEligibleUids?.includes(bot.uid) && !room.rematchVotes?.[bot.uid];
+  $('#rematch').disabled = !canRematch || Object.values(room?.rematchVotes || {}).includes('room');
+  $('#room').disabled = !canRematch;
+  $('#pause').checked = pausedAt != null;
+  $('#back').disabled = !room?.mockCanBack;
+  $('#advance').disabled = !room || (!room.mockCanForward && (!['countdown', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch'].includes(phase) || room.phaseDeadline == null));
 }
 
-function hydrateAvatars() {
-  const colors = [['#3154C7', '#E8EEFF'], ['#B94735', '#FFF0EC'], ['#187A61', '#E8F8F1'], ['#7447B8', '#F3ECFF']];
-  for (const image of app.querySelectorAll('img.avatar[data-avatar-name]')) {
-    const { initial, tone } = avatarDetails(image.dataset.avatarName);
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 152;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = colors[tone][1]; ctx.fillRect(0, 0, 152, 152);
-    ctx.fillStyle = colors[tone][0]; ctx.font = 'bold 64px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(initial.toUpperCase(), 76, 80);
-    image.src = canvas.toDataURL();
-  }
+function send(action, extra = {}) {
+  frame.contentWindow.postMessage({ type: 'mock-action', action, uid: select.value, ...extra }, location.origin);
 }
-
-function profileFor(scene) {
-  const total = scene === 'profile-empty' ? 0 : 12;
-  return {
-    user: { uid: 'A7K2M9QX', name: players[0].name, createdAt: Date.now() - 12 * 86400000 },
-    nameHistory: [{ name: players[0].name, changedAt: Date.now() }, { name: '沉默的柚子', changedAt: Date.now() - 7200000 }],
-    matches: Array.from({ length: Math.min(10, total) }, (_, index) => ({
-      id: `mock-${index}`, roomCode: `1234${index % 10}`, outcome: ['exact', 'voted', 'none'][index % 3],
-      totalRounds: 12, convergedRound: 2 + index, themeName: index % 2 ? '火锅' : null,
-      startedAt: Date.now() - index * 3600000, players: players.slice(0, 3).map((player) => player.name)
-    })),
-    page: 1, pageSize: 10, total
-  };
-}
-
-function render(scene) {
-  const profileScene = scene.startsWith('profile');
-  const room = profileScene ? null : roomFor(scene);
-  const isHome = scene.startsWith('home');
-  const state = { uid: 'a', user: { uid: 'a', name: players[0].name }, room,
-    profile: profileScene ? profileFor(scene) : null };
-  document.body.dataset.scene = isHome || profileScene ? 'home' : ['result', 'rematch', 'interrupted'].includes(room.phase) ? 'result' : room.phase;
-  stopStoryMotion();
-  app.innerHTML = shellMarkup(!isHome && !profileScene, state.user);
-  const stage = app.querySelector('#stage');
-  stage.innerHTML = profileScene ? profileMarkup(state)
-    : isHome ? homeMarkup(settings, scene === 'home-settings') : room.phase === 'lobby' ? lobbyMarkup(state)
-      : ['result', 'rematch', 'interrupted'].includes(room.phase) ? resultMarkup(state) : writingMarkup(state);
-  stopStoryMotion = observeStoryMotion(stage);
-  const countdown = app.querySelector('#countdown');
-  if (countdown) countdown.textContent = '23 秒';
-  const idle = app.querySelector('#idle-countdown');
-  if (idle) idle.textContent = '4:32';
-  hydrateAvatars();
-}
-const requested = new URL(location.href).searchParams.get('scene');
-select.value = scenes.some(([value]) => value === requested) ? requested : 'home';
-select.addEventListener('change', () => {
-  const url = new URL(location.href);
-  url.searchParams.set('scene', select.value);
-  window.history.replaceState(null, '', url);
-  render(select.value);
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== 'mock-state') return;
+  room = event.data.room;
+  pausedAt = event.data.mockPausedAt ?? room?.mockPausedAt ?? null;
+  render();
 });
-// Preview controls are deliberately inert; they must not act on a real room.
-app.addEventListener('click', (event) => event.preventDefault());
-app.addEventListener('submit', (event) => event.preventDefault());
-render(select.value);
+select.addEventListener('change', render);
+$('#add').addEventListener('click', () => send('add'));
+$('#remove').addEventListener('click', () => send('remove'));
+$('#ready').addEventListener('change', event => { send('ready', { ready: event.target.checked }); render(); });
+$('#start').addEventListener('click', () => send('start'));
+$('#submitWord').addEventListener('click', () => send('submitWord', { word: $('#word').value }));
+for (const [id, yes] of [['yes', true], ['no', false]]) $( `#${id}`).addEventListener('click', () => send(room.phase === 'breakVote' ? 'breakVote' : 'vote', { yes }));
+$('#rematch').addEventListener('click', () => send('rematch', { choice: 'rematch' }));
+$('#room').addEventListener('click', () => send('rematch', { choice: 'room' }));
+$('#pause').addEventListener('change', event => { send(event.target.checked ? 'pause' : 'resume'); render(); });
+$('#back').addEventListener('click', () => send('back'));
+const viewport = $('#viewport');
+let previewWidth = null;
+function updateViewport() {
+  const maximum = Math.floor(window.innerWidth);
+  viewport.min = String(Math.min(320, maximum));
+  viewport.max = String(maximum);
+  const width = previewWidth == null ? maximum : Math.min(previewWidth, maximum);
+  viewport.value = String(width);
+  frame.style.width = `${width}px`;
+  $('#viewport-value').textContent = `${width} px`;
+  viewport.setAttribute('aria-valuetext', `${width} 像素`);
+}
+viewport.addEventListener('input', () => {
+  previewWidth = Number(viewport.value) === Number(viewport.max) ? null : Number(viewport.value);
+  updateViewport();
+});
+updateViewport();
+$('#advance').addEventListener('click', () => send('advance'));
+render();
+
+const panel = $('#mock-panel');
+const handle = $('#drag-handle');
+let drag = null;
+function movePanel(x, y) {
+  const rect = panel.getBoundingClientRect();
+  panel.style.right = 'auto';
+  panel.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
+  panel.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
+}
+handle.addEventListener('pointerdown', event => {
+  if (event.button !== 0 || drag) return;
+  const rect = panel.getBoundingClientRect();
+  drag = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };
+  handle.setPointerCapture(event.pointerId);
+  panel.classList.add('dragging');
+  event.preventDefault();
+  handle.focus({ preventScroll: true });
+});
+handle.addEventListener('pointermove', event => {
+  if (drag?.id === event.pointerId) movePanel(event.clientX - drag.x, event.clientY - drag.y);
+});
+function endDrag(event) {
+  if (drag?.id !== event.pointerId) return;
+  drag = null;
+  panel.classList.remove('dragging');
+  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+}
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) handle.addEventListener(type, endDrag);
+handle.addEventListener('keydown', event => {
+  const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+  if (!direction) return;
+  event.preventDefault();
+  const rect = panel.getBoundingClientRect();
+  const step = event.shiftKey ? 32 : 8;
+  movePanel(rect.left + direction[0] * step, rect.top + direction[1] * step);
+});
+$('#collapse').addEventListener('click', () => {
+  const content = $('#panel-controls');
+  content.hidden = !content.hidden;
+  $('#collapse').textContent = content.hidden ? '展开' : '收起';
+  $('#collapse').setAttribute('aria-expanded', String(!content.hidden));
+  const rect = panel.getBoundingClientRect();
+  movePanel(rect.left, rect.top);
+});
+window.addEventListener('resize', () => {
+  updateViewport();
+  const rect = panel.getBoundingClientRect();
+  movePanel(rect.left, rect.top);
+});

@@ -1,12 +1,16 @@
 export class Socket {
   constructor({ onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection }) {
     this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection };
+    this.mock = Boolean(globalThis.__SYNCONYM_MOCK__);
+    this.identityKey = this.mock ? 'sy_mock_identity' : 'sy_identity';
+    this.uidKey = this.mock ? 'sy_mock_uid' : 'sy_uid';
+    this.leaveKey = this.mock ? 'sy_mock_pending_leave' : 'sy_pending_leave';
     let identity;
-    try { identity = JSON.parse(localStorage.getItem('sy_identity')); } catch { /* 无效的本地身份 */ }
+    try { identity = JSON.parse((this.mock ? sessionStorage : localStorage).getItem(this.identityKey)); } catch { /* 无效的本地身份 */ }
     this.uid = typeof identity?.uid === 'string' && typeof identity?.credential === 'string' ? identity.uid : '';
     this.credential = this.uid ? identity.credential : '';
     this.roomCode = new URLSearchParams(location.search).get('r') || '';
-    this.pendingLeave = sessionStorage.getItem('sy_pending_leave') || '';
+    this.pendingLeave = sessionStorage.getItem(this.leaveKey) || '';
     this.queue = [];
     this.closed = false;
     this.ready = false;
@@ -15,7 +19,7 @@ export class Socket {
   }
 
   connect() {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${this.mock ? '/__mock/ws' : '/ws'}`);
     this.ws = ws;
     ws.addEventListener('open', () => {
       this.send({ type: 'hello', uid: this.uid || undefined, credential: this.credential || undefined, roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave) }, true);
@@ -27,10 +31,10 @@ export class Socket {
         this.uid = message.uid;
         if (message.credential) {
           this.credential = message.credential;
-          localStorage.setItem('sy_identity', JSON.stringify({ uid: this.uid, credential: this.credential }));
+          (this.mock ? sessionStorage : localStorage).setItem(this.identityKey, JSON.stringify({ uid: this.uid, credential: this.credential }));
         }
-        localStorage.setItem('sy_uid', this.uid);
-        document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
+        (this.mock ? sessionStorage : localStorage).setItem(this.uidKey, this.uid);
+        if (!this.mock) document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
         if (this.pendingLeave && message.restored) {
           this.send({ type: 'leave' }, true);
           return;
@@ -55,9 +59,9 @@ export class Socket {
         // 我是新人：换掉本地身份，后续重连与请求都用新 uid。
         this.uid = message.uid;
         this.credential = message.credential || '';
-        if (this.credential) localStorage.setItem('sy_identity', JSON.stringify({ uid: this.uid, credential: this.credential }));
-        localStorage.setItem('sy_uid', this.uid);
-        document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
+        if (this.credential) (this.mock ? sessionStorage : localStorage).setItem(this.identityKey, JSON.stringify({ uid: this.uid, credential: this.credential }));
+        (this.mock ? sessionStorage : localStorage).setItem(this.uidKey, this.uid);
+        if (!this.mock) document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
         this.handlers.onIdentity?.(message);
       } else if (message.type === 'error') {
         this.handlers.onError?.(message.message);
@@ -75,6 +79,13 @@ export class Socket {
         return;
       }
       if (event.code === 4003) {
+        if (this.mock) {
+          sessionStorage.removeItem(this.identityKey);
+          sessionStorage.removeItem(this.leaveKey);
+          this.uid = ''; this.credential = ''; this.roomCode = ''; this.pendingLeave = '';
+          setTimeout(() => this.connect(), 100);
+          return;
+        }
         this.closed = true;
         this.handlers.onConnection?.('auth-failed');
         return;
@@ -88,13 +99,13 @@ export class Socket {
 
   clearLeave() {
     this.pendingLeave = '';
-    sessionStorage.removeItem('sy_pending_leave');
+    sessionStorage.removeItem(this.leaveKey);
   }
 
   send(message, immediate = false) {
     if (message.type === 'leave') {
       this.pendingLeave = this.roomCode;
-      if (this.pendingLeave) sessionStorage.setItem('sy_pending_leave', this.pendingLeave);
+      if (this.pendingLeave) sessionStorage.setItem(this.leaveKey, this.pendingLeave);
       this.queue.length = 0;
     }
     if (this.ws.readyState === WebSocket.OPEN && (immediate || this.ready)) {

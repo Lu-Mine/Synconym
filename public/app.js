@@ -27,6 +27,8 @@ import {
   writingMarkup
 } from './render.js';
 
+const MOCK = Boolean(window.__SYNCONYM_MOCK__);
+const APP_ROOT = MOCK ? '/__mock/play' : '/';
 const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
 const WRITE_COOLDOWN_MS = 520;
 const AVATAR_PALETTE = [
@@ -113,6 +115,7 @@ let currentScreen = '';
 // 每次渲染自增：用于丢弃 view transition 里尚未执行的过期快照。
 let renderGeneration = 0;
 let timeOffset = 0;
+const gameNow = () => MOCK && Number.isFinite(state.mockPausedAt ?? state.room?.mockPausedAt) ? (state.mockPausedAt ?? state.room.mockPausedAt) : Date.now() + timeOffset;
 let countdownTimer;
 let idleCountdownTimer;
 let idleFlashTimer;
@@ -202,7 +205,7 @@ async function checkJoinInput(input, version) {
   if (!code) { if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接'; return; }
   if (hint) hint.textContent = '';
   try {
-    const response = await fetch(`/api/rooms/${code}`, { cache: 'no-store' });
+    const response = await fetch(`${MOCK ? '/__mock' : ''}/api/rooms/${code}`, { cache: 'no-store' });
     const data = await response.json();
     if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
     if (!response.ok) { if (hint) hint.textContent = data.error || '房间不存在或无法加入'; return; }
@@ -333,8 +336,8 @@ function updateCountdown() {
   if (state.room?.phase === 'lobby' || !state.room) return;
   const tick = () => {
     const deadline = Number(state.room?.phaseDeadline);
-    const { seconds, grace, urgent } = countdownState(state.room, Date.now() + timeOffset);
-    if (state.room?.phase === 'writing' && deadline > 0 && !finalTypingSent && deadline - (Date.now() + timeOffset) <= 500) {
+    const { seconds, grace, urgent } = countdownState(state.room, gameNow());
+    if (state.room?.phase === 'writing' && deadline > 0 && !finalTypingSent && deadline - gameNow() <= 500) {
       finalTypingSent = true;
       sendTyping(true);
     }
@@ -357,7 +360,7 @@ function formatClock(seconds) {
 }
 
 function idleClockText(idleDeadline) {
-  const seconds = Math.max(0, Math.ceil((idleDeadline - (Date.now() + timeOffset)) / 1000));
+  const seconds = Math.max(0, Math.ceil((idleDeadline - gameNow()) / 1000));
   return seconds > 0 ? formatClock(seconds) : '即将关闭';
 }
 
@@ -470,7 +473,7 @@ function updateIdleCountdown() {
   }
   lastIdleDeadline = idleDeadline;
   const tick = () => {
-    const seconds = Math.max(0, Math.ceil((idleDeadline - (Date.now() + timeOffset)) / 1000));
+    const seconds = Math.max(0, Math.ceil((idleDeadline - gameNow()) / 1000));
     // 逐位回滚进行中不刷新数字，避免打断滚动
     if (element.dataset.rolling !== 'true') {
       paintIdleCountdown(element, seconds > 0 ? formatClock(seconds) : '即将关闭', false);
@@ -630,7 +633,7 @@ function requestProfile(page = 1) {
   if (query.id) { socket.send({ type: 'openMatch', id: query.id }, true); return; }
   query.page = page;
   state.historyQuery = query;
-  history.replaceState(null, '', `/${historyHref(query)}`);
+  history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
   socket.send({ type: 'openProfile', page: query.page, filter: historyFilter(query) }, true);
 }
 
@@ -639,7 +642,7 @@ function openProfile() {
   privacyOpen = false;
   profileOpen = true;
   state.profile = null;
-  history.pushState({ profile: true }, '', '/?me');
+  history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
   requestProfile(1);
   render();
 }
@@ -971,7 +974,7 @@ const socket = new Socket({
     state.profile = profile;
     const query = historyQuery(location.search);
     query.page = profile.page;
-    history.replaceState(null, '', `/${historyHref(query)}`);
+    history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
     render();
   },
   onMatchDetail(detail) {
@@ -1012,7 +1015,7 @@ const socket = new Socket({
         pendingTransfer = null;
         pendingLobbySettings = null;
         lastIdleDeadline = 0;
-        history.replaceState(null, '', `/?r=${next.room.code}`);
+        history.replaceState(null, '', `${APP_ROOT}?r=${next.room.code}`);
         history.pushState({ roomGuard: true }, '', location.href);
         roomHistoryGuard = true;
         previousRoomCode = next.room.code;
@@ -1024,8 +1027,9 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', '/');
+      if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', APP_ROOT);
     }
+    if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
     render();
     // 名字或身份变了：档案页跟着刷新一次
     if (profileOpen) requestProfile(state.profile?.page || historyQuery(location.search).page);
@@ -1043,6 +1047,10 @@ const socket = new Socket({
   },
   onToast: toast
 });
+if (MOCK) window.addEventListener('synconym-mock-action', (event) => {
+  if (event.detail && typeof event.detail.action === 'string') socket.send({ ...event.detail, type: 'mockAction' });
+});
+
 
 render({ forceFull: true });
 
@@ -1190,7 +1198,7 @@ app.addEventListener('click', async (event) => {
     profileOpen = false;
     privacyOpen = true;
     state.profile = null;
-    history.pushState({ privacy: true }, '', '/?privacy');
+    history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
     render();
     window.scrollTo(0, 0);
     return;
@@ -1208,7 +1216,7 @@ app.addEventListener('click', async (event) => {
       profileOpen = false;
       privacyOpen = false;
       state.profile = null;
-      if (location.search) history.replaceState(null, '', '/');
+      if (location.search) history.replaceState(null, '', APP_ROOT);
       render();
     }
     return;
@@ -1365,7 +1373,7 @@ app.addEventListener('click', async (event) => {
     const room = state.room;
     if (yes && !(await confirmBreakVote())) return;
     if (state.room?.phase !== 'breakVote' || state.room.code !== room.code || state.room.round !== room.round
-      || state.room.phaseDeadline !== room.phaseDeadline || Date.now() + timeOffset >= room.phaseDeadline || !socket.ready || gameUi.voted) return;
+      || state.room.phaseDeadline !== room.phaseDeadline || gameNow() >= room.phaseDeadline || !socket.ready || gameUi.voted) return;
     gameUi.voted = true;
     enqueueWrite({ type: 'breakVote', yes });
     render();
@@ -1414,7 +1422,7 @@ app.addEventListener('click', async (event) => {
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;
-    const url = `${state.publicUrl || location.origin}/?r=${state.room.code}`;
+    const url = `${MOCK ? location.origin + APP_ROOT : `${state.publicUrl || location.origin}/`}?r=${state.room.code}`;
     if (await copyText(url)) {
       button.classList.add('copied');
       setTimeout(() => button.classList.remove('copied'), 600);

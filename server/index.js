@@ -9,6 +9,7 @@ import { RoomManager } from './rooms.js';
 import { vectorInfo } from './similarity.js';
 import { createSecurityPolicy } from './security.js';
 import { loadConfig } from './config.js';
+import { createMockControls } from './mock.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -24,12 +25,16 @@ export function createSynconymServer({
 } = {}) {
   const security = createSecurityPolicy(securityConfig);
   const manager = new RoomManager({ db, maxRooms, publicUrl });
-  const issueCredential = (uid) => {
+  const mockDb = mock ? createDatabase(':memory:') : null;
+  const mockManager = mock ? new RoomManager({ db: mockDb, maxRooms }) : null;
+  const mockControls = mock ? createMockControls(mockManager) : null;
+  const credentialIssuer = (database) => (uid) => {
     const credential = randomBytes(32).toString('base64url');
-    db.setCredentialHash(uid, createHash('sha256').update(credential).digest());
+    database.setCredentialHash(uid, createHash('sha256').update(credential).digest());
     return credential;
   };
-  manager.issueCredential = issueCredential;
+  manager.issueCredential = credentialIssuer(db);
+  if (mockManager) mockManager.issueCredential = credentialIssuer(mockDb);
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -41,24 +46,27 @@ export function createSynconymServer({
         }));
         return;
       }
-      if (pathname === '/api/playing') {
+      if (pathname === '/api/playing' || (mock && pathname === '/__mock/api/playing')) {
+        const selectedManager = pathname.startsWith('/__mock/') ? mockManager : manager;
         response.setHeader('Content-Type', 'application/json; charset=utf-8');
         response.setHeader('Cache-Control', 'no-store');
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
         const playing = new Set();
-        for (const room of manager.rooms.values()) {
-          if (!['writing', 'voting', 'prepare', 'breakVote'].includes(room.phase)) continue;
+        for (const room of selectedManager.rooms.values()) {
+          if (!['countdown', 'writing', 'voting', 'prepare', 'breakVote'].includes(room.phase)) continue;
           for (const player of room.players) if (player.connected) playing.add(player.uid);
         }
         response.writeHead(200);
         response.end(JSON.stringify({ playing: playing.size }));
         return;
       }
-      if (pathname.startsWith('/api/rooms/')) {
+      if (pathname.startsWith('/api/rooms/') || (mock && pathname.startsWith('/__mock/api/rooms/'))) {
+        const simulated = pathname.startsWith('/__mock/');
+        const selectedManager = simulated ? mockManager : manager;
         response.setHeader('Content-Type', 'application/json; charset=utf-8');
         response.setHeader('Cache-Control', 'no-store');
-        const code = pathname.slice('/api/rooms/'.length);
-        const room = /^[0-9]{5}$/.test(code) ? manager.rooms.get(code) : null;
+        const code = pathname.slice((simulated ? '/__mock/api/rooms/' : '/api/rooms/').length);
+        const room = /^[0-9]{5}$/.test(code) ? selectedManager.rooms.get(code) : null;
         const error = !room ? '没有找到这个房间' : room.phase !== 'lobby' ? '这局已经开始' : room.players.length >= 4 ? '房间已满' : '';
         const host = room?.players.find((player) => player.uid === room.hostUid);
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
@@ -69,7 +77,7 @@ export function createSynconymServer({
       }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
         if (!mock) { response.writeHead(404); response.end('Not found'); return; }
-        const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js' };
+        const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js', '/__mock/play': 'play.html', '/__mock/control.js': 'control.js' };
         const file = mockFiles[pathname];
         if (!file) { response.writeHead(404); response.end('Not found'); return; }
         const mockRoot = resolve(root, '../dev');
@@ -90,9 +98,12 @@ export function createSynconymServer({
     }
   });
   // maxPayload 兜住超大帧：正常消息都在 1 KB 内，64 KB 已很宽松。
+  const managerForReal = manager, dbForReal = db;
+  let shuttingDown = false;
   const wss = new WebSocketServer({ noServer: true, maxPayload });
   server.on('upgrade', (request, socket, head) => {
-    if (new URL(request.url, 'http://localhost').pathname !== '/ws') { socket.destroy(); return; }
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (pathname !== '/ws' && !(mock && pathname === '/__mock/ws')) { socket.destroy(); return; }
     const ip = security.ipOf(request, socket);
     if (!security.tryAcquireConnection(ip)) { socket.destroy(); return; }
     let established = false;
@@ -100,6 +111,13 @@ export function createSynconymServer({
     wss.handleUpgrade(request, socket, head, (ws) => { established = true; wss.emit('connection', ws, request); });
   });
   wss.on('connection', (ws, request) => {
+    const simulated = new URL(request.url, 'http://localhost').pathname === '/__mock/ws';
+    const manager = simulated ? mockManager : managerForReal;
+    const db = simulated ? mockDb : dbForReal;
+    if (simulated) {
+      const send = ws.send.bind(ws);
+      ws.send = (data, ...args) => send(JSON.stringify(mockControls.annotate(JSON.parse(data))), ...args);
+    }
     const ip = security.ipOf(request, { remoteAddress: ws._socket?.remoteAddress });
     let connection, authenticationFailed = false, handshaken = false;
     const bucket = security.createMessageBucket();
@@ -137,7 +155,7 @@ export function createSynconymServer({
             return;
           }
           connection = manager.connect(message.uid);
-          if (message.uid === undefined) credential = issueCredential(connection.uid);
+          if (message.uid === undefined) credential = manager.issueCredential(connection.uid);
           handshaken = true;
           clearTimeout(handshakeTimer);
           connection.ws = ws;
@@ -170,7 +188,8 @@ export function createSynconymServer({
             ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
             return;
           }
-          manager.handle(connection, message);
+          if (simulated && message.type === 'mockAction') mockControls.handle(connection, message);
+          else manager.handle(connection, message);
         } else {
           throw new Error('连接尚未就绪');
         }
@@ -178,7 +197,7 @@ export function createSynconymServer({
         ws.send(JSON.stringify({ type: 'error', message: error.message || '操作失败' }));
       }
     });
-    ws.on('close', () => { release(); if (connection) manager.disconnect(connection); });
+    ws.on('close', () => { release(); if (connection && !shuttingDown) manager.disconnect(connection); });
     ws.on('error', () => {});
   });
   const heartbeat = setInterval(() => {
@@ -187,11 +206,13 @@ export function createSynconymServer({
       ws.isAlive = false; ws.ping();
     }
   }, 30000);
-  const cleanup = setInterval(() => manager.cleanup(), 30000);
+  const cleanup = setInterval(() => { manager.cleanup(); mockManager?.cleanup(); }, 30000);
   heartbeat.unref(); cleanup.unref();
   server.on('close', () => {
+    shuttingDown = true;
     clearInterval(heartbeat); clearInterval(cleanup); security.close();
     manager.close();
+    mockManager?.close(); mockDb?.close();
     for (const ws of wss.clients) ws.terminate();
     wss.close(); db.close();
   });

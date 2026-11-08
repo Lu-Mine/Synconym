@@ -8,7 +8,7 @@ export function playingText(count) {
 export async function refreshPlayingCount(element, fetcher = fetch) {
   if (!element) return;
   try {
-    const response = await fetcher('/api/playing', { cache: 'no-store' });
+    const response = await fetcher(`${globalThis.__SYNCONYM_MOCK__ ? '/__mock' : ''}/api/playing`, { cache: 'no-store' });
     if (!response.ok) throw new Error('人数暂不可用');
     const { playing } = await response.json();
     const text = playingText(playing);

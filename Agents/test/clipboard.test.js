@@ -49,7 +49,7 @@ test('房间复制按钮复制邀请链接，失败时提供实际链接手动�
     const calls = [];
     const context = {
       event: { preventDefault() {} }, state: { room: { code: '12345' }, publicUrl: 'https://example.com' },
-      location: { origin: 'http://localhost' }, button: { classList: { add: () => calls.push('copied'), remove() {} }, insertAdjacentElement() {} },
+      location: { origin: 'http://localhost' }, MOCK: false, button: { classList: { add: () => calls.push('copied'), remove() {} }, insertAdjacentElement() {} },
       copyText: async (text) => { calls.push(text); return success; },
       toast: (message) => calls.push(message), setTimeout() {},
       openInvite: (url) => calls.push(['dialog', url])
