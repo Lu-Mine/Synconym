@@ -516,6 +516,12 @@ export function playerItemMarkup(player, room, uid) {
   </li>`;
 }
 
+export function lobbyPlayersMarkup(room, uid) {
+  const players = room.players.map((player) => playerItemMarkup(player, room, uid)).join('');
+  const emptySeats = '<li class="player player-empty"><span class="player-empty-avatar" aria-hidden="true"></span><span>2–4 人即可开玩</span></li>';
+  return players + emptySeats.repeat(Math.max(0, 4 - room.players.length));
+}
+
 export function settingsBlockMarkup(room, host) {
   return `<section class="surface-block settings-block">
     <div class="section-heading">
@@ -561,7 +567,7 @@ export function lobbyMarkup(state) {
         <span class="player-count" id="player-count">${room.players.length} / 4</span>
       </div>
       <ul class="player-list" id="player-list">
-        ${room.players.map((player) => playerItemMarkup(player, room, uid)).join('')}
+        ${lobbyPlayersMarkup(room, uid)}
       </ul>
     </section>
     </div>

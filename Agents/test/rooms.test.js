@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager, createMemoryDb } from '../../server/rooms.js';
 import { DEFAULT_SETTINGS, isValidUid, normalizeWord, validateCode, validateName, validateSettings } from '../../server/rules.js';
-import { avatarDetails, homeMarkup, lobbyMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../../public/render.js';
+import { avatarDetails, homeMarkup, lobbyMarkup, lobbyPlayersMarkup, playerItemMarkup, shellMarkup, thoughtPathMarkup, writingMarkup } from '../../public/render.js';
 import { parseRoomCode } from '../../public/room-code.js';
 
 function client(manager, uid) {
@@ -11,6 +11,19 @@ function client(manager, uid) {
   return connection;
 }
 function passRateLimit(t) { t.mock.timers.tick(501); }
+
+test('房间玩家列表始终显示四个席位，离线玩家保留席位', () => {
+  const players = Array.from({ length: 4 }, (_, seat) => ({ uid: `player${seat}`, name: `玩家${seat}`, seat, connected: seat !== 1 }));
+  for (let count = 1; count <= 4; count++) {
+    const room = { code: '12345', phase: 'lobby', hostUid: players[0].uid, players: players.slice(0, count), settings: {} };
+    const list = lobbyPlayersMarkup(room, players[0].uid);
+    assert.equal((list.match(/<li class="player /g) || []).length, 4);
+    assert.equal((list.match(/player-empty"/g) || []).length, 4 - count);
+    assert.match(lobbyMarkup({ room, uid: players[0].uid }), new RegExp(`${count} / 4`));
+    if (count < 4) assert.match(list, /2–4 人即可开玩/);
+    if (count > 1) assert.match(list, /连接中断/);
+  }
+});
 
 test('名字默认生成，改名保留 uid 并写入数据库', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });

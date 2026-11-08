@@ -1,4 +1,5 @@
 import { historyQuery, historyFilter, historyHref, parseHistoryTime } from './match-history.js';
+import { matchDetailMarkup } from './render.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
@@ -12,7 +13,7 @@ import {
   homeMarkup,
   icon,
   lobbyMarkup,
-  matchDetailMarkup,
+  lobbyPlayersMarkup,
   playerItemMarkup,
   privacyMarkup,
   profileMarkup,
@@ -812,7 +813,7 @@ function patchLobbyDOM(nextState) {
   }
 
   if (list) {
-    patchMarkup(list, room.players.map((player) => playerItemMarkup(player, room, uid)).join(''));
+    patchMarkup(list, lobbyPlayersMarkup(room, uid));
     hydrateAvatars(list);
 
     for (const item of list.querySelectorAll('.player[data-uid]')) {
