@@ -41,9 +41,15 @@ export function validateSettings(settings) {
     throw new Error('时限设置无效');
   }
   if (typeof raw.banRepeat !== 'boolean') throw new Error('重复词设置无效');
+  const passwordEnabled = raw.passwordEnabled ?? false;
+  if (typeof passwordEnabled !== 'boolean') throw new Error('密码设置无效');
+  if (passwordEnabled && (typeof raw.password !== 'string' || !/^[0-9]{6}$/.test(raw.password))) {
+    throw new Error('请输入 6 位数字密码');
+  }
   return {
     mode: raw.mode, maxRounds, writeSeconds,
-    prepareSeconds, banRepeat: raw.banRepeat
+    prepareSeconds, banRepeat: raw.banRepeat,
+    passwordEnabled, password: passwordEnabled ? raw.password : ''
   };
 }
 

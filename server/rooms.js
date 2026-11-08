@@ -137,6 +137,8 @@ export class RoomManager {
         code: room.code, mode: room.mode, themeId: room.themeId ?? null, themeName: room.themeName ?? null,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
+        passwordEnabled: Boolean(room.passwordEnabled),
+        ...(room.hostUid === connection.uid ? { password: room.password || '' } : {}),
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
         prepareGraceDeadline: room.prepareGraceDeadline ?? null,
         hostUid: room.hostUid, idleDeadline: room.lastActiveAt + ROOM_IDLE_MS,
@@ -590,10 +592,11 @@ export class RoomManager {
         if (!target) throw new Error('没有找到这个房间');
         if (target.phase !== 'lobby') throw new Error('这局已经开始');
         if (target.players.length >= 4) throw new Error('房间已满');
+        if (target.passwordEnabled && message.password !== target.password) throw new Error('房间密码错误，请输入房主提供的 6 位数字密码');
       }
+      const settings = type === 'createRoom' ? validateSettings(message) : null;
       this.detach(connection, true);
       if (type === 'createRoom') {
-        const settings = validateSettings(message);
         const code = this.makeCode();
         target = {
           code, ...settings, phase: 'lobby', round: 0, hostUid: connection.uid,
@@ -620,7 +623,7 @@ export class RoomManager {
       case 'updateSettings': {
         if (current.hostUid !== connection.uid) throw new Error('只有房主可以修改设置');
         if (current.phase !== 'lobby') throw new Error('开局后不能修改设置');
-        Object.assign(current, validateSettings(message));
+        Object.assign(current, validateSettings({ ...current, ...message }));
         current.themeId = null; current.themeName = null;
         break;
       }

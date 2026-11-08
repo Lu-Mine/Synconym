@@ -72,7 +72,7 @@ export function createSynconymServer({
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
         if (error || !host) { response.writeHead(404); response.end(JSON.stringify({ error: error || '没有找到这个房间' })); return; }
         response.writeHead(200);
-        response.end(JSON.stringify({ code, host: { uid: host.uid, name: host.name, seat: host.seat, connected: host.connected } }));
+        response.end(JSON.stringify({ code, passwordEnabled: Boolean(room.passwordEnabled), host: { uid: host.uid, name: host.name, seat: host.seat, connected: host.connected } }));
         return;
       }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {

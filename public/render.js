@@ -49,7 +49,8 @@ const SETTING_VALUE_TEXT = {
   maxRounds: (settings) => `${settings.maxRounds} 轮`,
   writeSeconds: (settings) => `${settings.writeSeconds} 秒`,
   prepareSeconds: (settings) => `${settings.prepareSeconds} 秒`,
-  banRepeat: (settings) => (settings.banRepeat ? '开启' : '关闭')
+  banRepeat: (settings) => (settings.banRepeat ? '开启' : '关闭'),
+  passwordEnabled: (settings) => (settings.passwordEnabled ? '开启' : '关闭')
 };
 
 const DURATIONS = [15, 30, 45, 60];
@@ -105,6 +106,12 @@ export function settingsMarkup(settings, editable) {
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="banRepeat">禁止重复词</label>' : '<span class="setting-label">禁止重复词</span>'}
       ${control('banRepeat', 'switch', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
+    </div>
+    <div class="setting-row password-setting-row">
+      ${editable ? `<label class="setting-label" for="room-password">设置密码</label>
+      <input class="input code-input password-input" id="room-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" spellcheck="false" value="${escapeHtml(settings.password || '')}" aria-describedby="room-password-hint">
+      <p class="password-setting-hint" id="room-password-hint">留空无密码，或 6 位数字密码</p>`
+      : `<span class="setting-label">设置密码</span>${settingValueMarkup('passwordEnabled', settings, 'switch')}`}
     </div>
   </section>`;
 }
@@ -188,6 +195,11 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       <div class="rename-dialog-heading"><h2 id="join-title">确认加入房间？</h2><button class="icon-button" type="button" data-action="cancel-join" aria-label="取消">${icon('x')}</button></div>
       <p class="transfer-hint" id="join-room-number"></p>
       <ul class="player-list" id="join-host"></ul>
+      <div id="join-password-fields" hidden>
+        <label for="join-password">房间密码</label>
+        <input class="input code-input password-input" id="join-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" aria-describedby="join-password-hint">
+        <p class="hint" id="join-password-hint">此房间已设置密码，请输入房主提供的 6 位数字密码。</p>
+      </div>
       <div class="rename-dialog-actions"><button class="button secondary" type="button" data-action="cancel-join"><span>取消</span>${icon('x')}</button><button class="button primary" type="button" data-action="confirm-join"><span>加入房间</span>${icon('check')}</button></div>
     </section>
   </div>

@@ -11,7 +11,11 @@ export function parseRoomCode(value) {
   }
 }
 
-export function sanitizeRoomInput(value) {
+export function sanitizeNumericInput(value, length) {
   return String(value || '').replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
-    .replace(/[^0-9]/g, '').slice(0, 5);
+    .replace(/[^0-9]/g, '').slice(0, length);
+}
+
+export function sanitizeRoomInput(value) {
+  return sanitizeNumericInput(value, 5);
 }

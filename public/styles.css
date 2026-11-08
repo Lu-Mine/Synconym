@@ -2460,6 +2460,21 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .match-detail-aside { grid-column: 2; }
 }
 
+#join-password-fields:not([hidden]) {
+  display: grid;
+  gap: 8px;
+  padding-block: 12px;
+}
+#join-password-fields label { font-size: 14px; font-weight: 600; }
+#join-password-fields .hint {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 13px;
+}
+
+.setting-row.password-setting-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+.password-input.input { width: 136px; min-width: 0; height: 38px; padding: 6px 10px; text-align: center; }
+.password-setting-hint { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--ink-secondary); }
 input[aria-invalid="true"], input[aria-invalid="true"]:focus {
   border-color: #C93627;
   background-color: var(--vermilion-soft);

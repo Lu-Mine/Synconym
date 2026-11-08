@@ -4,7 +4,7 @@ import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
 import { copyText, readClipboardText } from './clipboard.js';
-import { parseRoomCode, sanitizeRoomInput } from './room-code.js';
+import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
 import {
@@ -221,14 +221,23 @@ async function checkJoinInput(input, version) {
     app.querySelector('#join-room-number').textContent = `房号 ${code}`;
     host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
     hydrateAvatars(host);
-    pendingJoin = { code, trigger: input };
+    pendingJoin = { code, trigger: input, passwordEnabled: Boolean(data.passwordEnabled) };
+    modal.querySelector('#join-password-fields').hidden = !data.passwordEnabled;
+    modal.querySelector('#join-password').value = '';
     modal.removeAttribute('inert');
     modal.classList.add('is-open');
     syncModalScrollLock();
-    modal.querySelector('.button[data-action="cancel-join"]').focus({ preventScroll: true });
+    modal.querySelector(data.passwordEnabled ? '#join-password' : '.button[data-action="cancel-join"]').focus({ preventScroll: true });
   } catch {
     if (version === joinCheckVersion && input.isConnected && !state.room && !profileOpen) toast('无法查询房间，请稍后重试');
   }
+}
+
+function requestJoin(code) {
+  const input = app.querySelector('#room-code');
+  if (!input) return;
+  input.value = code;
+  checkJoinOnInput(input, true);
 }
 
 function checkJoinOnInput(input, pasted = false) {
@@ -554,6 +563,8 @@ function patchSettingsDOM(values, editable) {
     switchBtn.setAttribute('aria-checked', String(Boolean(values.banRepeat)));
     switchBtn.disabled = !editable;
   }
+  const passwordInput = section.querySelector('#room-password');
+  if (passwordInput && document.activeElement !== passwordInput) passwordInput.value = values.password || '';
 
   for (const node of section.querySelectorAll('[data-setting-value]')) {
     const markup = settingValueMarkup(node.dataset.settingValue, values, node.dataset.control);
@@ -987,13 +998,15 @@ function enqueueWrite(message) {
 function scheduleLobbySettingsSync(nextSettings) {
   pendingLobbySettings = nextSettings;
   patchSettingsDOM(nextSettings, true);
+  if (nextSettings.passwordEnabled && !/^[0-9]{6}$/.test(nextSettings.password || '')) return;
   enqueueWrite({
     type: 'updateSettings',
     mode: nextSettings.mode,
     maxRounds: nextSettings.maxRounds,
     writeSeconds: nextSettings.writeSeconds,
     prepareSeconds: nextSettings.prepareSeconds,
-    banRepeat: nextSettings.banRepeat
+    banRepeat: nextSettings.banRepeat,
+    passwordEnabled: Boolean(nextSettings.passwordEnabled), password: nextSettings.password || ''
   });
 }
 
@@ -1012,7 +1025,7 @@ const socket = new Socket({
   },
   onHello(message) {
     const code = socket.roomCode;
-    if (code && !message.restored) enqueueWrite({ type: 'joinRoom', code });
+    if (code && !message.restored) requestJoin(code);
   },
   onProfile(profile) {
     if (!profileOpen || historyQuery(location.search).id) return;
@@ -1080,10 +1093,18 @@ const socket = new Socket({
     if (profileOpen) requestProfile(state.profile?.page || historyQuery(location.search).page);
   },
   onError(message) {
+    if (pendingJoin) {
+      if (message.includes('密码')) {
+        pendingJoin.passwordEnabled = true;
+        app.querySelector('#join-password-fields').hidden = false;
+        app.querySelector('#join-password').focus();
+      }
+    }
     if (profileOpen && !state.room && !historyQuery(location.search).id) {
       state.profileError = message;
       render();
     }
+    pendingLobbySettings = null;
     gameUi.submitted = false;
     gameUi.voted = false;
     gameUi.ready = false;
@@ -1102,7 +1123,22 @@ if (MOCK) window.addEventListener('synconym-mock-action', (event) => {
 
 render({ forceFull: true });
 
+function acceptPasswordInput(input) {
+  const cursor = input.selectionStart;
+  const before = cursor == null ? null : sanitizeNumericInput(input.value.slice(0, cursor), 6).length;
+  input.value = sanitizeNumericInput(input.value, 6);
+  if (before != null) input.setSelectionRange(before, before);
+  if (input.id === 'join-password') return;
+  const base = state.room ? (pendingLobbySettings || state.room) : settings;
+  const next = { ...base, password: input.value, passwordEnabled: input.value.length > 0 };
+  if (state.room) scheduleLobbySettingsSync(next);
+  else settings = next;
+}
+
 app.addEventListener('invalid', (event) => markInvalid(event.target), true);
+app.addEventListener('focusout', (event) => {
+  if (['room-password', 'join-password'].includes(event.target.id) && event.target.value && !/^[0-9]{6}$/.test(event.target.value)) markInvalid(event.target);
+});
 app.addEventListener('input', (event) => {
   event.target.removeAttribute('aria-invalid');
   event.target.classList.remove('input-shake');
@@ -1110,12 +1146,14 @@ app.addEventListener('input', (event) => {
     syncHistoryTimeBadge();
     if (!event.isComposing) scheduleHistorySearch(event.target.value);
   }
+  if (['room-password', 'join-password'].includes(event.target.id) && !event.isComposing) acceptPasswordInput(event.target);
 });
 
 app.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
   if (event.target.id === 'create-form') {
+    if (settings.passwordEnabled && !/^[0-9]{6}$/.test(settings.password || '')) { markInvalid(app.querySelector('#room-password')); toast('请输入 6 位数字密码'); return; }
     enqueueWrite({ type: 'createRoom', ...settings });
   } else if (event.target.id === 'join-form') {
     const input = event.target.querySelector('#room-code');
@@ -1171,6 +1209,7 @@ app.addEventListener('input', (event) => {
 });
 
 app.addEventListener('compositionend', (event) => {
+  if (['room-password', 'join-password'].includes(event.target.id)) acceptPasswordInput(event.target);
   if (event.target.id === 'room-code') {
     event.target.value = sanitizeRoomInput(event.target.value);
     checkJoinOnInput(event.target);
@@ -1182,7 +1221,7 @@ app.addEventListener('keydown', (event) => {
   if (pendingJoin) {
     if (event.key === 'Escape') { event.preventDefault(); closeJoin(); return; }
     if (event.key === 'Tab') {
-      const controls = [...app.querySelectorAll('#join-modal .rename-dialog button:not(:disabled)')];
+      const controls = [...app.querySelectorAll('#join-modal .rename-dialog button:not(:disabled), #join-password-fields:not([hidden]) input')];
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -1278,8 +1317,14 @@ app.addEventListener('click', async (event) => {
   if (button.dataset.action === 'cancel-join') { closeJoin(); return; }
   if (button.dataset.action === 'confirm-join') {
     const code = pendingJoin?.code;
-    closeJoin();
-    if (code) enqueueWrite({ type: 'joinRoom', code });
+    const password = app.querySelector('#join-password').value;
+    if (pendingJoin?.passwordEnabled && !/^[0-9]{6}$/.test(password)) {
+      toast('请输入 6 位数字密码');
+      markInvalid(app.querySelector('#join-password'));
+      app.querySelector('#join-password').focus();
+      return;
+    }
+    if (code) enqueueWrite({ type: 'joinRoom', code, password });
     return;
   }
   if (button.dataset.action === 'paste-invite') {
@@ -1375,6 +1420,7 @@ app.addEventListener('click', async (event) => {
 
     if (state.room) {
       scheduleLobbySettingsSync({
+        passwordEnabled: base.passwordEnabled, password: base.password,
         mode: base.mode,
         maxRounds: base.maxRounds,
         writeSeconds: base.writeSeconds,
@@ -1398,6 +1444,7 @@ app.addEventListener('click', async (event) => {
 
     if (state.room) {
       scheduleLobbySettingsSync({
+        passwordEnabled: base.passwordEnabled, password: base.password,
         mode: base.mode,
         maxRounds,
         writeSeconds: base.writeSeconds,

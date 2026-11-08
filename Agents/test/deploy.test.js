@@ -38,7 +38,7 @@ test('房间预览只返回房主信息，不改变房间，拒绝不存在、�
   const response = await fetch(url);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await response.json(), { code: '12345', host: { uid: host.uid, name: host.name, seat: 0, connected: true } });
+  assert.deepEqual(await response.json(), { code: '12345', passwordEnabled: false, host: { uid: host.uid, name: host.name, seat: 0, connected: true } });
   assert.equal(room.players.length, 1);
   assert.equal((await fetch(url, { method: 'POST' })).status, 405);
   assert.equal((await fetch(`http://127.0.0.1:${port}/api/rooms/99999`)).status, 404);
