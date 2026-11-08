@@ -325,7 +325,6 @@ test('加入房间输入框支持房号和邀请链接，并调起数字键盘',
   assert.match(home, /placeholder="输入 5 位数房间号，或直接粘贴邀请链接"/);
   assert.match(home, /data-action="paste-invite"><svg[^>]*><use href="\/icons\.svg#icon-clipboard-paste"><\/use><\/svg><span>粘贴邀请链接<\/span>/);
   assert.doesNotMatch(home, /class="button secondary join-submit"/);
-  assert.match(home, /id="join-hint" role="status"/);
   assert.equal(parseRoomCode('63068'), '63068');
   assert.equal(parseRoomCode(' ６３０６８ '), '63068');
   assert.equal(parseRoomCode('http://example.com/?r=63068'), '63068');

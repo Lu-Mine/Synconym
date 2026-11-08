@@ -54,6 +54,7 @@ export class RoomManager {
     this.maxRooms = maxRooms;
     this.rooms = new Map();
     this.clients = new Map();
+    this.recentRooms = new Map();
     this.connections = new Set();
   }
 
@@ -127,12 +128,31 @@ export class RoomManager {
     }
   }
 
+  rememberDeparture(uid, room, at = Date.now()) {
+    if (room && this.rooms.get(room.code) === room) {
+      const previous = this.recentRooms.get(uid);
+      const expiresAt = at + ROOM_IDLE_MS;
+      if (!previous || previous.expiresAt <= expiresAt) this.recentRooms.set(uid, { room, expiresAt });
+    }
+  }
+
+  recentRoomFor(uid) {
+    const recent = this.recentRooms.get(uid);
+    if (!recent) return null;
+    if (recent.expiresAt <= Date.now() || this.rooms.get(recent.room.code) !== recent.room) {
+      this.recentRooms.delete(uid);
+      return null;
+    }
+    return { code: recent.room.code, expiresAt: recent.expiresAt };
+  }
+
   sendState(connection, room = this.rooms.get(connection.roomCode)) {
     if (connection.ws?.readyState !== 1) return;
     const user = this.db.getPlayer(connection.uid);
     connection.ws.send(JSON.stringify({
       type: 'state', uid: connection.uid, user: { uid: user.uid, name: user.name },
       publicUrl: this.publicUrl?.replace(/\/$/, '') || undefined,
+      recentRoom: this.recentRoomFor(connection.uid),
       room: room ? {
         code: room.code, mode: room.mode, themeId: room.themeId ?? null, themeName: room.themeName ?? null,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
@@ -405,6 +425,13 @@ export class RoomManager {
     clearTimeout(room.timer);
     this.rooms.delete(room.code);
     clearTimeout(room.prepareGraceTimer);
+    for (const [uid, recent] of this.recentRooms) {
+      if (recent.room !== room) continue;
+      this.recentRooms.delete(uid);
+      for (const connection of this.connections) {
+        if (connection.uid === uid && !connection.roomCode) this.sendState(connection, null);
+      }
+    }
     for (const connection of this.clients.values()) {
       if (connection.roomCode !== room.code) continue;
       connection.roomCode = null;
@@ -430,6 +457,7 @@ export class RoomManager {
       && ['rematch', 'room'].includes(room.rematchVotes[player.uid]));
     const restart = retained.length >= 2 && retained.every((player) => room.rematchVotes[player.uid] === 'rematch');
     for (const player of room.players.filter((player) => !retained.includes(player))) {
+      this.rememberDeparture(player.uid, room, player.disconnectedAt ?? Date.now());
       const connection = this.clients.get(player.uid);
       if (connection?.roomCode !== room.code) continue;
       connection.roomCode = null;
@@ -476,6 +504,7 @@ export class RoomManager {
     }
     if (!room) { connection.roomCode = null; return; }
     const player = room.players.find((item) => item.uid === connection.uid);
+    if (player) this.rememberDeparture(connection.uid, room);
     connection.roomCode = null;
     if (remove) {
       const removed = removePlayer(room, connection.uid);
@@ -537,6 +566,11 @@ export class RoomManager {
       throw new Error('操作太频繁，请稍后再试');
     }
     if (typing) connection.lastTyping = now; else connection.lastWrite = now;
+    if (type === 'joinRecentRoom') {
+      const recent = this.recentRoomFor(connection.uid);
+      if (!recent || recent.code !== message.code || connection.roomCode) throw new Error('最近退出的房间已失效');
+      type = 'joinRoom';
+    }
     const room = connection.roomCode ? this.rooms.get(connection.roomCode) : null;
     if (type === 'leave') {
       this.detach(connection, true);
@@ -749,6 +783,7 @@ export class RoomManager {
   }
 
   cleanup(now = Date.now()) {
+    for (const [uid, recent] of this.recentRooms) if (recent.expiresAt <= now) this.recentRooms.delete(uid);
     for (const [code, room] of this.rooms) {
       if (['result', 'rematch'].includes(room.phase)) {
         if (now >= room.rematchDeadline) this.finishRematch(room, true);
@@ -757,6 +792,7 @@ export class RoomManager {
       const expired = room.players.filter((player) => disconnectExpired(player, now));
       if (expired.length) {
         for (const player of expired) {
+          this.rememberDeparture(player.uid, room, player.disconnectedAt ?? now);
           removePlayer(room, player.uid);
           this.toast(room, 'expired', player);
           const connection = this.clients.get(player.uid);

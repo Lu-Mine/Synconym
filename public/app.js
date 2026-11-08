@@ -117,6 +117,7 @@ let renderGeneration = 0;
 let timeOffset = 0;
 const gameNow = () => MOCK && Number.isFinite(state.mockPausedAt ?? state.room?.mockPausedAt) ? (state.mockPausedAt ?? state.room.mockPausedAt) : Date.now() + timeOffset;
 let countdownTimer;
+let recentRoomTimer;
 let idleCountdownTimer;
 let idleFlashTimer;
 let lastIdleDeadline = 0;
@@ -147,6 +148,18 @@ function syncConnectionUI() {
       : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';
   }
   app.querySelector('#stage')?.toggleAttribute('inert', connectionStatus !== 'connected');
+}
+
+function syncRecentRoomDOM() {
+  clearTimeout(recentRoomTimer);
+  const button = app.querySelector('#recent-room');
+  const recent = state.recentRoom;
+  const remaining = Number(recent?.expiresAt) - gameNow();
+  if (!button) return;
+  button.hidden = !recent || remaining <= 0;
+  if (button.hidden) return;
+  button.querySelector('strong').textContent = recent.code;
+  recentRoomTimer = setTimeout(syncRecentRoomDOM, remaining);
 }
 
 function closeConfirm(accepted = false) {
@@ -867,6 +880,7 @@ function patchSameScene(stage, nextScreen) {
   }
   if (nextScreen === 'home' && stage.querySelector('.home-page') && patchSettingsDOM(settings, true)) {
     syncHomeDrawerDOM();
+    syncRecentRoomDOM();
     return true;
   }
   if (nextScreen === 'lobby' && patchLobbyDOM(state)) {
@@ -929,6 +943,7 @@ function replaceScene(stage, nextScreen, generation) {
     stopStoryMotion();
     stopJoinPlaceholder();
     stage.innerHTML = html;
+    if (nextScreen === 'home') syncRecentRoomDOM();
     stopJoinPlaceholder = observeJoinPlaceholder(stage);
     if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
     stopStoryMotion = observeStoryMotion(stage);
@@ -1325,6 +1340,13 @@ app.addEventListener('click', async (event) => {
       return;
     }
     if (code) enqueueWrite({ type: 'joinRoom', code, password });
+    return;
+  }
+  if (button.dataset.action === 'join-recent-room') {
+    const recent = state.recentRoom;
+    if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
+    if (recent && Number(recent.expiresAt) > gameNow()) requestJoin(recent.code);
+    else syncRecentRoomDOM();
     return;
   }
   if (button.dataset.action === 'paste-invite') {

@@ -70,3 +70,15 @@ test('输入满五位或粘贴后立即检测，不因停顿检测未完成的�
   assert.deepEqual(calls.map(([value]) => value), ['12345', 'https://example.com/?r=63068', '错误链接']);
   assert.equal(context.joinCheckVersion, 4);
 });
+
+test('输入错误使用顶部提示，不保留框下错误区域', () => {
+  assert.doesNotMatch(source, /#join-error|#join-hint/);
+  assert.doesNotMatch(shellMarkup(), /id="join-error"/);
+  const branch = source.match(/if \(button\.dataset\.action === 'confirm-join'\)[\s\S]*?(?=  if \(button\.dataset\.action === 'join-recent-room'\))/)[0];
+  const messages = [];
+  let marked = false;
+  const context = { button: { dataset: { action: 'confirm-join' } }, pendingJoin: { code: '12345', passwordEnabled: true }, app: { querySelector: () => ({ value: '12', focus() {} }) }, toast: (message) => messages.push(message), markInvalid: () => { marked = true; }, enqueueWrite: () => assert.fail('非法密码不能提交') };
+  runInNewContext(`(() => {${branch}})()`, context);
+  assert.deepEqual(messages, ['请输入 6 位数字密码']);
+  assert.equal(marked, true);
+});
