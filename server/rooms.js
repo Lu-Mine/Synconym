@@ -359,6 +359,7 @@ export class RoomManager {
   finishVote(room, early = false) {
     const active = this.active(room);
     room.currentRecord.votes = Object.fromEntries(active.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === true]));
+    room.currentRecord.voteChoices = Object.fromEntries(active.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === undefined ? 'timeout' : p.vote ? 'yes' : 'no']));
     const passed = active.length >= 2 && active.every((p) => p.vote === true);
     for (const connection of this.clients.values()) {
       if (connection.roomCode === room.code && connection.ws?.readyState === 1) {
@@ -368,10 +369,16 @@ export class RoomManager {
     this.finishRound(room, passed ? 'voted' : 'miss');
   }
 
-  finishBreakVote(room) {
+  finishBreakVote(room, timedOut = false) {
     if (room.phase !== 'breakVote') return;
     const players = room.players;
     const yes = players.filter((p) => p.breakVote === true).length;
+    const record = room.history.at(-1);
+    if (record?.n === room.round) record.breakVote = {
+      passed: yes * 2 >= players.length,
+      choices: Object.fromEntries(players.filter((p) => p.breakVote !== undefined || timedOut)
+        .map((p) => [p.uid, p.breakVote === undefined ? 'timeout' : p.breakVote ? 'yes' : 'no']))
+    };
     if (yes * 2 >= players.length) {
       room.outcome = 'break';
       room.dropped = true;
@@ -494,7 +501,7 @@ export class RoomManager {
     else if (room.phase === 'writing') this.reveal(room);
     else if (room.phase === 'voting') this.finishVote(room);
     else if (room.phase === 'prepare') this.startWriting(room);
-    else if (room.phase === 'breakVote') this.finishBreakVote(room);
+    else if (room.phase === 'breakVote') this.finishBreakVote(room, true);
     else if (['result', 'rematch'].includes(room.phase)) this.finishRematch(room, true);
   }
   close() { for (const room of this.rooms.values()) { clearTimeout(room.timer); clearTimeout(room.prepareGraceTimer); } }

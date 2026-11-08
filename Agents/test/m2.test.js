@@ -51,6 +51,7 @@ test('投票保密、超时算否、准备以及重复词拒绝', (t) => {
   assert.equal(state.votes, null); assert.equal(state.players.find((p) => p.uid === a.uid).voted, true);
   manager.advanceDeadline(room);
   assert.equal(room.phase, 'prepare'); assert.equal(room.history[0].votes[b.uid], false);
+  assert.deepEqual(room.history[0].voteChoices, { [a.uid]: 'yes', [b.uid]: 'timeout' });
   send(a, { type: 'ready' }); send(b, { type: 'ready' });
   assert.equal(room.phase, 'writing'); assert.equal(room.round, 2);
   assert.throws(() => send(a, { type: 'submitWord', word: '苹果' }), /用过/);
@@ -68,6 +69,7 @@ test('一票反对立即结束投票，未投者不记为反对', (t) => {
   send(a, { type: 'vote', yes: false });
   assert.equal(room.phase, 'prepare');
   assert.deepEqual(room.history[0].votes, { [a.uid]: false });
+  assert.deepEqual(room.history[0].voteChoices, { [a.uid]: 'no' });
 });
 
 test('超时采用草稿并标注非法及空白，准备超时和轮次上限', (t) => {

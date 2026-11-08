@@ -44,6 +44,7 @@ test('两人一票通过，SQLite 无记录，且可重赛', (t) => {
   miss(5);
   send(a, { type: 'breakVote', yes: true });
   assert.equal(room.phase, 'result'); assert.equal(room.outcome, 'break');
+  assert.deepEqual(room.history[0].breakVote, { passed: true, choices: { [a.uid]: 'yes' } });
   assert.equal(db.getMatch(room.matchId), undefined);
   const deadline = room.rematchDeadline; manager.settle(room); assert.equal(room.rematchDeadline, deadline);
   assert.match(resultMarkup({ room, uid: a.uid }), /记录不会保存/);
@@ -61,6 +62,7 @@ test('四人未达半数、超时与断线席位', (t) => {
   send(d, { type: 'breakVote', yes: false });
   assert.equal(room.phase, 'breakVote');
   manager.advanceDeadline(room);
+  assert.deepEqual(room.history[0].breakVote, { passed: false, choices: { [a.uid]: 'yes', [b.uid]: 'no', [c.uid]: 'timeout', [d.uid]: 'no' } });
   assert.equal(room.phase, 'writing'); assert.equal(room.round, 6);
   miss(10); send(a, { type: 'breakVote', yes: true }); send(b, { type: 'breakVote', yes: true });
   assert.equal(room.phase, 'result');

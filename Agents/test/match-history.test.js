@@ -18,7 +18,8 @@ function fixture(t, sqlite) {
     players: uids.map((uid, seat) => ({ uid, seat, name: `旧名${uid}` })),
     rounds: [
       { n: 1, words: Object.fromEntries(uids.map((uid) => [uid, ' Ａ臺灣 '])),
-        marks: Object.fromEntries(uids.map((uid, i) => [uid, i ? 'invalid' : 'none'])), outcome: 'miss' },
+        marks: Object.fromEntries(uids.map((uid, i) => [uid, i ? 'invalid' : 'none'])), outcome: 'miss',
+        voteChoices: { [uids[0]]: 'yes', [uids[1]]: 'timeout' }, breakVote: { passed: false, choices: { [uids[0]]: 'no', [uids[1]]: 'timeout' } } },
       { n: 2, words: Object.fromEntries(uids.map((uid) => [uid, '苹果'])),
         marks: Object.fromEntries(uids.map((uid) => [uid, 'none'])),
         votes: Object.fromEntries(uids.map((uid) => [uid, true])), outcome: 'voted' }
@@ -32,6 +33,15 @@ function fixture(t, sqlite) {
   const messages = [];
   const connection = { uid: A, lastWrite: Date.now(), ws: { readyState: 1, send: (s) => messages.push(JSON.parse(s)) } };
   return { manager, db, connection, messages };
+}
+
+for (const sqlite of [true, false]) {
+  test(`${sqlite ? 'SQLite' : 'memory'}: 投票明细与崩局记录可往返`, (t) => {
+    const { db } = fixture(t, sqlite);
+    const first = db.getMatch('match-00').rounds[0];
+    assert.deepEqual(first.voteChoices, { [A]: 'yes', [B]: 'timeout' });
+    assert.deepEqual(first.breakVote, { passed: false, choices: { [A]: 'no', [B]: 'timeout' } });
+  });
 }
 
 for (const sqlite of [true, false]) {
