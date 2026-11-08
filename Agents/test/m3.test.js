@@ -167,7 +167,7 @@ test('active leave removes vote permanently; disconnect preserves eligibility an
   const restored = connect(c.uid);
   assert.equal(manager.restore(restored, room.code), true);
   send(restored, { type: 'rematch', accept: true });
-  assert.equal(room.phase, 'writing'); assert.equal(room.players.length, 3);
+  assert.equal(room.phase, 'lobby'); assert.equal(room.players.length, 3);
   assert.equal(manager.restore(b, room.code), false);
 });
 
@@ -276,7 +276,7 @@ for (const choice of ['rematch', 'room']) test(`timeout retains multiple ${choic
   exact(); send(a, { type: 'rematch', choice }); send(b, { type: 'rematch', choice });
   t.mock.timers.setTime(room.rematchDeadline);
   assert.throws(() => send(a, { type: 'rematch', choice: 'rematch' }), /超时/);
-  const phase = choice === 'rematch' ? 'writing' : 'lobby';
+  const phase = 'lobby';
   assert.equal(room.phase, phase);
   if (phase === 'lobby') assert.equal(room.matchId, undefined);
   assert.deepEqual(new Set(room.players.map((p) => p.uid)), new Set([a.uid, b.uid]));
@@ -286,7 +286,7 @@ for (const choice of ['rematch', 'room']) test(`timeout retains multiple ${choic
   assert.equal(room.rematchVotes, undefined); assert.deepEqual(room.history, []);
 });
 
-for (const action of ['leave', 'disconnect']) test(`last pending player ${action}: only leave can start immediately`, (t) => {
+for (const action of ['leave', 'disconnect']) test(`last pending player ${action}: remaining players return to lobby`, (t) => {
   const { manager, room, clients: [a, b, c], send, exact } = setup(t, 3);
   exact(); const id = room.matchId;
   send(a, { type: 'rematch', choice: 'rematch' }); send(b, { type: 'rematch', choice: 'rematch' });
@@ -296,8 +296,8 @@ for (const action of ['leave', 'disconnect']) test(`last pending player ${action
     assert.equal(room.phase, 'rematch'); assert.equal(room.matchId, id);
     manager.cleanup(room.rematchDeadline);
   }
-  assert.equal(room.phase, 'writing'); assert.equal(room.round, 1); assert.notEqual(room.matchId, id);
-  assert.deepEqual(room.matchPlayers.map((p) => p.uid), [a.uid, b.uid]);
+  assert.equal(room.phase, 'lobby'); assert.equal(room.round, 0); assert.equal(room.matchId, undefined);
+  assert.deepEqual(room.players.map((p) => p.uid), [a.uid, b.uid]);
   assert.equal(manager.restore(c, room.code), false);
 });
 
@@ -355,7 +355,7 @@ for (const choice of [undefined, 'rematch']) test(`deadline reconnect cannot res
   send(a, { type: 'rematch', choice: 'rematch' }); send(b, { type: 'rematch', choice: 'rematch' });
   t.mock.timers.setTime(room.rematchDeadline);
   assert.equal(manager.restore(connect(c.uid), room.code), false);
-  assert.equal(room.phase, 'writing'); assert.equal(room.players.length, 2);
+  assert.equal(room.phase, 'lobby'); assert.equal(room.players.length, 2);
   assert.equal(room.players.some((p) => p.uid === c.uid), false);
 });
 
@@ -371,11 +371,11 @@ test('player leaving during play is excluded from electorate but remains in resu
   assert.equal(manager.restore(c, room.code), false);
 });
 
-test('late gameplay message cannot submit into automatically restarted match', (t) => {
+test('late gameplay message cannot submit after timeout returns players to lobby', (t) => {
   const { room, clients: [a, b], send, exact } = setup(t, 3);
   exact(); send(a, { type: 'rematch', choice: 'rematch' }); send(b, { type: 'rematch', choice: 'rematch' });
   t.mock.timers.setTime(room.rematchDeadline);
   assert.throws(() => send(a, { type: 'submitWord', word: '旧消息' }), /超时/);
-  assert.equal(room.phase, 'writing');
+  assert.equal(room.phase, 'lobby');
   assert.ok(room.players.every((p) => p.submittedWord === undefined && p.draft === ''));
 });

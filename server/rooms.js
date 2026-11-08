@@ -415,6 +415,7 @@ export class RoomManager {
     room.persisted = true;
     // Settlement owns the only countdown; choices and reconnects never extend it.
     room.rematchEligibleUids = room.players.map((player) => player.uid);
+    room.rematchRosterUids = [...room.rematchEligibleUids];
     room.rematchVotes = {};
     this.setPhase(room, 'result', REMATCH_SECONDS, room.endedAt);
     room.rematchDeadline = room.phaseDeadline;
@@ -455,7 +456,9 @@ export class RoomManager {
       && ['rematch', 'room'].includes(room.rematchVotes[uid]))) return;
     const retained = room.players.filter((player) => player.connected && room.rematchEligibleUids.includes(player.uid)
       && ['rematch', 'room'].includes(room.rematchVotes[player.uid]));
-    const restart = retained.length >= 2 && retained.every((player) => room.rematchVotes[player.uid] === 'rematch');
+    const roster = room.rematchRosterUids ?? room.rematchEligibleUids;
+    const restart = retained.length >= 2 && retained.length === roster.length
+      && roster.every((uid) => retained.some((player) => player.uid === uid) && room.rematchVotes[uid] === 'rematch');
     for (const player of room.players.filter((player) => !retained.includes(player))) {
       this.rememberDeparture(player.uid, room, player.disconnectedAt ?? Date.now());
       const connection = this.clients.get(player.uid);
@@ -472,7 +475,7 @@ export class RoomManager {
       delete player.submittedWord; delete player.vote; delete player.breakVote; delete player.disconnectedAt; delete player.leftReason;
     }
     for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'chart', 'outcome',
-      'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
+      'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchRosterUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
     room.history = []; room.round = 0; room.dropped = false;
     room.themeId = null; room.themeName = null;
     this.sortPlayers(room);
