@@ -13,14 +13,33 @@ function fixture() {
 
 test('结算展示完整历史成员、标记、投票与相遇轮次并转义内容', () => {
   const html = resultMarkup(fixture());
-  for (const text of ['完整词路径', '投票记录', '[非法答案]', '[未提交]', '乙', '否 / 超时', '未参与', '第 2 轮投票达成一致', '导出 SVG', '重赛', '回房间', '回主页', '&lt;甲&gt;']) assert.ok(html.includes(text), text);
+  for (const text of ['完整词路径', '投票记录', '[非法答案]', '[未提交]', '乙', '拒绝 / 超时', '未参与', '第 2 轮投票达成一致', '导出 SVG', '重赛', '回房间', '回主页', '&lt;甲&gt;']) assert.ok(html.includes(text), text);
   assert.ok(!html.includes('<甲>'));
   assert.match(html, /<details class="surface-block result-votes">/);
   assert.ok(!writingMarkup({ ...fixture(), room: { ...fixture().room, phase: 'writing' } }).includes('convergence-chart'));
 });
 test('投票记录使用右侧图标而非原生三角标记', () => {
   const html = resultMarkup(fixture());
-  assert.match(html, /<summary><span class="result-votes-label">投票记录[^]*?<svg class="icon result-votes-icon"[^]*?icons.svg#icon-chevron-down[^]*?<\/summary>/);
+  assert.match(html, /<summary><span class="result-votes-label">[^]*?icon-vote[^]*?投票记录[^]*?<svg class="icon result-votes-icon"[^]*?icons.svg#icon-chevron-down[^]*?<\/summary>/);
+});
+
+test('结算说明与选择规则一致，词路径默认收起并使用简洁轮次', () => {
+  const html = resultMarkup(fixture());
+  assert.match(html, /原结算名单至少 2 人全员在线并选择重赛才直接开局/);
+  assert.match(html, /已选择且在线的玩家回房间，其余玩家退出/);
+  assert.doesNotMatch(html, /剩余全选重赛/);
+  assert.match(html, /<details class="surface-block result-votes result-path"><summary>/);
+  assert.match(html, /class="record-round-number" aria-label="第 1 轮">1<\/span>/);
+});
+
+test('投票记录区分选择并显示头像、结果与崩局节点', () => {
+  const state = fixture();
+  state.room.resultPlayers.push({ uid: 'c', name: '丙', seat: 2 });
+  Object.assign(state.room.history[0], { votes: { a: true, b: false, c: false }, voteChoices: { a: 'yes', b: 'no', c: 'timeout' }, breakVote: { passed: false, choices: { a: 'yes', b: 'no', c: 'timeout' } } });
+  const html = resultMarkup(state);
+  for (const text of ['result-vote-avatar', 'is-yes', 'is-no', 'is-timeout', '同意', '拒绝', '超时', '崩局投票', '玩崩了', '下一轮']) assert.ok(html.includes(text), text);
+  assert.match(html, /result-vote-outcome is-passed[^]*?icon-check[^]*?通过/);
+  assert.match(html, /result-vote-outcome [^]*?icon-x[^]*?未通过/);
 });
 
 
@@ -29,7 +48,7 @@ test('结算和中断页在标题同行显示房间号', () => {
   for (const phase of ['result', 'rematch', 'interrupted']) {
     state.room.phase = phase;
     const html = resultMarkup(state);
-    assert.match(html, /class="result-title-row"><h1>[^<]+<\/h1><span class="room-code-display result-room-code">[^]*?icon-hash[^]*?<span>房号 12345<\/span>/);
+    assert.match(html, /page-heading-meta">[^]*?room-code-display[^]*?icon-door-open[^]*?<span>房号 12345<\/span>/);
     assert.doesNotMatch(html, /本局回顾|result-eyebrow/);
   }
 });

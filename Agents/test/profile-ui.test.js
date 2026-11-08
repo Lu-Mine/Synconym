@@ -35,7 +35,7 @@ test('档案展示身份、曾用名、对局与隐私说明，并转义所有�
   assert.ok(!html.includes('自由模式'));
   for (const button of html.matchAll(/<button\b[^>]*>/g)) assert.match(button[0], /\btype="(?:button|submit)"/);
   // 房号沿用共享的 room-code-display 组件
-  assert.match(html, /class="room-code-display profile-match-room">[^]*?icon-hash[^]*?<span>房号 12345<\/span>/);
+  assert.match(html, /class="room-code-display profile-match-room">[^]*?icon-door-open[^]*?<span>房号 12345<\/span>/);
 });
 
 test('对局条目前置叠放头像与相对日期，第二行按结果、房号、主题分列', () => {

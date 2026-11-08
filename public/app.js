@@ -127,6 +127,7 @@ let previousRoomCode = '';
 let currentScreen = '';
 // 每次渲染自增：用于丢弃 view transition 里尚未执行的过期快照。
 let renderGeneration = 0;
+let activeSceneTransition;
 let timeOffset = 0;
 const gameNow = () => MOCK && Number.isFinite(state.mockPausedAt ?? state.room?.mockPausedAt) ? (state.mockPausedAt ?? state.room.mockPausedAt) : Date.now() + timeOffset;
 let countdownTimer;
@@ -135,7 +136,7 @@ let idleCountdownTimer;
 let idleFlashTimer;
 let lastIdleDeadline = 0;
 let idleRollTimer;
-let stepperAnimTimer;
+let stepperAnimation;
 let lastWriteAt = 0;
 let writeDrainTimer;
 const writeQueue = [];
@@ -148,6 +149,13 @@ let roomHistoryGuard = false;
 
 let stopJoinPlaceholder = () => {};
 let stopStoryMotion = () => {};
+let awaitingRoomRestore = false;
+let restoreStatusTimer;
+
+function finishRoomRestore() {
+  awaitingRoomRestore = false;
+  clearTimeout(restoreStatusTimer);
+}
 let connectionStatus = 'connecting';
 
 function syncConnectionUI() {
@@ -244,7 +252,7 @@ async function checkJoinInput(input, version) {
     const modal = app.querySelector('#join-modal');
     const host = app.querySelector('#join-host');
     if (!modal || !host || !data.host) return;
-    app.querySelector('#join-room-number').textContent = `房号 ${code}`;
+    app.querySelector('#join-room-number .room-code-display > span').textContent = `房号 ${code}`;
     host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
     hydrateAvatars(host);
     pendingJoin = { code, trigger: input, passwordEnabled: Boolean(data.passwordEnabled) };
@@ -534,24 +542,15 @@ function animateStepperValue(nextNumber, direction = 1) {
   const prevNumber = Number(output.dataset.value || output.textContent);
   if (prevNumber === nextNumber) return;
 
-  clearTimeout(stepperAnimTimer);
-  const outClass = direction >= 0 ? 'slide-out-up' : 'slide-out-down';
-  const inClass = direction >= 0 ? 'slide-in-from-down' : 'slide-in-from-up';
-
-  output.classList.remove('slide-out-up', 'slide-out-down', 'slide-in-from-down', 'slide-in-from-up');
-  output.classList.add(outClass);
-
-  stepperAnimTimer = setTimeout(() => {
-    output.textContent = String(nextNumber);
-    output.dataset.value = String(nextNumber);
-    output.classList.remove(outClass);
-    output.classList.add(inClass);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        output.classList.remove(inClass);
-      });
-    });
-  }, 95);
+  stepperAnimation?.cancel();
+  output.textContent = String(nextNumber);
+  output.dataset.value = String(nextNumber);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !output.animate) return;
+  const distance = direction >= 0 ? 7 : -7;
+  stepperAnimation = output.animate([
+    { opacity: 0, transform: `translateY(${distance}px)` },
+    { opacity: 1, transform: 'translateY(0)' }
+  ], { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
 }
 
 function patchSettingsDOM(values, editable) {
@@ -778,9 +777,14 @@ function patchLobbyDOM(nextState) {
   // 先量旧位置，再动其它区块，换位动画才能把设置区高度变化也算进去
   const list = page.querySelector('#player-list');
   const firstRects = new Map();
+  const departingPlayers = [];
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (list) {
+    const nextUids = new Set(room.players.map((player) => player.uid));
     for (const item of list.querySelectorAll('.player[data-uid]')) {
-      firstRects.set(item.dataset.uid, item.getBoundingClientRect());
+      const rect = item.getBoundingClientRect();
+      firstRects.set(item.dataset.uid, rect);
+      if (!reducedMotion && !nextUids.has(item.dataset.uid)) departingPlayers.push({ item, rect });
     }
   }
   const activeElementId = document.activeElement?.id;
@@ -815,19 +819,34 @@ function patchLobbyDOM(nextState) {
   if (list) {
     patchMarkup(list, lobbyPlayersMarkup(room, uid));
     hydrateAvatars(list);
+    for (const { item, rect } of departingPlayers) {
+      const ghost = item.cloneNode(true);
+      ghost.removeAttribute('data-uid');
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.setAttribute('inert', '');
+      Object.assign(ghost.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, margin: '0', zIndex: '11', pointerEvents: 'none' });
+      document.body.append(ghost);
+      const animation = ghost.animate([
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: 'translateY(8px)' }
+      ], { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+      const cleanup = () => ghost.remove();
+      setTimeout(cleanup, 600);
+      animation.finished.then(cleanup, cleanup);
+    }
 
     for (const item of list.querySelectorAll('.player[data-uid]')) {
       const prev = firstRects.get(item.dataset.uid);
-      if (!prev) {
+      if (!prev && !reducedMotion) {
         item.classList.add('player-enter');
         requestAnimationFrame(() => requestAnimationFrame(() => item.classList.remove('player-enter')));
-      } else {
+      } else if (prev && !reducedMotion) {
         const next = item.getBoundingClientRect();
         const dy = prev.top - next.top;
         if (Math.abs(dy) > 1) {
           item.animate(
             [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
-            { duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+            { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
           );
         }
       }
@@ -947,45 +966,51 @@ function patchSameScene(stage, nextScreen) {
 
 function replaceScene(stage, nextScreen, generation) {
   const html = buildScreenMarkup(nextScreen);
+  if (generation !== renderGeneration) return;
+  stopStoryMotion();
+  stopJoinPlaceholder();
+  stage.innerHTML = html;
+  if (nextScreen === 'home') syncRecentRoomDOM();
+  stopJoinPlaceholder = observeJoinPlaceholder(stage);
+  if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
+  stopStoryMotion = observeStoryMotion(stage);
+  hydrateAvatars(stage);
+  syncTransferModalDOM();
+  refreshTimers();
+}
+
+function render({ forceFull = false, initialSync = false } = {}) {
+  if (!state.room || state.room.phase === 'lobby') pathOpen = false;
+  const nextScreen = screenKeyFor(state);
+  const previousScreen = currentScreen;
+  if (nextScreen === 'home' && currentScreen !== 'home') homeSettingsOpen = false;
+  syncModalScrollLock();
   const shouldTransition = Boolean(
-    currentScreen && currentScreen !== nextScreen && document.startViewTransition
+    !initialSync && previousScreen && previousScreen !== nextScreen && document.startViewTransition
       && !document.documentElement.classList.contains('is-modal-open')
       && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
+  const generation = ++renderGeneration;
   const applyDOM = () => {
-    // 过渡回调是异步的：期间若已有更新的渲染，这份过期快照必须丢弃，
-    // 否则会用旧内容覆盖新内容（例如点头像进档案页时被「正在读取档案…」盖掉）。
     if (generation !== renderGeneration) return;
-    stopStoryMotion();
-    stopJoinPlaceholder();
-    stage.innerHTML = html;
-    if (nextScreen === 'home') syncRecentRoomDOM();
-    stopJoinPlaceholder = observeJoinPlaceholder(stage);
-    if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
-    stopStoryMotion = observeStoryMotion(stage);
-    hydrateAvatars(stage);
-    syncTransferModalDOM();
-    if (shouldTransition) stage.firstElementChild?.classList.add('vt-managed');
+    const stage = ensureShell(Boolean(state.room));
+    syncConnectionUI();
+    syncPathModalDOM();
+    document.body.dataset.scene = nextScreen;
+    const patched = !forceFull && patchSameScene(stage, nextScreen);
+    if (patched) refreshTimers();
+    else replaceScene(stage, nextScreen, generation);
   };
-  if (shouldTransition) document.startViewTransition(applyDOM).updateCallbackDone.then(refreshTimers, refreshTimers);
-  else { applyDOM(); refreshTimers(); }
-}
-
-function render({ forceFull = false } = {}) {
-  if (!state.room || state.room.phase === 'lobby') pathOpen = false;
-  const nextScreen = screenKeyFor(state);
-  if (nextScreen === 'home' && currentScreen !== 'home') homeSettingsOpen = false;
-  syncModalScrollLock();
-  const stage = ensureShell(Boolean(state.room));
-  syncConnectionUI();
-  syncPathModalDOM();
-  document.body.dataset.scene = nextScreen;
-  renderGeneration += 1;
-  const generation = renderGeneration;
-  const patched = !forceFull && patchSameScene(stage, nextScreen);
-  if (patched) { currentScreen = nextScreen; refreshTimers(); return; }
-  replaceScene(stage, nextScreen, generation);
   currentScreen = nextScreen;
+  if (!shouldTransition) { applyDOM(); return; }
+  activeSceneTransition?.skipTransition();
+  const transition = document.startViewTransition(applyDOM);
+  activeSceneTransition = transition;
+  const finish = () => {
+    if (activeSceneTransition !== transition) return;
+    activeSceneTransition = null;
+  };
+  transition.finished.then(finish, finish);
 }
 
 function flushWriteQueue() {
@@ -1052,11 +1077,21 @@ const socket = new Socket({
       pendingLobbySettings = null;
       gameUi.submitted = false; gameUi.voted = false; gameUi.ready = false;
     }
+    if (['replaced', 'auth-failed'].includes(status) && awaitingRoomRestore) {
+      finishRoomRestore();
+      render({ forceFull: true, initialSync: true });
+    }
     syncConnectionUI();
   },
   onHello(message) {
     const code = socket.roomCode;
-    if (code && !message.restored) requestJoin(code);
+    if (code && !message.restored) {
+      if (awaitingRoomRestore) {
+        finishRoomRestore();
+        render({ forceFull: true, initialSync: true });
+      }
+      requestJoin(code);
+    }
   },
   onProfile(profile) {
     if (!profileOpen || historyQuery(location.search).id) return;
@@ -1075,7 +1110,7 @@ const socket = new Socket({
     state.profile = null;
     if (profileOpen) requestProfile(1);
   },
-  onState(next) {
+  onState(next, { initialSync = false } = {}) {
     const previous = state.room;
     const nextRoom = next.room;
     const phaseChanged = previous?.code !== nextRoom?.code || previous?.phase !== nextRoom?.phase || previous?.round !== nextRoom?.round;
@@ -1119,7 +1154,8 @@ const socket = new Socket({
       if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', APP_ROOT);
     }
     if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
-    render();
+    finishRoomRestore();
+    render({ initialSync });
     // 名字或身份变了：档案页跟着刷新一次
     if (profileOpen) requestProfile(state.profile?.page || historyQuery(location.search).page);
   },
@@ -1152,7 +1188,12 @@ if (MOCK) window.addEventListener('synconym-mock-action', (event) => {
 });
 
 
-render({ forceFull: true });
+awaitingRoomRestore = Boolean(socket.roomCode && socket.uid && !socket.pendingLeave);
+if (awaitingRoomRestore) {
+  restoreStatusTimer = setTimeout(() => {
+    if (awaitingRoomRestore) app.innerHTML = '<p class="restore-status" role="status">正在恢复房间…</p>';
+  }, 500);
+} else render({ forceFull: true });
 
 function acceptPasswordInput(input) {
   const cursor = input.selectionStart;

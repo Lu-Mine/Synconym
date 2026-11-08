@@ -13,12 +13,13 @@ test('密码和房号共享数字过滤、全角转换及长度限制', () => {
   assert.equal(sanitizeNumericInput('', 6), '');
 });
 
-test('密码设置为同一行紧凑输入，提示在第二行且无需开关', () => {
+test('密码设置提示位于输入框内且无需开关', () => {
   const markup = settingsMarkup(validateSettings({}), true);
   assert.match(markup, /password-setting-row/);
   assert.match(markup, /input code-input password-input/);
-  assert.match(markup, /留空无密码，或 6 位数字密码/);
-  assert.doesNotMatch(markup, /toggle-password|room-password-fields/);
+  assert.match(markup, /placeholder="留空无密码，或 6 位数字密码"/);
+  assert.match(markup, /aria-describedby="room-password-hint"><span class="join-placeholder password-placeholder" id="room-password-hint"/);
+  assert.doesNotMatch(markup, /password-setting-hint|toggle-password|room-password-fields/);
 });
 
 test('密码输入根据空值推导开关并保留前导零和光标', () => {

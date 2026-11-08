@@ -13,7 +13,7 @@ function setup(value, response) {
   const input = { value, isConnected: true };
   const calls = [];
   const modal = { removeAttribute: () => calls.push('enable'), classList: { add: () => calls.push('open') }, querySelector: () => ({ focus: () => calls.push('focus') }) };
-  const elements = { '#join-modal': modal, '#join-host': host, '#join-room-number': number };
+  const elements = { '#join-modal': modal, '#join-host': host, '#join-room-number .room-code-display > span': number };
   const context = { markInvalid() {}, MOCK: false, app: { querySelector: (key) => elements[key] }, state: { room: null }, profileOpen: false, pendingJoin: null, pendingConfirm: null, renameOpen: false, inviteTrigger: null, joinCheckVersion: 1, parseRoomCode, playerItemMarkup, hydrateAvatars: () => {}, syncModalScrollLock: () => {}, fetch: async () => response };
   context.toast = (message) => messages.push(message);
   runInNewContext(check, context);
@@ -30,6 +30,8 @@ test('房间预览有效时展示房号和复用的房主条目，尚未加入',
   assert.equal(s.context.pendingJoin.code, '12345');
   assert.deepEqual(s.calls, ['enable', 'open', 'focus']);
   assert.match(shellMarkup(), /data-action="confirm-join"/);
+  assert.match(shellMarkup(), /id="join-room-number"><span class="room-code-display"/);
+  assert.match(shellMarkup(), /id="join-room-number"><span class="room-code-display"><svg class="icon room-code-icon"/);
 });
 
 test('无效输入、房间错误和过期查询不会弹出确认框', async () => {

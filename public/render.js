@@ -29,7 +29,7 @@ export function icon(name, className = '') {
 // 命中房号时整段高亮，「房号」前缀与数字之间的空格保持原样。
 function roomCodeMarkup(code, className = '', hit = false) {
   const label = `房号 ${escapeHtml(code ?? '–')}`;
-  return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('hash', 'room-code-icon')}<span>${hit ? `<mark class="history-hit">${label}</mark>` : label}</span></span>`;
+  return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('door-open', 'room-code-icon')}<span>${hit ? `<mark class="history-hit">${label}</mark>` : label}</span></span>`;
 }
 
 export function brandMarkup() {
@@ -109,15 +109,25 @@ export function settingsMarkup(settings, editable) {
     </div>
     <div class="setting-row password-setting-row">
       ${editable ? `<label class="setting-label" for="room-password">设置密码</label>
-      <input class="input code-input password-input" id="room-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" spellcheck="false" value="${escapeHtml(settings.password || '')}" aria-describedby="room-password-hint">
-      <p class="password-setting-hint" id="room-password-hint">留空无密码，或 6 位数字密码</p>`
+      <div class="password-input-wrap"><input class="input code-input password-input" id="room-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" spellcheck="false" value="${escapeHtml(settings.password || '')}" placeholder="留空无密码，或 6 位数字密码" aria-describedby="room-password-hint"><span class="join-placeholder password-placeholder" id="room-password-hint"><span class="join-placeholder-text">留空无密码，或 6 位数字密码</span></span></div>`
       : `<span class="setting-label">设置密码</span>${settingValueMarkup('passwordEnabled', settings, 'switch')}`}
     </div>
   </section>`;
 }
 
+// 主题控件用 # 图标；结算类页面的主题控件放在标题区，与房号控件并列。
 export function themeMarkup(room) {
-  return room.mode === 'theme' ? `<p class="current-theme"><span>${['result', 'rematch', 'interrupted'].includes(room.phase) ? '本局主题' : '当前主题'}</span><strong>${escapeHtml(room.themeName || '等待抽取')}</strong></p>` : '';
+  const settled = ['result', 'rematch', 'interrupted'].includes(room.phase);
+  return room.mode === 'theme' ? `<p class="current-theme">${settled ? icon('hash', 'current-theme-icon') : ''}<span>${settled ? '本局主题' : '当前主题'}</span><strong>${escapeHtml(room.themeName || '等待抽取')}</strong></p>` : '';
+}
+
+// 结算页与历史详情共用的标题区：左侧标题与说明，右侧房号和主题分两行居右；放不下时落到说明下方居中。
+function headingMarkup(tag, className, copyHtml, metaHtml) {
+  return `<${tag} class="page-heading ${className}"><div class="page-heading-inner"><div class="page-heading-copy">${copyHtml}</div>${metaHtml}</div></${tag}>`;
+}
+
+function headingMetaMarkup(code, room) {
+  return `<div class="page-heading-meta">${roomCodeMarkup(code, 'heading-room')}<div id="current-theme" class="heading-theme">${themeMarkup(room)}</div></div>`;
 }
 
 export function startCountdownMarkup(room) {
@@ -206,7 +216,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     <button class="rename-modal-backdrop" type="button" data-action="cancel-join" aria-label="取消加入房间"></button>
     <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="join-title" aria-describedby="join-room-number">
       <div class="rename-dialog-heading"><h2 id="join-title">确认加入房间？</h2><button class="icon-button" type="button" data-action="cancel-join" aria-label="取消">${icon('x')}</button></div>
-      <p class="transfer-hint" id="join-room-number"></p>
+      <div id="join-room-number">${roomCodeMarkup(null)}</div>
       <ul class="player-list" id="join-host"></ul>
       <div id="join-password-fields" hidden>
         <label for="join-password">房间密码</label>
@@ -585,7 +595,11 @@ export function lobbyMarkup(state) {
   </div>`;
 }
 
-export function thoughtPathMarkup(room) {
+function roundNumberMarkup(number) {
+  return `<span class="record-round-number" aria-label="第 ${escapeHtml(number)} 轮">${escapeHtml(number)}</span>`;
+}
+
+export function thoughtPathMarkup(room, compactRounds = false) {
   const players = Array.isArray(room?.players) ? room.players : [];
   const rounds = Array.isArray(room?.history) ? [...room.history] : [];
   if (room?.phase === 'voting' && room.words && !rounds.some((round) => round.n === room.round)) {
@@ -599,7 +613,7 @@ export function thoughtPathMarkup(room) {
       const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
       return `<li class="path-answer" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div><strong class="path-word">${escapeHtml(word)}</strong></li>`;
     }).join('');
-    return `<li class="path-round-item">${index ? `<div class="path-connector" aria-hidden="true">${icon('arrow-down')}</div>` : ''}<section class="path-round-group"><h3>第 ${escapeHtml(round.n)} 轮</h3><ul class="path-answers" data-player-count="${Math.min(players.length, 4)}">${cards}</ul></section></li>`;
+    return `<li class="path-round-item">${index ? `<div class="path-connector" aria-hidden="true">${icon('arrow-down')}</div>` : ''}<section class="path-round-group"><h3>${compactRounds ? roundNumberMarkup(round.n) : `第 ${escapeHtml(round.n)} 轮`}</h3><ul class="path-answers" data-player-count="${Math.min(players.length, 4)}">${cards}</ul></section></li>`;
   }).join('')}</ol>`;
 }
 
@@ -657,6 +671,7 @@ export function writingMarkup(state, ui = {}) {
       <div id="current-theme" class="stage-theme">${themeMarkup(room)}</div>
     </section>
     ${['writing', 'voting', 'prepare', 'breakVote'].includes(phase) ? statusBlock : ''}
+    <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
     </div>
     <div class="game-controls">
     ${phase === 'writing' ? `<div id="previous-words">${previousRound ? `<section class="surface-block"><div class="section-heading"><h2>上一轮的词</h2>${pathButton}</div><ul class="word-grid">${wordCards}</ul></section>` : ''}</div>` : ''}
@@ -665,7 +680,6 @@ export function writingMarkup(state, ui = {}) {
     ${phase === 'voting' ? `<div class="game-actions"><button class="button primary" type="button" data-action="vote-yes" ${voted ? 'disabled' : ''}><span>是</span>${icon('check')}</button><button class="button secondary" type="button" data-action="vote-no" ${voted ? 'disabled' : ''}><span>否</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已投票，等待揭晓' : '投票期间不会显示其他人的选择'}</p>` : ''}
     ${phase === 'prepare' ? `<button class="button primary game-wide" type="button" data-action="game-ready" ${ready ? 'disabled' : ''}><span>${ready ? '已准备，等待其他玩家' : '准备下一轮'}</span>${icon('check')}</button>` : ''}
     ${phase === 'breakVote' ? `<div class="game-actions"><button class="button primary" type="button" data-action="break-no" ${voted ? 'disabled' : ''}>${icon('arrow-right')}<span>下一轮</span></button><button class="button primary" type="button" data-action="break-yes" ${voted ? 'disabled' : ''}><span>玩崩了</span>${icon('x')}</button></div><p class="game-hint game-center">${voted ? '已选择，结果确定或倒计时结束后揭晓' : '选择提交后不可更改；结果确定后提前结束'}</p>` : ''}
-    <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
     </div>
   </div>`;
 }
@@ -696,6 +710,33 @@ export function resultTitle(room) {
   return lines[hash % lines.length];
 }
 
+function voteRecordsMarkup(history, players) {
+  const choiceMarkup = (player, votes, choices, isBreak) => {
+    const value = choices?.[player.uid];
+    const legacy = !choices && votes && Object.hasOwn(votes, player.uid) ? votes[player.uid] : undefined;
+    const key = value === 'yes' || legacy === true ? 'yes' : value === 'no' ? 'no' : value === 'timeout' ? 'timeout' : legacy === false ? 'unknown' : 'absent';
+    const labels = isBreak ? { yes: '玩崩了', no: '下一轮', timeout: '超时', unknown: '拒绝 / 超时', absent: '未参与' }
+      : { yes: '同意', no: '拒绝', timeout: '超时', unknown: '拒绝 / 超时', absent: '未参与' };
+    const symbol = { yes: 'check', no: 'x', timeout: 'clock', unknown: 'circle-help', absent: 'circle-help' }[key];
+    return `<li><span class="result-vote-player">${avatarMarkup(player.name || player.uid, 'result-vote-avatar')}<span>${escapeHtml(player.name || player.uid)}</span></span><strong class="result-vote-choice is-${key}">${icon(symbol)}<span>${labels[key]}</span></strong></li>`;
+  };
+  const entry = (round, isBreak = false) => {
+    const data = isBreak ? round.breakVote : round;
+    const exact = !isBreak && round.outcome === 'exact';
+    const passed = isBreak ? data.passed : round.outcome === 'voted';
+    const result = exact ? '无需投票' : passed ? '通过' : '未通过';
+    const symbol = exact ? 'check' : passed ? 'check' : 'x';
+    const rows = !exact && (data.votes || data.voteChoices || data.choices)
+      ? `<ul class="result-vote-list">${players.map((player) => choiceMarkup(player, data.votes, isBreak ? data.choices : data.voteChoices, isBreak)).join('')}</ul>` : '';
+    return `<li class="result-vote-round"><div class="result-vote-heading"><h3>${roundNumberMarkup(round.n)}${isBreak ? '<span class="result-break-label">崩局投票</span>' : ''}</h3><span class="result-vote-outcome ${passed ? 'is-passed' : ''}">${icon(symbol)}<span>${result}</span></span></div>${rows}</li>`;
+  };
+  return history.map((round) => entry(round) + (round.breakVote ? entry(round, true) : '')).join('');
+}
+
+function resultPathMarkup(room) {
+  return `<details class="surface-block result-votes result-path"><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${thoughtPathMarkup(room, true)}</div></details>`;
+}
+
 export function rematchMarkup(state) {
   const { room, uid } = state;
   const voting = ['result', 'rematch'].includes(room.phase) && room.rematchDeadline != null;
@@ -717,7 +758,7 @@ export function rematchMarkup(state) {
     const name = player?.name || snapshot.name || snapshot.uid;
     return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(name, 'game-status-avatar')}<span>${escapeHtml(name)}${snapshot.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${escapeHtml(status)}</span></span></li>`;
   }).join('');
-  return `<section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>下一步</h2>${voting ? '<span class="rematch-clock" role="timer" aria-live="off">'+icon('clock')+'<span id="countdown">30 秒</span></span>' : ''}</div>
+  return `<section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>${icon('rotate-ccw')}<span>下一步</span></h2>${voting ? '<span class="rematch-clock" role="timer" aria-live="off">'+icon('clock')+'<span id="countdown">30 秒</span></span>' : ''}</div>
     <p class="rematch-description">全员重赛，按当前配置直接开下一局；想调整配置就回房间。</p>
     ${voting ? `<div class="result-player-status" aria-live="polite"><div class="section-heading"><h3>玩家状态</h3></div><ul class="game-status-list">${statuses}</ul></div>` : ''}
     <div class="rematch-actions">
@@ -725,14 +766,14 @@ export function rematchMarkup(state) {
       <button class="button secondary" type="button" data-action="rematch-room" ${!canChoose || mine === 'room' ? 'disabled' : ''}>${icon('users')}<span>${mine === 'room' ? '已选回房间' : '回房间'}</span></button>
       <button class="rematch-home" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
     </div>
-    <p class="rematch-footnote">到期移除未选择或仍断线的玩家；剩余全选重赛且至少 2 人就直接开局，否则回房间。</p></section>`;
+    <p class="rematch-footnote">原结算名单至少 2 人全员在线并选择重赛才直接开局；有人选择回房间，或到期仍有人未选择或断线时，已选择且在线的玩家回房间，其余玩家退出。</p></section>`;
 }
 
 export function resultMarkup(state) {
   const { room, uid } = state;
   if (room.phase === 'interrupted') return `<div class="page result-page" data-screen="interrupted" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>本局已中断</h1>${roomCodeMarkup(room.code, 'result-room-code')}</div><p>房间只剩一位玩家，本局不会记录。</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
-    <section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>下一步</h2></div><p class="rematch-description">回房间邀请朋友重新开始，或回主页退出房间。</p><div class="rematch-actions">
+    ${headingMarkup('section', 'result-heading', '<h1>本局已中断</h1><p>房间只剩一位玩家，本局不会记录。</p>', headingMetaMarkup(room.code, room))}
+    <section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>${icon('rotate-ccw')}<span>下一步</span></h2></div><p class="rematch-description">回房间邀请朋友重新开始，或回主页退出房间。</p><div class="rematch-actions">
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
     </div></section></div>`;
@@ -740,13 +781,13 @@ export function resultMarkup(state) {
   const history = room.history || [];
   const met = room.outcome === 'exact' || room.outcome === 'voted';
   const voting = room.phase === 'rematch';
-  const voteRecords = history.map((round) => `<li class="result-vote-round"><h3>第 ${escapeHtml(round.n)} 轮 · ${round.outcome === 'exact' ? '精确相遇（无需投票）' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('');
+  const voteRecords = voteRecordsMarkup(history, players);
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    <section class="result-heading"><div class="result-heading-copy"><div class="result-title-row"><h1>${escapeHtml(resultTitle(room))}</h1>${roomCodeMarkup(room.code, 'result-room-code')}</div><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p></div><div id="current-theme">${themeMarkup(room)}</div></section>
+    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p>`, headingMetaMarkup(room.code, room))}
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
-    <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2><button class="path-open" type="button" data-action="export-chart">导出 SVG</button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词向量估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
-    <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup({ ...room, players })}</section>
-    <details class="surface-block result-votes"><summary><span class="result-votes-label">投票记录<span>按需查看每轮选择</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
+    <section class="surface-block"><div class="section-heading"><h2>${icon('chart-line')}<span>收敛曲线</span></h2><button class="path-open" type="button" data-action="export-chart">${icon('download')}<span>导出 SVG</span></button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词向量估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
+    ${resultPathMarkup({ ...room, players })}
+    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录<span class="result-votes-sub">按需查看每轮选择</span></span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
   </div>`;
 }
 
@@ -758,13 +799,13 @@ export function matchDetailMarkup(detail, query = {}) {
   const outcome = match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
   const date = (value) => new Date(value).toLocaleString('zh-CN', { hour12: false });
   return `<div class="page match-detail-page" data-screen="match-detail">${back}
-    <header class="match-detail-heading"><h1>${escapeHtml(outcome)}</h1><p>${roomCodeMarkup(match.roomCode)}<span>${escapeHtml(match.themeName ? `主题：${match.themeName}` : '自由模式')}</span></p><dl class="match-detail-facts"><div><dt>开始时间</dt><dd>${escapeHtml(date(match.startedAt))}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(date(match.endedAt))}</dd></div><div><dt>轮次</dt><dd>${match.totalRounds} / ${match.maxRounds}</dd></div></dl></header>
+    ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1><dl class="match-detail-facts"><div><dt>开始时间</dt><dd>${escapeHtml(date(match.startedAt))}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(date(match.endedAt))}</dd></div><div><dt>轮次</dt><dd>${match.totalRounds} / ${match.maxRounds}</dd></div></dl>`, headingMetaMarkup(match.roomCode, { mode: match.themeName ? 'theme' : 'free', phase: 'result', themeName: match.themeName }))}
     <div class="match-detail-main">
-    <section class="surface-block"><div class="section-heading"><h2>同局玩家</h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
-    <section class="surface-block"><div class="section-heading"><h2>完整词路径</h2></div>${thoughtPathMarkup(room)}</section>
+    <section class="surface-block"><div class="section-heading"><h2>${icon('chart-line')}<span>收敛曲线</span></h2><button class="path-open" type="button" data-action="export-chart">${icon('download')}<span>导出 SVG</span></button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><p class="game-hint">按当前词向量重新计算，仅供回顾，不参与胜负判定。空心点和虚线表示无法计算，并非 0%。</p></section>
     </div><div class="match-detail-aside">
-    <section class="surface-block"><div class="section-heading"><h2>收敛曲线</h2></div><div class="result-chart-scroll">${chartMarkup(room)}</div><p class="game-hint">按当前词向量重新计算，仅供回顾，不参与胜负判定。空心点和虚线表示无法计算，并非 0%。</p></section>
-    <details class="surface-block result-votes"><summary>逐轮投票记录 ${icon('chevron-down')}</summary><ol class="result-vote-records">${room.history.map((round) => `<li class="result-vote-round"><h3>第 ${round.n} 轮：${round.outcome === 'exact' ? '精确相遇，无需投票' : round.outcome === 'voted' ? '全票通过' : '未通过'}</h3>${round.votes ? `<ul class="result-vote-list">${match.players.map((p) => `<li><span>${escapeHtml(p.name)}</span><strong>${Object.hasOwn(round.votes, p.uid) ? round.votes[p.uid] ? '同意' : '否 / 超时' : '未参与'}</strong></li>`).join('')}</ul>` : ''}</li>`).join('')}</ol></details>
+    <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
+    ${resultPathMarkup(room)}
+    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>
     </div>
   </div>`;
 }

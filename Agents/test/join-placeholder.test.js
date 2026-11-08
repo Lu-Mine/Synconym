@@ -19,9 +19,18 @@ test('提示只在空间不足时滚动，宽度变化后更新并释放观察�
       style: { setProperty: (name, value) => { state[name] = value; } },
       classList: { toggle: (name, value) => { state[name] = value; } }
     };
-    const stop = observeJoinPlaceholder({ querySelector: () => viewport });
+    const secondState = {};
+    const secondViewport = {
+      clientWidth: 200,
+      querySelector: () => ({ offsetWidth: 210 }),
+      style: { setProperty: (name, value) => { secondState[name] = value; } },
+      classList: { toggle: (name, value) => { secondState[name] = value; } }
+    };
+    const stop = observeJoinPlaceholder({ querySelectorAll: () => [viewport, secondViewport] });
     assert.equal(state['--join-placeholder-offset'], '-150px');
     assert.equal(state['is-overflowing'], true);
+    assert.equal(secondState['--join-placeholder-offset'], '-10px');
+    assert.equal(secondState['is-overflowing'], true);
     viewport.clientWidth = 300;
     observer.update();
     assert.equal(state['--join-placeholder-offset'], '0px');

@@ -61,8 +61,9 @@ test('顶栏固定悬浮，首页内容在滚动层内原生裁切，其他页�
   assert.match(css, /\.header-user-name\s*\{[^}]*max-width: clamp\(80px, 12cqw, 132px\)/);
   assert.doesNotMatch(css, /@media[^{]*\{[^}]*\.header-(?:nav|user|rename)/);
   assert.match(css, /html\.is-modal-open \.app,[\s\S]*?overflow: hidden/);
-  assert.match(css, /\.stage\s*\{[^}]*flex: 1 0 auto;[^}]*width: var\(--app-w\);[^}]*margin-inline: auto/);
-  assert.match(css, /\.site-footer\s*\{[^}]*width: var\(--app-w\);[^}]*margin: 32px auto 0/);
+  assert.match(css, /\.stage\s*\{[^}]*flex: 1 0 auto;[^}]*width: 100%;[^}]*margin-inline: auto/);
+  assert.match(css, /\.site-footer\s*\{[^}]*width: 100%;[^}]*margin: 32px auto 0/);
+  assert.match(css, /@media \(max-width: 560px\)\s*\{[\s\S]*?\.app\s*\{\s*--app-w: min\(100vw - 32px, 600px\)/);
   assert.match(css, /\.app:not\(:has\(\.home-page\)\) \.stage\s*\{\s*clip-path: inset\(var\(--stage-top-clip/);
   assert.match(css, /\.scrollbar-overlay\.is-vertical\.is-left \.scrollbar-overlay-thumb\s*\{[^}]*left: 2px/);
   assert.doesNotMatch(css, /--story-top-clip/);
@@ -92,10 +93,16 @@ test('各游戏阶段的状态和操作分别放在独立列容器中', () => {
     const html = writingMarkup({ uid: 'a', room: { ...room, phase } });
     const controls = html.indexOf('class="game-controls"');
     assert.ok(html.indexOf('class="game-info"') < html.indexOf('writing-stage'), phase);
-    assert.ok(html.indexOf('game-status-block') < controls, phase);
-    assert.ok(controls < html.indexOf('game-leave'), phase);
+    assert.ok(html.indexOf('game-status-block') < html.indexOf('game-leave'), phase);
+    assert.ok(html.indexOf('game-leave') < controls, phase);
     assert.ok(controls < html.indexOf(phase === 'writing' ? 'id="word-form"' : 'word-grid'), phase);
   }
+});
+
+test('所有游戏阶段退出房间按钮单列留空探底、双列左侧居中半宽', () => {
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.writing-page \.game-leave\s*\{[^}]*order:\s*99;\s*margin-top:\s*28px;\s*width:\s*100%/);
+  assert.match(css, /\.writing-page \.game-leave\s*\{[^}]*order:\s*unset;\s*align-self:\s*center;\s*width:\s*50%;\s*margin-top:\s*12px/);
 });
 
 test('历史详情的词路径与曲线投票使用独立宽屏列，窄屏阅读顺序不变', () => {
@@ -103,10 +110,11 @@ test('历史详情的词路径与曲线投票使用独立宽屏列，窄屏阅�
   const main = html.indexOf('class="match-detail-main"');
   const aside = html.indexOf('class="match-detail-aside"');
   assert.ok(main > html.indexOf('match-detail-heading'));
-  assert.ok(main < html.indexOf('同局玩家'));
-  assert.ok(html.indexOf('完整词路径') < aside);
-  assert.ok(aside < html.indexOf('收敛曲线'));
-  assert.ok(html.indexOf('收敛曲线') < html.indexOf('逐轮投票记录'));
+  assert.ok(main < html.indexOf('收敛曲线'));
+  assert.ok(html.indexOf('收敛曲线') < aside);
+  assert.ok(aside < html.indexOf('同局玩家'));
+  assert.ok(html.indexOf('同局玩家') < html.indexOf('完整词路径'));
+  assert.ok(html.indexOf('完整词路径') < html.indexOf('逐轮投票记录'));
   for (const detail of [null, { error: '对局不存在或无权查看' }]) {
     assert.doesNotMatch(matchDetailMarkup(detail), /class="match-detail-(main|aside)"/);
   }
