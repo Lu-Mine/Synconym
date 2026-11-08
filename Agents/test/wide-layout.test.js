@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { matchDetailMarkup } from '../../public/render.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lobbyMarkup, writingMarkup } from '../../public/render.js';
+import { homeMarkup, lobbyMarkup, privacyMarkup, shellMarkup, writingMarkup } from '../../public/render.js';
 
 const players = [
   { uid: 'a', name: '甲', seat: 0, connected: true },
@@ -11,6 +11,71 @@ const players = [
 const room = { code: '12345', hostUid: 'a', players, round: 2, maxRounds: 12,
   mode: 'free', writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
   history: [{ n: 1, words: { a: '海洋', b: '天空' }, marks: {} }], words: { a: '海洋', b: '天空' } };
+
+test('页脚和宽屏顶栏提供站点链接与 Q&A 预留入口', () => {
+  for (const inRoom of [false, true]) {
+    const html = shellMarkup(inRoom);
+    const header = html.match(/<nav class="header-nav"[\s\S]*?<\/nav>/)[0];
+    const footer = html.match(/<nav class="footer-links"[\s\S]*?<\/nav>/)[0];
+    assert.match(header, /href="https:\/\/github\.com\/Lu-Mine\/Synconym"/);
+    assert.match(header, /href="\/\?privacy"/);
+    assert.match(header, inRoom ? /target="_blank"/ : /data-action="open-privacy"/);
+    assert.match(header, /<button[^>]*disabled[^>]*>[\s\S]*?icon-circle-help[\s\S]*?<span>Q&amp;A<\/span><\/button>/);
+    assert.match(footer, /<button[^>]*disabled[^>]*>[\s\S]*?icon-circle-help[\s\S]*?<span>Q&amp;A<\/span><\/button>/);
+  }
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.header-nav\s*\{\s*display: none/);
+  assert.match(css, /@container site-header \(min-width: 680px\)\s*\{\s*\.header-nav\s*\{[^}]*display: flex/);
+});
+
+test('首页入口与玩法介绍分区，宽屏固定入口并隐藏跳转链接', () => {
+  const html = homeMarkup(room);
+  assert.match(html, /class="home-entry"[\s\S]*class="intro"[\s\S]*class="entry-deck"[\s\S]*class="home-story-link"[\s\S]*class="home-story"/);
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(min-width: 1200px\)\s*\{\s*\.app:has\(\.home-page\)[^}]*\}[\s\S]*?\.home-entry\s*\{[^}]*position: fixed/);
+  assert.match(css, /\.home-story-link\s*\{\s*display: none/);
+  assert.match(css, /\.home-entry\s*\{[^}]*top: 25dvh;[^}]*height: 75dvh;[^}]*\}/);
+  assert.match(css, /\.home-entry:has\(\.drawer-grid\.is-open\)\s*\{[^}]*top: max\(120px, 20dvh\);[^}]*height: max\(0px, calc\(90dvh - max\(120px, 20dvh\)\)\)/);
+  assert.match(css, /\.home-entry\s*\{[^}]*transition: top var\(--dur-3\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.home-entry\s*\{\s*transition: none/);
+  assert.match(css, /\.home-entry \.drawer-grid\.is-open \.drawer-inner\s*\{[^}]*overflow-y: auto/);
+  // 入口区与玩法说明在单列一律 600px 限宽，不随 760px 断点变宽变窄
+  assert.match(css, /\.home-page \.intro, \.home-page \.entry-deck \{ max-width: 600px; margin-inline: auto; \}/);
+  assert.match(css, /\.home-story-heading, \.home-story-how \{ max-width: 600px; margin-inline: auto; \}/);
+  assert.match(css, /\.home-story\s*\{[^}]*grid-column: 1;[^}]*grid-row: 1/);
+});
+test('顶栏固定悬浮，首页内容在滚动层内原生裁切，其他页面保持整页滚动', () => {
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.site-header\s*\{[^}]*position: fixed;[^}]*top: var\(--header-gap\);[^}]*background: var\(--card\)/);
+  assert.match(css, /\.app\s*\{[^}]*min-height: 100dvh;[^}]*--app-w: min\(100% - 40px, 600px\);/);
+  assert.match(css, /\.app\s*\{[^}]*padding: calc\(var\(--header-gap\) \+ var\(--header-h\)\) 0 24px/);
+  assert.match(css, /\.app:has\(\.home-page\)\s*\{[^}]*position: fixed;[^}]*overflow-y: auto/);
+  assert.match(css, /\.app:has\(\.home-page\)\s*\{\s*--app-w: min\(100% - 64px, 960px\); \}/);
+  // 640–760 之间内容宽连续增长，760 档的 696px 正好接住，不再卡在 600px
+  assert.match(css, /@media \(min-width: 640px\)\s*\{\s*\.app:has\(\.home-page\)\s*\{\s*--app-w: clamp\(600px, calc\(80% \+ 88px\), 696px\)/);
+  assert.match(css, /\.app\s*\{[^}]*--header-w: calc\(var\(--app-w\) \+ 32px\)/);
+  assert.match(css, /width: var\(--header-w, calc\(var\(--app-w\) \+ 32px\)\)/);
+  // 顶栏宽度只定义一次，媒体查询里不再另设档位，跨断点时宽度才连续
+  assert.equal(css.match(/--header-w:/g).length, 1);
+  // 顶栏内部自适应只按自身宽度分档，不混用视口断点
+  assert.match(css, /\.header-user-name\s*\{[^}]*max-width: clamp\(80px, 12cqw, 132px\)/);
+  assert.doesNotMatch(css, /@media[^{]*\{[^}]*\.header-(?:nav|user|rename)/);
+  assert.match(css, /html\.is-modal-open \.app,[\s\S]*?overflow: hidden/);
+  assert.match(css, /\.stage\s*\{[^}]*flex: 1 0 auto;[^}]*width: var\(--app-w\);[^}]*margin-inline: auto/);
+  assert.match(css, /\.site-footer\s*\{[^}]*width: var\(--app-w\);[^}]*margin: 32px auto 0/);
+  assert.match(css, /\.app:not\(:has\(\.home-page\)\) \.stage\s*\{\s*clip-path: inset\(var\(--stage-top-clip/);
+  assert.match(css, /\.scrollbar-overlay\.is-vertical\.is-left \.scrollbar-overlay-thumb\s*\{[^}]*left: 2px/);
+  assert.doesNotMatch(css, /--story-top-clip/);
+  assert.doesNotMatch(css, /\.site-header::before/);
+});
+test('外壳渲染后同步顶栏账户信息与改名入口', () => {
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
+  assert.match(app, /function ensureShell\(inRoom\)\s*\{[\s\S]*patchHeaderDOM\(inRoom\);[\s\S]*return stage;/);
+  const html = shellMarkup(false, { uid: 'U1', name: '活泼的柠檬' });
+  assert.match(html, /id="header-user"/);
+  assert.match(html, /header-avatar[^>]*data-avatar-name="活泼的柠檬"/);
+  assert.match(html, /data-action="rename"/);
+});
 
 test('大厅信息和操作分别放在独立列容器中', () => {
   const html = lobbyMarkup({ uid: 'a', room: { ...room, phase: 'lobby' } });
@@ -46,7 +111,26 @@ test('历史详情的词路径与曲线投票使用独立宽屏列，窄屏阅�
     assert.doesNotMatch(matchDetailMarkup(detail), /class="match-detail-(main|aside)"/);
   }
   const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
-  assert.match(css, /@media \(min-width: 1000px\)\s*\{\s*\.app:has\(\.match-detail-page\)\s*\{\s*width: min\(100% - 64px, 1120px\)/);
+  assert.match(css, /@media \(min-width: 1000px\)\s*\{\s*\.app:has\(\.match-detail-page\)\s*\{\s*--app-w: min\(100% - 64px, 1120px\)/);
   assert.match(css, /\.match-detail-main, \.match-detail-aside\s*\{[^}]*flex-direction: column/);
-  assert.match(css, /\.profile-history \.history-search\s*\{[^}]*grid-template-columns: 100px minmax\(0, 1fr\) auto/);
+  assert.match(css, /\.history-search-box\.has-time \.input\s*\{[^}]*padding-right/);
+});
+
+test('隐私说明宽屏分两列独立堆叠，窄屏阅读顺序不变', () => {
+  const html = privacyMarkup();
+  const main = html.indexOf('class="privacy-main"');
+  const aside = html.indexOf('class="privacy-aside"');
+  assert.ok(html.indexOf('class="privacy-columns"') > html.indexOf('class="privacy-nav"'));
+  assert.ok(html.indexOf('class="privacy-columns"') < main);
+  assert.ok(main < html.indexOf('id="identity"'));
+  assert.ok(html.indexOf('id="identity"') < html.indexOf('id="records"'));
+  assert.ok(html.indexOf('id="records"') < aside);
+  assert.ok(aside < html.indexOf('id="deletion"'));
+  assert.ok(html.indexOf('id="deletion"') < html.indexOf('id="hosting"'));
+  assert.ok(html.indexOf('id="hosting"') < html.indexOf('privacy-back-bottom'));
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.privacy-main, \.privacy-aside\s*\{\s*display: contents/);
+  assert.match(css, /@media \(min-width: 1000px\)\s*\{\s*\.app:has\(\.privacy-content\)\s*\{\s*--app-w: min\(100% - 64px, 1120px\)/);
+  assert.match(css, /\.privacy-columns\s*\{[^}]*grid-template-columns: minmax\(0, 1\.15fr\) minmax\(0, 1fr\)[^}]*align-items: start/);
+  assert.match(css, /\.privacy-main, \.privacy-aside\s*\{\s*display: flex; flex-direction: column; min-width: 0/);
 });

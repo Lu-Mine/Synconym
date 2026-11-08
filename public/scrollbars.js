@@ -13,10 +13,15 @@ function schedule() {
 function update() {
   scheduled = false;
   const root = document.scrollingElement;
+  const openModals = [...document.querySelectorAll('.rename-modal.is-open')];
+  const topModal = openModals.reduce((top, modal) =>
+    !top || Number.parseInt(getComputedStyle(modal).zIndex, 10) >= Number.parseInt(getComputedStyle(top).zIndex, 10) ? modal : top, null);
   const active = new Set();
   const elements = [root, ...document.body.querySelectorAll('*')];
   for (const element of elements) {
     if (element.closest?.('.scrollbar-overlay')) continue;
+    if (topModal && !topModal.contains(element)) continue;
+    if (getComputedStyle(element).visibility !== 'visible') continue;
     const isRoot = element === root;
     const style = isRoot ? null : getComputedStyle(element);
     const rect = isRoot ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : element.getBoundingClientRect();
@@ -33,14 +38,15 @@ function update() {
       if (!pair) { pair = {}; rails.set(element, pair); }
       let item = pair[axis];
       if (!item) {
+        const onLeft = axis === 'vertical' && Boolean(element.classList?.contains('scrollbars-left'));
         const rail = document.createElement('div');
-        rail.className = `scrollbar-overlay is-${axis}`;
+        rail.className = `scrollbar-overlay is-${axis}${onLeft ? ' is-left' : ''}`;
         rail.setAttribute('aria-hidden', 'true');
         const thumb = document.createElement('div');
         thumb.className = 'scrollbar-overlay-thumb';
         rail.append(thumb);
         document.body.append(rail);
-        item = pair[axis] = { rail, thumb };
+        item = pair[axis] = { rail, thumb, onLeft };
         rail.addEventListener('pointerdown', event => {
           event.preventDefault();
           const bounds = rail.getBoundingClientRect();
@@ -68,7 +74,7 @@ function update() {
       const scroll = vertical ? element.scrollTop : element.scrollLeft;
       const offset = (length - thumbLength) * Math.max(0, Math.min(1, scroll / (size - client)));
       if (vertical) {
-        Object.assign(item.rail.style, { top: `${start}px`, left: `${Math.min(innerWidth, rect.right) - 10}px`, height: `${length}px` });
+        Object.assign(item.rail.style, { top: `${start}px`, left: `${item.onLeft ? rect.left + 2 : Math.min(innerWidth, rect.right) - 10}px`, height: `${length}px` });
         Object.assign(item.thumb.style, { top: `${offset}px`, height: `${thumbLength}px` });
       } else {
         Object.assign(item.rail.style, { left: `${start}px`, top: `${Math.min(innerHeight, rect.bottom) - 10}px`, width: `${length}px` });

@@ -33,10 +33,10 @@ const APP_ROOT = MOCK ? '/__mock/play' : '/';
 const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
 const WRITE_COOLDOWN_MS = 520;
 const AVATAR_PALETTE = [
-  { ink: '#3154C7', bg: '#E8EEFF', line: '#CCD8FF' },
-  { ink: '#B94735', bg: '#FFF0EC', line: '#FFD4CA' },
-  { ink: '#187A61', bg: '#E8F8F1', line: '#C4ECDC' },
-  { ink: '#7447B8', bg: '#F3ECFF', line: '#DFD0FA' }
+  { ink: '#3154C7', bg: '#E8EEFF' },
+  { ink: '#B94735', bg: '#FFF0EC' },
+  { ink: '#187A61', bg: '#E8F8F1' },
+  { ink: '#7447B8', bg: '#F3ECFF' }
 ];
 const avatarImageCache = new Map();
 
@@ -53,12 +53,9 @@ function avatarImageUrl(name) {
   const context = canvas.getContext('2d');
 
   context.beginPath();
-  context.roundRect(2, 2, size - 4, size - 4, radius);
+  context.roundRect(0, 0, size, size, radius);
   context.fillStyle = palette.bg;
   context.fill();
-  context.lineWidth = 4;
-  context.strokeStyle = palette.line;
-  context.stroke();
 
   context.fillStyle = palette.ink;
   context.font = '680 60px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -91,6 +88,20 @@ function hydrateAvatars(root = app) {
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
 
+// 首页由整屏滚动层原生裁切；其他页面按整页滚动位置裁掉滚过顶栏的内容。
+function updateStageClip() {
+  const stage = app.querySelector('#stage');
+  const header = app.querySelector('#site-header');
+  if (!stage || !header) return;
+  if (app.querySelector('.home-page')) {
+    stage.style.removeProperty('--stage-top-clip');
+    return;
+  }
+  const overlap = Math.max(0, header.getBoundingClientRect().bottom - stage.getBoundingClientRect().top);
+  stage.style.setProperty('--stage-top-clip', `${overlap}px`);
+}
+window.addEventListener('scroll', updateStageClip, { passive: true });
+window.addEventListener('resize', updateStageClip);
 let state = { room: null, profile: null };
 let settings = {
   mode: 'free',
@@ -857,6 +868,7 @@ function ensureShell(inRoom) {
     stage = app.querySelector('#stage');
   }
   patchHeaderDOM(inRoom);
+  updateStageClip();
   return stage;
 }
 
@@ -936,6 +948,7 @@ function replaceScene(stage, nextScreen, generation) {
   const html = buildScreenMarkup(nextScreen);
   const shouldTransition = Boolean(
     currentScreen && currentScreen !== nextScreen && document.startViewTransition
+      && !document.documentElement.classList.contains('is-modal-open')
       && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
   const applyDOM = () => {
@@ -1302,6 +1315,7 @@ app.addEventListener('click', async (event) => {
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
     render();
     window.scrollTo(0, 0);
+    app.scrollTo(0, 0);
     return;
   }
 
@@ -1434,6 +1448,7 @@ app.addEventListener('click', async (event) => {
     syncHomeDrawerDOM();
     return;
   }
+
 
   if (button.dataset.setting) {
     event.preventDefault();
