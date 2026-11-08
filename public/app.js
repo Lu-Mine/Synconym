@@ -1,4 +1,4 @@
-import { historyQuery, historyFilter, historyHref, historyInputs } from './match-history.js';
+import { historyQuery, historyFilter, historyHref, parseHistoryTime } from './match-history.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
@@ -627,6 +627,46 @@ function closePath() {
   pathTrigger = null;
 }
 
+// 输入框内右侧的“按 … 匹配”只在输入能解析成时间时出现。
+function syncHistoryTimeBadge() {
+  const input = document.getElementById('history-search-input');
+  const box = input?.closest('.history-search-box');
+  if (!input || !box) return;
+  const time = parseHistoryTime(input.value);
+  box.classList.toggle('has-time', Boolean(time));
+  const current = document.getElementById('history-search-time');
+  if (!time) { current?.remove(); input.style.removeProperty('padding-right'); return; }
+  const badge = current || document.createElement('span');
+  // 用外层容器宽度判断：输入框宽度会被自己上一次留下的内边距影响
+  const boxWidth = box.clientWidth || input.clientWidth;
+  // 窄屏收起年份，避免徽标把输入内容挤没
+  badge.textContent = `按 ${boxWidth < 360 ? time.short : time.label} 匹配`;
+  badge.title = `按 ${time.label} 匹配`;
+  badge.id = 'history-search-time';
+  badge.className = 'history-search-time';
+  badge.style.maxWidth = `${Math.max(96, Math.round(boxWidth * 0.55))}px`;
+  if (!current) box.append(badge);
+  // 按徽标实际宽度留出内边距，避免长区间被输入内容盖住
+  input.style.paddingRight = `${badge.offsetWidth + 24}px`;
+}
+
+// 宽度变化时重新选一次徽标文案与留白
+window.addEventListener('resize', () => { if (app.querySelector('.profile-page')) syncHistoryTimeBadge(); });
+
+// 输入即搜：不跳转页面，改完地址后直接向服务端要第一页结果。
+let historySearchTimer;
+function scheduleHistorySearch(value) {
+  clearTimeout(historySearchTimer);
+  historySearchTimer = setTimeout(() => {
+    const raw = String(value ?? '').trim();
+    const params = new URLSearchParams({ me: '' });
+    if (raw) params.set('q', raw);
+    history.replaceState(null, '', `${APP_ROOT}?${params}`);
+    if (socket.ready) requestProfile(1);
+    else render();
+  }, 240);
+}
+
 function requestProfile(page = 1) {
   state.profileError = null;
   const query = historyQuery(location.search);
@@ -807,6 +847,7 @@ function patchSameScene(stage, nextScreen) {
   if (nextScreen === 'profile' && stage.querySelector('.profile-page')) {
     patchMarkup(stage, buildScreenMarkup('profile'));
     hydrateAvatars(stage);
+    syncHistoryTimeBadge();
     return true;
   }
   if (nextScreen === 'home' && stage.querySelector('.home-page') && patchSettingsDOM(settings, true)) {
@@ -1054,20 +1095,7 @@ if (MOCK) window.addEventListener('synconym-mock-action', (event) => {
 
 render({ forceFull: true });
 
-app.addEventListener('change', (event) => {
-  if (event.target.id !== 'history-search-type') return;
-  document.getElementById('history-search-inputs').innerHTML = historyInputs({ type: event.target.value });
-});
-
 app.addEventListener('submit', (event) => {
-  if (event.target.matches('.history-search')) {
-    event.preventDefault();
-    const form = event.target;
-    const query = Object.fromEntries(new FormData(form));
-    if (query.type === 'time' && query.from && query.to && query.from > query.to) { toast('结束日期不能早于开始日期'); return; }
-    location.href = `/${historyHref(query)}`;
-    return;
-  }
   event.preventDefault();
   if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
   if (event.target.id === 'create-form') {

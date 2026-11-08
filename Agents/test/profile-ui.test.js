@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileMarkup, shellMarkup } from '../../public/render.js';
+import { profileMarkup, relativeDate, shellMarkup } from '../../public/render.js';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { historyQuery } from '../../public/match-history.js';
@@ -25,26 +25,49 @@ function fixture(overrides = {}) {
 test('档案展示身份、曾用名、对局与隐私说明，并转义所有文本', () => {
   const html = profileMarkup(fixture());
   for (const text of ['UID：A7K2M9QX', '加入于', '曾用名 旧名字', '第 3 轮相遇', '打满 8 轮未相遇',
-    '房号 12345', '主题：火锅', '自由模式', '12 局', '对局记录', '我是新人', 'data-action="reset-identity"']) {
+    '12 局', '对局记录', '我是新人', 'data-action="reset-identity"']) {
     assert.ok(html.includes(text), text);
   }
   assert.ok(html.includes('&lt;甲&gt;'));
   assert.match(html, /本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录/);
   assert.ok(!html.includes('<甲>'));
   assert.ok(!html.includes('>乙、'));
+  assert.ok(!html.includes('自由模式'));
   for (const button of html.matchAll(/<button\b[^>]*>/g)) assert.match(button[0], /\btype="(?:button|submit)"/);
-  assert.match(html, /class="profile-match-meta">[^]*?icon-hash[^]*?房号 12345/);
+  // 房号沿用共享的 room-code-display 组件
+  assert.match(html, /class="room-code-display profile-match-room">[^]*?icon-hash[^]*?<span>房号 12345<\/span>/);
 });
 
-test('对局条目按玩家、日期、结果和对局信息分层，内容保持转义', () => {
+test('对局条目前置叠放头像与相对日期，第二行按结果、房号、主题分列', () => {
   const html = profileMarkup(fixture({ matches: [{
     roomCode: '12345', outcome: 'voted', convergedRound: 4, startedAt: 1790000000000,
     themeName: '<主题>', players: ['<甲>', '乙', '丙', '丁']
   }] }));
-  assert.match(html, /class="profile-match-players">&lt;甲&gt;、乙、丙、丁<\/span>\s*<time class="profile-match-date">/);
-  assert.match(html, /class="profile-match-outcome" data-outcome="voted">第 4 轮投票相遇/);
-  assert.match(html, /class="profile-match-mode">主题：&lt;主题&gt;/);
-  assert.doesNotMatch(html, /class="profile-match-meta">[^]*? · /);
+  assert.match(html, /class="profile-match-avatars" aria-hidden="true">(?:<img class="avatar profile-match-avatar"[^>]*>){3}<span class="profile-match-avatar-rest">\+1<\/span>/);
+  assert.match(html, /class="profile-match-names">&lt;甲&gt;、乙、丙、丁<\/span>/);
+  assert.match(html, /class="profile-match-date" datetime="[^"]+">[^<]+<\/time>/);
+  assert.match(html, /class="profile-match-meta">\s*<span class="profile-match-outcome" data-outcome="voted">[^]*?<span>第 4 轮投票相遇<\/span>/);
+  assert.match(html, /class="room-code-display profile-match-room">[^]*?<span>房号 12345<\/span>/);
+  assert.match(html, /class="profile-match-theme">[^]*?<span>&lt;主题&gt;<\/span>/);
+  // 自由模式不渲染主题条目
+  const free = profileMarkup(fixture({ matches: [{ id: 'm1', roomCode: '54321', outcome: 'none', totalRounds: 8,
+    themeName: null, startedAt: 1780000000000, players: ['甲'] }] }));
+  assert.doesNotMatch(free, /profile-match-theme/);
+  assert.match(free, /class="profile-match-names">甲<\/span>/);
+});
+
+test('对局时间一周内相对显示，超过一周显示月/日与时间，超过一年只显示年月日', () => {
+  const now = new Date(2026, 10, 8, 12, 0, 0).getTime();
+  const ago = (ms) => relativeDate(now - ms, now);
+  const minute = 60 * 1000;
+  const day = 24 * 60 * minute;
+  assert.equal(ago(30 * 1000), '刚刚');
+  assert.equal(ago(5 * minute), '5 分钟前');
+  assert.equal(ago(3 * 60 * minute), '3 小时前');
+  assert.equal(ago(2 * day), '2 天前');
+  assert.equal(ago(6 * day), '6 天前');
+  assert.equal(ago(8 * day), '10/31 12:00');
+  assert.equal(ago(400 * day), '2025/10/04');
 });
 
 test('没有对局时显示空态，不渲染分页', () => {

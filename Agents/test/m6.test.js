@@ -68,7 +68,8 @@ test('对局记录每页十条、按时间倒序并可翻到最后一页', (t) =
   assert.equal(first.matches[0].id, 'match-11');
   assert.equal(first.matches[0].themeName, themes[0].name);
   assert.equal(first.matches[1].themeName, null);
-  assert.deepEqual(first.matches[1].players, ['甲', '乙']);
+  // 条目只列出同局的其他人，自己由档案身份承担
+  assert.deepEqual(first.matches[1].players, ['乙']);
 
   send(a, { type: 'openProfile', page: 2 });
   const second = lastProfile(a);

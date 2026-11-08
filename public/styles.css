@@ -2102,15 +2102,47 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .profile-history { margin-bottom: 0; }
 .profile-total { color: var(--ink-secondary); font-size: 13px; }
 .profile-matches { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.profile-match { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 0; border-top: 1px solid var(--line); }
+.profile-match { padding: 0; border-top: 1px solid var(--line); }
 .profile-match:first-child { border-top: 0; }
-.profile-match-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; width: 100%; }
-.profile-match-players { min-width: 0; color: var(--ink); font-size: 16px; font-weight: 620; line-height: 1.5; overflow-wrap: anywhere; }
-.profile-match-outcome { font-size: 14px; font-weight: 550; }
+.profile-match-link { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: 12px; margin-inline: -12px; padding: 20px 12px; color: inherit; text-decoration: none; border-radius: 10px; transition: background-color var(--dur-1) var(--ease-out); }
+.profile-match-link:hover { background: var(--card-hover); }
+.profile-match-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.profile-match-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.profile-match-avatars { display: flex; flex: none; align-items: center; padding-left: 2px; }
+.profile-match-avatars > * { position: relative; }
+.profile-match-avatars > * + * { margin-left: -14px; }
+.profile-match-avatars > :nth-child(1) { z-index: 4; }
+.profile-match-avatars > :nth-child(2) { z-index: 3; }
+.profile-match-avatars > :nth-child(3) { z-index: 2; }
+.profile-match-avatars > :nth-child(4) { z-index: 1; }
+.profile-match-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--card); box-shadow: 0 0 0 2px var(--card); }
+.profile-match-avatar-rest { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-subtle); box-shadow: 0 0 0 2px var(--card); color: var(--ink-secondary); font-size: 10px; font-weight: 620; font-variant-numeric: tabular-nums; }
+.profile-match-link:hover .profile-match-avatar, .profile-match-link:hover .profile-match-avatar-rest { box-shadow: 0 0 0 2px var(--card-hover); }
+.profile-match-names { min-width: 0; overflow: hidden; color: var(--ink); font-size: 16px; font-weight: 620; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.profile-match-date { flex: none; margin-left: auto; color: var(--ink-secondary); font-size: 14px; font-variant-numeric: tabular-nums; }
+.profile-match-meta { display: grid; grid-template-columns: minmax(0, 118px) minmax(0, auto); align-items: center; gap: 4px 8px; color: var(--ink-secondary); font-size: 12px; }
+/* 窄屏放不下三段时，主题单独占一行，结果与房号保持完整 */
+@media (max-width: 560px) { .profile-match-meta:has(.profile-match-theme) .profile-match-theme { grid-column: 1 / -1; } }
+.profile-match-meta > span { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.profile-match-meta > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-match-icon { width: 13px; height: 13px; flex: none; }
+.profile-match-outcome { color: var(--ink); font-size: 13px; font-weight: 550; }
 .profile-match-outcome:is([data-outcome="exact"], [data-outcome="voted"]) { color: #187A61; }
-.profile-match-date { flex: none; color: var(--ink-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
-.profile-match-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; color: var(--ink-secondary); font-size: 13px; overflow-wrap: anywhere; }
-@media (max-width: 380px) { .profile-match-heading { flex-wrap: wrap; } }
+.profile-match-room { font-size: inherit; }
+.profile-match-open { display: none; align-items: center; gap: 6px; color: var(--accent); font-size: 13px; }
+.profile-match-open .icon { width: 16px; height: 16px; }
+@media (min-width: 561px) {
+  .profile-match-link { grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; }
+  .profile-match-heading { grid-column: 1 / -1; }
+  .profile-match-meta { grid-template-columns: minmax(0, 120px) minmax(0, 96px) minmax(0, 1fr); }
+  .profile-match-icon { width: 14px; height: 14px; }
+  .profile-match-theme { padding-left: 12px; }
+  .profile-match-open { display: flex; grid-area: 2 / 2 / 3 / 3; align-self: end; justify-self: end; }
+}
+@media (max-width: 360px) {
+  .profile-match-meta { grid-template-columns: minmax(0, 1fr) auto; }
+  .profile-match-outcome { grid-column: 1 / -1; }
+}
 .profile-empty { color: var(--ink-secondary); font-size: 14px; line-height: 1.7; }
 .profile-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .profile-page-count { color: var(--ink-secondary); font-size: 13px; }
@@ -2382,20 +2414,18 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 }
 
 /* 历史检索与独立对局回顾 */
-.history-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 20px 0; }
+/* 历史检索：输入即搜，没有按钮；时间命中在输入框内右侧标出匹配区间 */
+.history-search { margin: 20px 0 4px; }
 .history-search label { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--ink-secondary); font-size: 13px; }
-.history-search > label { flex: 0 0 100px; }
-.history-search-inputs { display: flex; flex: 1 1 220px; gap: 10px; min-width: 0; }
-.history-search-inputs label { flex: 1; }
 .history-search .input { width: 100%; min-width: 0; font-size: 14px; }
-.history-clear { padding: 12px 4px; }
+.history-search-box { position: relative; display: block; }
+.history-search-box.has-time .input { padding-right: 11.5em; }
+.history-search-time { position: absolute; top: 50%; right: 12px; max-width: calc(100% - 24px); overflow: hidden; transform: translateY(-50%); color: var(--ink-secondary); font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; text-overflow: ellipsis; white-space: nowrap; }
+/* 命中索引：房号、人名、主题或时间中真正被搜到的那一段 */
+.history-hit { padding: 0; border-radius: 2px; background: rgba(61, 90, 254, .16); color: inherit; font-weight: inherit; }
+.history-clear { padding: 10px 2px; }
 .history-clear, .history-back { color: var(--accent); text-underline-offset: 4px; }
-.profile-match { padding: 0; }
-.profile-match-link { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 18px 8px; color: inherit; text-decoration: none; border-radius: 8px; transition: background-color var(--dur-1) var(--ease-out); }
-.profile-match-link:hover { background: var(--card-hover); }
-.profile-match-link:focus-visible, .history-clear:focus-visible, .history-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.profile-match-open { display: flex; align-items: center; gap: 6px; align-self: flex-end; font-size: 13px; color: var(--accent); }
-.profile-match-open .icon { width: 16px; height: 16px; }
+.history-clear:focus-visible, .history-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .match-detail-page { display: flex; flex-direction: column; gap: 24px; padding-top: 32px; }
 .match-detail-page .surface-block { margin: 0; min-width: 0; }
 .match-detail-heading h1 { font-size: 26px; }
@@ -2408,7 +2438,7 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .match-detail-players li > div { min-width: 0; overflow-wrap: anywhere; }
 .match-detail-players strong, .match-detail-players span { display: block; }
 .match-detail-players span { margin-top: 4px; font-size: 12px; color: var(--ink-secondary); }
-@media (max-width: 480px) { .history-search-inputs { flex-basis: calc(100% - 112px); } .history-search:has(input[type="date"]) .history-search-inputs { flex-basis: 100%; } .match-detail-players { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .match-detail-players { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .profile-match-link { transition: none; } }
 
 .match-detail-main, .match-detail-aside { display: flex; flex-direction: column; gap: 24px; min-width: 0; }

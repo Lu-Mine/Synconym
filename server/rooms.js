@@ -18,6 +18,30 @@ function wordKeys(record) {
     .map(([uid, word]) => [uid, normalizeWord(word)]));
 }
 
+// 命中索引：告诉客户端这条记录在哪些维度上被搜到，用于高亮对应的信息。
+// names 里 whole 表示整段高亮（命中 UID 前缀时高亮那个人的名字），否则按查询片段高亮。
+function matchHits(filter, match) {
+  if (!filter) return null;
+  const needle = filter.value.toLowerCase();
+  const names = [];
+  if (needle) {
+    for (const player of match.players) {
+      const name = String(player.name);
+      if (name.toLowerCase().includes(needle)) names.push({ name, whole: false });
+      else if (player.uid.toLowerCase().startsWith(needle)) names.push({ name, whole: true });
+    }
+  }
+  const time = (filter.from !== undefined || filter.to !== undefined)
+    && (filter.from === undefined || match.startedAt >= filter.from)
+    && (filter.to === undefined || match.startedAt < filter.to);
+  return {
+    room: Boolean(needle) && match.roomCode.toLowerCase().startsWith(needle),
+    theme: filter.themeIds.includes(match.themeId),
+    time,
+    names
+  };
+}
+
 function randomString(chars, length, random) {
   return Array.from({ length }, () => chars[Math.floor(random() * chars.length)]).join('');
 }
@@ -147,12 +171,17 @@ export class RoomManager {
     const pages = Math.max(1, Math.ceil(total / PROFILE_PAGE_SIZE));
     const current = Math.min(Math.max(Math.floor(Number(page)) || 1, 1), pages);
     const matches = this.db.listMatchesFor(uid, { limit: PROFILE_PAGE_SIZE, offset: (current - 1) * PROFILE_PAGE_SIZE, filter })
-      .map((match) => ({
-        id: match.id, roomCode: match.roomCode, outcome: match.outcome,
-        totalRounds: match.totalRounds, convergedRound: match.convergedRound,
-        themeName: match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null,
-        startedAt: match.startedAt, players: match.players.map((player) => player.name)
-      }));
+      .map((match) => {
+        const themeName = match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null;
+        const hits = matchHits(filter, match);
+        return {
+          id: match.id, roomCode: match.roomCode, outcome: match.outcome,
+          totalRounds: match.totalRounds, convergedRound: match.convergedRound,
+          themeName, startedAt: match.startedAt,
+          players: match.players.filter((player) => player.uid !== uid).map((player) => player.name),
+          ...(hits ? { hits } : {})
+        };
+      });
     return { user, nameHistory: this.db.getNameHistory(uid, PROFILE_NAME_HISTORY),
       matches, page: current, pageSize: PROFILE_PAGE_SIZE, total, filter };
   }
@@ -752,12 +781,23 @@ export function createMemoryDb() {
   const players = new Map();
   const nameHistory = new Map();
   const matches = new Map();
+  // 与 SQL 同一语义：任一维度命中即算找到
+  const matchesAny = (match, filter) => {
+    const needle = filter.value.toLowerCase();
+    if (needle) {
+      if (match.roomCode.toLowerCase().startsWith(needle)) return true;
+      if (match.players.some((player) => player.uid.toLowerCase().startsWith(needle))) return true;
+      if (match.players.some((player) => String(player.name).toLowerCase().includes(needle))) return true;
+      if (filter.themeIds.includes(match.themeId)) return true;
+    }
+    if (filter.from !== undefined && match.startedAt < filter.from) return false;
+    if (filter.to !== undefined && match.startedAt >= filter.to) return false;
+    return filter.from !== undefined || filter.to !== undefined;
+  };
   const filteredMatches = (uid, input) => {
     const filter = normalizeMatchFilter(input);
-    return [...matches.values()].filter((match) => match.players.some((p) => p.uid === uid)
-      && (!filter || (filter.type === 'room' ? match.roomCode === filter.value
-        : filter.type === 'uid' ? match.players.some((p) => p.uid === filter.value)
-          : (filter.from === undefined || match.startedAt >= filter.from) && (filter.to === undefined || match.startedAt < filter.to))));
+    return [...matches.values()].filter((match) => match.players.some((player) => player.uid === uid)
+      && (!filter || matchesAny(match, filter)));
   };
   return {
     getPlayer: (uid) => players.get(uid),

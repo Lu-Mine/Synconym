@@ -1,45 +1,57 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import Database from 'better-sqlite3';
 
+const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
+
+const likeEscape = (value) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
+// 主题名或 id 命中折算成 theme_id；空查询不参与主题匹配。
+const themeIdsFor = (value) => (value
+  ? THEMES.filter((theme) => theme.name.toLowerCase().includes(value.toLowerCase()) || theme.id.includes(value.toLowerCase())).map((theme) => theme.id)
+  : []);
+
 // Search inputs are normalized once for both count and list (including the memory DB).
+// 只有一个类型：任意维度命中即算找到——房号前缀、参与者 UID 前缀、参与者名字、主题名，以及能解析出的时间范围。
 export function normalizeMatchFilter(filter) {
   if (filter == null) return null;
   if (typeof filter !== 'object' || Array.isArray(filter)) throw new Error('历史筛选无效');
   if (Object.keys(filter).length === 0) return null;
-  if (filter.type === 'room' || filter.type === 'uid') {
-    if (typeof filter.value !== 'string') throw new Error('历史筛选无效');
-    const value = filter.value.trim().toUpperCase();
-    if (!value) return null;
-    if (!(filter.type === 'room' ? /^[1-9][0-9]{4}$/ : /^[A-Z0-9]{8}$/).test(value)) throw new Error('历史筛选无效');
-    return { type: filter.type, value };
+  if (filter.type !== 'any' || typeof filter.value !== 'string') throw new Error('历史筛选无效');
+  const value = filter.value.trim();
+  if ([...value].length > 32) throw new Error('历史筛选无效');
+  const result = { type: 'any', value, themeIds: themeIdsFor(value) };
+  for (const key of ['from', 'to']) {
+    if (filter[key] === undefined) continue;
+    if (!Number.isSafeInteger(filter[key]) || filter[key] < 0 || filter[key] > 8640000000000000) throw new Error('时间范围无效');
+    result[key] = filter[key];
   }
-  if (filter.type === 'time') {
-    const result = { type: 'time' };
-    for (const key of ['from', 'to']) {
-      if (filter[key] === undefined) continue;
-      if (!Number.isSafeInteger(filter[key]) || filter[key] < 0 || filter[key] > 8640000000000000) throw new Error('时间范围无效');
-      result[key] = filter[key];
-    }
-    if (result.from === undefined && result.to === undefined) throw new Error('时间范围无效');
-    if (result.from !== undefined && result.to !== undefined && result.from >= result.to) throw new Error('时间范围无效');
-    return result;
-  }
-  throw new Error('历史筛选无效');
+  if (result.from !== undefined && result.to !== undefined && result.from >= result.to) throw new Error('时间范围无效');
+  return value || result.from !== undefined || result.to !== undefined ? result : null;
 }
 
 function matchWhere(uid, input) {
   const filter = normalizeMatchFilter(input);
   let sql = 'p.uid = ?';
   const params = [uid];
-  if (filter?.type === 'room') { sql += ' AND m.room_code = ?'; params.push(filter.value); }
-  if (filter?.type === 'uid') {
-    sql += ' AND EXISTS (SELECT 1 FROM match_players other WHERE other.match_id = m.id AND other.uid = ?)';
-    params.push(filter.value);
-  }
-  if (filter?.type === 'time') {
-    if (filter.from !== undefined) { sql += ' AND m.started_at >= ?'; params.push(filter.from); }
-    if (filter.to !== undefined) { sql += ' AND m.started_at < ?'; params.push(filter.to); }
+  if (filter?.type === 'any') {
+    const matched = [];
+    if (filter.value) {
+      const prefix = `${likeEscape(filter.value)}%`;
+      matched.push('m.room_code LIKE ? ESCAPE \'\\\'');
+      params.push(prefix);
+      matched.push('EXISTS (SELECT 1 FROM match_players other WHERE other.match_id = m.id AND (other.uid LIKE ? ESCAPE \'\\\' OR other.name_at_time LIKE ? ESCAPE \'\\\'))');
+      params.push(prefix, `%${likeEscape(filter.value)}%`);
+      if (filter.themeIds.length) {
+        matched.push(`m.theme_id IN (${filter.themeIds.map(() => '?').join(', ')})`);
+        params.push(...filter.themeIds);
+      }
+    }
+    // 时间维度的两端是 AND，作为整体再与其它维度 OR
+    const ranged = [];
+    if (filter.from !== undefined) { ranged.push('m.started_at >= ?'); params.push(filter.from); }
+    if (filter.to !== undefined) { ranged.push('m.started_at < ?'); params.push(filter.to); }
+    if (ranged.length) matched.push(`(${ranged.join(' AND ')})`);
+    sql += ` AND (${matched.join(' OR ')})`;
   }
   return { sql, params };
 }

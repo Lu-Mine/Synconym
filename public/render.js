@@ -1,4 +1,4 @@
-import { historyHref, historySearchMarkup } from './match-history.js';
+import { historyHref, historySearchMarkup, highlightMatch } from './match-history.js';
 import { chartMarkup } from './chart.js';
 
 export function escapeHtml(value) {
@@ -26,8 +26,10 @@ export function icon(name, className = '') {
   return `<svg class="icon ${className}" aria-hidden="true"><use href="/icons.svg#icon-${name}"></use></svg>`;
 }
 
-function roomCodeMarkup(code, className = '') {
-  return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('hash', 'room-code-icon')}<span>房号 ${escapeHtml(code ?? '–')}</span></span>`;
+// 命中房号时整段高亮，「房号」前缀与数字之间的空格保持原样。
+function roomCodeMarkup(code, className = '', hit = false) {
+  const label = `房号 ${escapeHtml(code ?? '–')}`;
+  return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('hash', 'room-code-icon')}<span>${hit ? `<mark class="history-hit">${label}</mark>` : label}</span></span>`;
 }
 
 export function brandMarkup() {
@@ -366,19 +368,53 @@ function profileDate(timestamp) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+// 对局时间：一周内相对显示，一年内显示月/日与 24 小时时间，更早只显示年月日。
+export function relativeDate(timestamp, now = Date.now()) {
+  if (!Number.isFinite(timestamp)) return '';
+  const date = new Date(timestamp);
+  const pad = (value) => String(value).padStart(2, '0');
+  const elapsed = Math.max(0, now - timestamp);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (elapsed < minute) return '刚刚';
+  if (elapsed < hour) return `${Math.floor(elapsed / minute)} 分钟前`;
+  if (elapsed < day) return `${Math.floor(elapsed / hour)} 小时前`;
+  if (elapsed < 7 * day) return `${Math.floor(elapsed / day)} 天前`;
+  if (elapsed >= 365 * day) return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}`;
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function profileMatchMarkup(match, query = {}) {
-  const outcome = match.outcome === 'none'
-    ? `打满 ${match.totalRounds} 轮未相遇`
-    : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
-  const mode = match.themeName ? `主题：${match.themeName}` : '自由模式';
+  const met = match.outcome !== 'none';
+  const outcome = met
+    ? `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`
+    : `打满 ${match.totalRounds} 轮未相遇`;
+  // 服务端只下发同局的其他人，头像与名字都按这份名单渲染
+  const others = match.players || [];
+  // hits 来自服务端：一条记录可能在多个维度上被搜到，命中的那几处分别高亮
+  const hits = match.hits || {};
+  const hitNames = new Map((hits.names || []).map((hit) => [hit.name, hit.whole]));
+  const names = others.map((name) => (hitNames.has(name)
+    ? highlightMatch(name, hitNames.get(name) ? '' : query.value)
+    : escapeHtml(name))).join('、');
+  const avatars = others.slice(0, 3).map((name) => avatarMarkup(name, 'profile-match-avatar')).join('');
+  const rest = others.length > 3 ? `<span class="profile-match-avatar-rest">+${others.length - 3}</span>` : '';
+  const startedAt = Number.isFinite(match.startedAt) ? new Date(match.startedAt).toISOString() : '';
+  const date = relativeDate(match.startedAt);
+  const theme = match.themeName ? (hits.theme ? highlightMatch(match.themeName, query.value) : escapeHtml(match.themeName)) : '';
   return `<li class="profile-match">
         <a class="profile-match-link" href="${escapeHtml(historyHref(query, match.id))}">
-        <div class="profile-match-heading">
-          <span class="profile-match-players">${escapeHtml(match.players.join('、'))}</span>
-          <time class="profile-match-date">${escapeHtml(profileDate(match.startedAt))}</time>
-        </div>
-        <span class="profile-match-outcome" data-outcome="${escapeHtml(match.outcome)}">${escapeHtml(outcome)}</span>
-        <div class="profile-match-meta">${roomCodeMarkup(match.roomCode)}<span class="profile-match-mode">${escapeHtml(mode)}</span></div>
+        <span class="profile-match-heading">
+          <span class="profile-match-avatars" aria-hidden="true">${avatars}${rest}</span>
+          <span class="profile-match-names">${names}</span>
+          <time class="profile-match-date" datetime="${startedAt}">${hits.time ? highlightMatch(date) : escapeHtml(date)}</time>
+        </span>
+        <span class="profile-match-meta">
+          <span class="profile-match-outcome" data-outcome="${escapeHtml(match.outcome)}">${icon(met ? 'check' : 'x', 'profile-match-icon')}<span>${escapeHtml(outcome)}</span></span>
+          ${roomCodeMarkup(match.roomCode, 'profile-match-room', Boolean(hits.room))}
+          ${theme ? `<span class="profile-match-theme">${icon('tag', 'profile-match-icon')}<span>${theme}</span></span>` : ''}
+        </span>
         <span class="profile-match-open">查看详情 ${icon('arrow-right')}</span></a>
       </li>`;
 }
