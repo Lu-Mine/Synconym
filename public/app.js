@@ -196,19 +196,25 @@ function closeJoin() {
   if (trigger?.isConnected) trigger.focus({ preventScroll: true });
 }
 
+function markInvalid(input) {
+  if (!input) return;
+  input.setAttribute('aria-invalid', 'true');
+  input.classList.remove('input-shake');
+  void input.offsetWidth;
+  input.classList.add('input-shake');
+}
+
 async function checkJoinInput(input, version) {
   if (!input.isConnected || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
   const value = input.value.trim();
-  const hint = app.querySelector('#join-hint');
-  if (!value) { if (hint) hint.textContent = ''; return; }
+  if (!value) return;
   const code = parseRoomCode(value);
-  if (!code) { if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接'; return; }
-  if (hint) hint.textContent = '';
+  if (!code) { toast('请输入 5 位房号或有效的邀请链接'); markInvalid(input); return; }
   try {
     const response = await fetch(`${MOCK ? '/__mock' : ''}/api/rooms/${code}`, { cache: 'no-store' });
     const data = await response.json();
     if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
-    if (!response.ok) { if (hint) hint.textContent = data.error || '房间不存在或无法加入'; return; }
+    if (!response.ok) { toast(data.error || '房间不存在或无法加入'); markInvalid(input); return; }
     const modal = app.querySelector('#join-modal');
     const host = app.querySelector('#join-host');
     if (!modal || !host || !data.host) return;
@@ -221,14 +227,12 @@ async function checkJoinInput(input, version) {
     syncModalScrollLock();
     modal.querySelector('.button[data-action="cancel-join"]').focus({ preventScroll: true });
   } catch {
-    if (version === joinCheckVersion && input.isConnected && !state.room && !profileOpen && hint) hint.textContent = '无法查询房间，请稍后重试';
+    if (version === joinCheckVersion && input.isConnected && !state.room && !profileOpen) toast('无法查询房间，请稍后重试');
   }
 }
 
 function checkJoinOnInput(input, pasted = false) {
   const version = ++joinCheckVersion;
-  const hint = app.querySelector('#join-hint');
-  if (hint) hint.textContent = '';
   const value = input.value.trim();
   if (pasted || parseRoomCode(value) || (/^[0-9０-９]+$/.test(value) && value.length > 5)) checkJoinInput(input, version);
 }
@@ -1084,6 +1088,9 @@ const socket = new Socket({
     gameUi.voted = false;
     gameUi.ready = false;
     if (state.room) render();
+    if (message.includes('密码')) markInvalid(app.querySelector(pendingJoin ? '#join-password' : '#room-password'));
+    else if (/词|答案/.test(message)) markInvalid(app.querySelector('#word-input'));
+    else if (/名字/.test(message)) markInvalid(app.querySelector('#player-name'));
     toast(message);
   },
   onToast: toast
@@ -1094,6 +1101,16 @@ if (MOCK) window.addEventListener('synconym-mock-action', (event) => {
 
 
 render({ forceFull: true });
+
+app.addEventListener('invalid', (event) => markInvalid(event.target), true);
+app.addEventListener('input', (event) => {
+  event.target.removeAttribute('aria-invalid');
+  event.target.classList.remove('input-shake');
+  if (event.target.id === 'history-search-input') {
+    syncHistoryTimeBadge();
+    if (!event.isComposing) scheduleHistorySearch(event.target.value);
+  }
+});
 
 app.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -1106,7 +1123,7 @@ app.addEventListener('submit', (event) => {
   } else if (event.target.id === 'rename-form') {
     const input = app.querySelector('#player-name');
     const name = input?.value.trim() || '';
-    if (!name) return;
+    if (!name || [...name].length > 12) { markInvalid(input); toast('请输入 1–12 个字符的名字'); return; }
     renameOpen = false;
     syncRenameModalDOM(false);
     enqueueWrite({ type: 'rename', name });
@@ -1114,7 +1131,7 @@ app.addEventListener('submit', (event) => {
     const input = app.querySelector('#word-input');
     if (input && !input.disabled) {
       acceptWordInput(input);
-      if (!gameUi.draft.trim()) { toast('请输入 1–12 个汉字、字母或数字'); return; }
+      if (!gameUi.draft.trim()) { markInvalid(input); toast('请输入 1–12 个汉字、字母或数字'); return; }
       clearTimeout(typingTimer);
       gameUi.submitted = true;
       enqueueWrite({ type: 'submitWord', word: gameUi.draft });
@@ -1127,8 +1144,8 @@ function applyRoomPaste(input, text) {
   const code = parseRoomCode(text);
   if (!code) {
     ++joinCheckVersion;
-    const hint = app.querySelector('#join-hint');
-    if (hint) hint.textContent = '请输入 5 位房号或有效的邀请链接';
+    toast('请输入 5 位房号或有效的邀请链接');
+    markInvalid(input);
     return;
   }
   input.value = code;

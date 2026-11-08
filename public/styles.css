@@ -2459,3 +2459,16 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .match-detail-main { grid-column: 1; }
   .match-detail-aside { grid-column: 2; }
 }
+
+input[aria-invalid="true"], input[aria-invalid="true"]:focus {
+  border-color: #C93627;
+  background-color: var(--vermilion-soft);
+  box-shadow: 0 0 0 2px rgb(201 54 39 / 15%);
+}
+.input-shake { animation: input-invalid-shake 240ms ease-out; }
+@keyframes input-invalid-shake {
+  0%, 100% { transform: translateX(0); }
+  25%, 75% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) { .input-shake { animation: none; } }
