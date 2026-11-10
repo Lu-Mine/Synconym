@@ -21,12 +21,12 @@ test('投票记录使用右侧图标而非原生三角标记', () => {
   assert.match(html, /<summary><span class="result-votes-label">[^]*?icon-vote[^]*?投票记录[^]*?<svg class="icon result-votes-icon"[^]*?icons.svg#icon-chevron-down[^]*?<\/summary>/);
 });
 
-test('结算说明与选择规则一致，词路径默认收起并使用简洁轮次', () => {
+test('结算说明与选择规则一致，词路径默认展开并使用简洁轮次', () => {
   const html = resultMarkup(fixture());
   assert.match(html, /原结算名单至少 2 人全员在线并选择重赛才直接开局/);
   assert.match(html, /已选择且在线的玩家回房间，其余玩家退出/);
   assert.doesNotMatch(html, /剩余全选重赛/);
-  assert.match(html, /<details class="surface-block result-votes result-path"><summary>/);
+  assert.match(html, /<details class="surface-block result-votes result-path" open><summary>/);
   assert.match(html, /class="record-round-number" aria-label="第 1 轮">1<\/span>/);
 });
 

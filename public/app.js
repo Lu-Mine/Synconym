@@ -4,6 +4,7 @@ import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState } from './countdown.js';
 import { patchMarkup } from './dom.js';
+import { downloadPoster } from './poster.js';
 import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
@@ -28,63 +29,12 @@ import {
   themeMarkup,
   writingMarkup
 } from './render.js';
+import { hydrateAvatars } from './avatar.js';
 
 const MOCK = Boolean(window.__SYNCONYM_MOCK__);
 const APP_ROOT = MOCK ? '/__mock/play' : '/';
 const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
 const WRITE_COOLDOWN_MS = 520;
-const AVATAR_PALETTE = [
-  { ink: '#3154C7', bg: '#E8EEFF' },
-  { ink: '#B94735', bg: '#FFF0EC' },
-  { ink: '#187A61', bg: '#E8F8F1' },
-  { ink: '#7447B8', bg: '#F3ECFF' }
-];
-const avatarImageCache = new Map();
-
-function avatarImageUrl(name) {
-  const normalizedName = String(name || '').trim();
-  if (avatarImageCache.has(normalizedName)) return avatarImageCache.get(normalizedName);
-  const { initial, tone } = avatarDetails(normalizedName);
-  const palette = AVATAR_PALETTE[tone];
-  const canvas = document.createElement('canvas');
-  const size = 152;
-  const radius = 44;
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext('2d');
-
-  context.beginPath();
-  context.roundRect(0, 0, size, size, radius);
-  context.fillStyle = palette.bg;
-  context.fill();
-
-  context.fillStyle = palette.ink;
-  context.font = '680 60px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
-  context.textAlign = 'left';
-  context.textBaseline = 'alphabetic';
-  const glyph = initial.toUpperCase();
-  const metrics = context.measureText(glyph);
-  const inkLeft = metrics.actualBoundingBoxLeft;
-  const inkRight = metrics.actualBoundingBoxRight;
-  const inkTop = metrics.actualBoundingBoxAscent;
-  const inkBottom = metrics.actualBoundingBoxDescent;
-  const x = (size + inkLeft - inkRight) / 2;
-  const y = (size + inkTop - inkBottom) / 2;
-  context.fillText(glyph, x, y);
-
-  const url = canvas.toDataURL('image/png');
-  avatarImageCache.set(normalizedName, url);
-  return url;
-}
-
-function hydrateAvatars(root = app) {
-  for (const avatar of root.querySelectorAll('img.avatar[data-avatar-name]')) {
-    const name = avatar.dataset.avatarName || '';
-    if (avatar.dataset.renderedName === name) continue;
-    avatar.src = avatarImageUrl(name);
-    avatar.dataset.renderedName = name;
-  }
-}
 
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
@@ -1583,6 +1533,18 @@ app.addEventListener('click', async (event) => {
     pendingTransfer = null;
     syncTransferModalDOM();
     if (targetUid) enqueueWrite({ type: 'transferHost', uid: targetUid });
+  } else if (button.dataset.action === 'export-poster') {
+    event.preventDefault();
+    if (!state.room) return;
+    button.disabled = true;
+    try {
+      await downloadPoster(state.room);
+      toast('海报已导出');
+    } catch {
+      toast('海报导出失败，请重试');
+    } finally {
+      button.disabled = false;
+    }
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;

@@ -598,14 +598,14 @@ function roundNumberMarkup(number) {
   return `<span class="record-round-number" aria-label="第 ${escapeHtml(number)} 轮">${escapeHtml(number)}</span>`;
 }
 
-export function thoughtPathMarkup(room, compactRounds = false) {
+export function thoughtPathMarkup(room, compactRounds = false, { hint = true } = {}) {
   const players = Array.isArray(room?.players) ? room.players : [];
   const rounds = Array.isArray(room?.history) ? [...room.history] : [];
   if (room?.phase === 'voting' && room.words && !rounds.some((round) => round.n === room.round)) {
     rounds.push({ n: room.round, words: room.words, marks: room.marks || {} });
   }
   if (!rounds.length) return '<p class="path-empty">还没有揭晓的词，完成第一轮后就能看到思考路径。</p>';
-  return `<p class="path-hint">按轮次查看每位玩家已揭晓的词</p><ol class="path-rounds">${rounds.map((round, index) => {
+  return `${hint ? '<p class="path-hint">按轮次查看每位玩家已揭晓的词</p>' : ''}<ol class="path-rounds">${rounds.map((round, index) => {
     const cards = players.map((player) => {
       const mark = round.marks?.[player.uid];
       const word = mark === 'empty' ? '[未提交]' : mark === 'invalid' ? '[非法答案]' : round.words?.[player.uid] || '[未参与]';
@@ -709,6 +709,17 @@ export function resultTitle(room) {
   return lines[hash % lines.length];
 }
 
+// 结算页与结算海报共用的结果说明。
+export function resultSummary(room) {
+  const history = Array.isArray(room?.history) ? room.history : [];
+  if (room?.outcome === 'break') return '崩局投票通过，本局记录不会保存。';
+  if (room?.outcome === 'exact' || room?.outcome === 'voted') {
+    const round = history.at(-1)?.n ?? room?.round;
+    return `第 ${round} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}`;
+  }
+  return `走过 ${history.length} 轮，留下了这些不同的想法。`;
+}
+
 function voteRecordsMarkup(history, players) {
   const choiceMarkup = (player, votes, choices, isBreak) => {
     const value = choices?.[player.uid];
@@ -732,8 +743,10 @@ function voteRecordsMarkup(history, players) {
   return history.map((round) => entry(round) + (round.breakVote ? entry(round, true) : '')).join('');
 }
 
-function resultPathMarkup(room) {
-  return `<details class="surface-block result-votes result-path"><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${thoughtPathMarkup(room, true)}</div></details>`;
+function resultPathMarkup(room, { poster = false, hint = true } = {}) {
+  const path = thoughtPathMarkup(room, true, { hint });
+  const exportButton = poster ? `<button class="button secondary result-path-poster" type="button" data-action="export-poster">${icon('download')}<span>导出结算海报</span></button>` : '';
+  return `<details class="surface-block result-votes result-path"${poster ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${exportButton}${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${path}</div></details>`;
 }
 
 export function rematchMarkup(state) {
@@ -778,14 +791,13 @@ export function resultMarkup(state) {
     </div></section></div>`;
   const players = room.resultPlayers || room.players || [];
   const history = room.history || [];
-  const met = room.outcome === 'exact' || room.outcome === 'voted';
   const voting = room.phase === 'rematch';
   const voteRecords = voteRecordsMarkup(history, players);
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p>`, headingMetaMarkup(room.code, room))}
+    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
-    ${resultPathMarkup({ ...room, players })}
-    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录<span class="result-votes-sub">按需查看每轮选择</span></span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
+    ${resultPathMarkup({ ...room, players }, { poster: true, hint: false })}
+    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
   </div>`;
 }
 

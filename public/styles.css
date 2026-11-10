@@ -1,4 +1,4 @@
-:root {
+:root, .poster {
   color-scheme: light;
   --bg: #F4F5F9;
   --bg-subtle: #EAECEF;
@@ -82,7 +82,9 @@ body[data-scene="lobby"] { --bg-a: #BCEBD6; --bg-b: #C6E0FF; --bg-c: #DAF0BF; }
 body[data-scene="writing"] { --bg-a: #FFD0BF; --bg-b: #FFC4DE; --bg-c: #FFE7B3; }
 
 body::before,
-body::after {
+body::after,
+.poster::before,
+.poster::after {
   content: "";
   position: fixed;
   inset: -20%;
@@ -91,14 +93,16 @@ body::after {
   will-change: transform, opacity;
   filter: blur(56px);
 }
-body::before {
+body::before,
+.poster::before {
   background:
     radial-gradient(45% 40% at 20% 20%, var(--bg-a), transparent 70%),
     radial-gradient(40% 45% at 85% 25%, var(--bg-b), transparent 70%);
   opacity: .68;
   animation: bg-drift-a 28s ease-in-out infinite alternate;
 }
-body::after {
+body::after,
+.poster::after {
   background:
     radial-gradient(45% 45% at 75% 85%, var(--bg-c), transparent 70%),
     radial-gradient(35% 35% at 15% 80%, var(--bg-b), transparent 70%);
@@ -1976,7 +1980,7 @@ body[data-scene="breakVote"] [data-action="break-yes"]:not(:disabled), .demo-vot
 body[data-scene="breakVote"] [data-action="break-yes"]:hover:not(:disabled), .demo-vote [data-action="break-yes"].is-pressed:not(:disabled) { background: #94261C; }
 /* 红色按钮的禁用态：淡红底 + 深红字，与浅色背景区分，文字对比度约 6:1 */
 [data-action="break-yes"]:disabled, .button.danger:disabled { opacity: 1; color: #8E3A30; background: #F6DCD7; border-color: #EBC2BA; }
-body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
+body[data-scene="result"], .poster[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .writing-stage { margin-bottom: 16px; }
 .game-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
 .game-form label { font-size: 14px; font-weight: 600; }
@@ -2084,6 +2088,8 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .result-vote-player > span { min-width: 0; overflow-wrap: anywhere; }
 .result-vote-avatar.avatar { width: 24px; height: 24px; flex-shrink: 0; border-radius: 6px; }
 .result-path-content { padding-top: 20px; }
+.result-path-poster { margin-left: auto; flex-shrink: 0; gap: 6px; min-height: 34px; border-radius: var(--radius-sm); padding: 6px 14px; font-size: 13px; }
+.result-path-poster .icon { width: 15px; height: 15px; }
 .result-path .path-round-group h3 { margin-bottom: 10px; }
 .result-rematch { border: 1px solid var(--line); }
 .result-rematch > .section-heading { align-items: flex-start; }
@@ -2104,7 +2110,6 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .result-votes-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .result-votes-title-icon { width: 17px; height: 17px; color: var(--muted); flex-shrink: 0; }
 .result-votes-label > span { display: inline-flex; align-items: baseline; gap: 6px; }
-.result-votes-sub { color: var(--muted); font-size: 12px; font-weight: 400; }
 .result-votes-icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--muted); transition: transform var(--dur-2) var(--ease-out); }
 .result-votes[open] .result-votes-icon { transform: rotate(180deg); }
 .result-votes::details-content {
@@ -2627,3 +2632,23 @@ input[aria-invalid="true"], input[aria-invalid="true"]:focus {
   .result-votes::details-content { transition-duration: 0s !important; }
   .recent-room { transform: none !important; }
 }
+
+/* 结算海报：固定 540 宽，导出时整体放大 2 倍。背景氛围、卡片、思考路径与品牌标识
+   都复用上面的页面组件，这里只补海报专用的容器排版。 */
+.poster { position: relative; isolation: isolate; overflow: hidden; width: 540px; padding: 26px 32px 30px; display: flex; flex-direction: column; gap: 18px; background: var(--bg); }
+.poster::before, .poster::after { position: absolute; z-index: 0; animation: none; }
+.poster > * { position: relative; z-index: 1; }
+.poster-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.poster-date { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.poster .page-heading { padding: 0; }
+.poster .page-heading h1 { margin: 0 0 8px; font-size: 30px; }
+.poster .path-hint { display: none; }
+.poster-foot { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 16px; border-top: 1px solid var(--line); }
+.poster-foot .brand { margin: 0; }
+.poster-foot p { margin: 0; color: var(--muted); font-size: 12px; }
+.poster .page-heading-meta { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; flex-basis: 100%; gap: 6px 14px; }
+.poster .page-heading-meta > span { color: var(--muted); font-size: 13px; }
+.poster .page-heading .current-theme { color: var(--muted); text-align: left; }
+.poster .page-heading .current-theme span { font-size: 13px; }
+.poster .page-heading .current-theme strong { font-size: 14px; color: var(--ink); }
+.poster .page-heading .current-theme-icon { width: 15px; height: 15px; }
