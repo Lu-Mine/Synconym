@@ -795,9 +795,11 @@ export function resultMarkup(state) {
   const voteRecords = voteRecordsMarkup(history, players);
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
     ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
-    <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
-    ${resultPathMarkup({ ...room, players }, { poster: true, hint: false })}
-    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
+    <div class="result-aside">
+      <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
+      <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
+    </div>
+    <div class="result-main">${resultPathMarkup({ ...room, players }, { poster: true, hint: false })}</div>
   </div>`;
 }
 

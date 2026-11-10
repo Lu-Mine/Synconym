@@ -2051,6 +2051,13 @@ body[data-scene="result"], .poster[data-scene="result"] { --bg-a: #CBD6FF; --bg-
 
 /* M3：结算与重赛，沿用大厅和思考路径的组件与席位配色。 */
 .result-page { display: flex; flex-direction: column; gap: 20px; }
+/* 窄屏按阅读顺序摊开右侧两卡：下一步、完整词路径、投票记录。 */
+@media (max-width: 999px) {
+  .result-page > .result-aside, .result-page > .result-main { display: contents; }
+  .result-page > .result-aside > .result-rematch-group { order: 1; }
+  .result-page > .result-main > .result-path { order: 2; }
+  .result-page > .result-aside > .result-votes { order: 3; }
+}
 /* 结算与历史详情共用的页面标题区：左侧标题与说明，右侧房号和主题分两行居右；放不下时落到说明下方居中。 */
 .page-heading { container-type: inline-size; padding: 16px 0 6px; }
 .page-heading-inner { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
@@ -2526,11 +2533,10 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 
   .result-page .result-heading { grid-column: 1 / -1; }
   .result-page[data-screen="interrupted"] > .result-rematch { grid-column: 1; }
-  .result-page > .result-rematch-group, .result-page > .result-rematch { grid-column: 2; grid-row: 2; }
-  .result-page > .surface-block:not(.result-rematch) { grid-column: 1; }
-  .result-page > .surface-block.result-votes:not(.result-path) { grid-column: 2; grid-row: 3; }
-  .result-page > .surface-block.result-path { grid-column: 1; }
-  .result-page > .surface-block { margin-bottom: 0; }
+  .result-page > .result-aside, .result-page > .result-main { display: flex; flex-direction: column; grid-row: 2; }
+  .result-page > .result-aside { grid-column: 2; gap: 16px; }
+  .result-page > .result-main { grid-column: 1; }
+  .result-page .surface-block { margin-bottom: 0; }
 
   .profile-page { grid-template-areas: 'identity history' 'privacy history' 'actions history' '. history'; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); grid-template-rows: auto auto auto 1fr; }
   .profile-identity { grid-area: identity; }
