@@ -26,9 +26,9 @@ test('mock 档案预置三页记录，支持搜索与真实详情且不重复初
   assert.equal(query({ type: 'openProfile', filter: { type: 'any', value: 'MOCK00' } }).profile.total, 24);
   const recent = query({ type: 'openProfile', filter: { type: 'any', value: '', from: Date.now() - 86400000 } }).profile;
   assert.equal(recent.total, 1);
-  assert.equal(query({ type: 'openProfile', filter: { type: 'any', value: '牛油果' } }).profile.total, 8);
+  assert.equal(query({ type: 'openProfile', filter: { type: 'any', value: '新点子' } }).profile.total, 8);
   assert.equal(query({ type: 'openProfile', filter: { type: 'any', value: '海洋' } }).profile.total, 12);
-  const nameHit = query({ type: 'openProfile', filter: { type: 'any', value: '牛油果' } }).profile.matches
+  const nameHit = query({ type: 'openProfile', filter: { type: 'any', value: '新点子' } }).profile.matches
     .find((match) => match.id === `mock-history-${connection.uid}-2`);
   assert.deepEqual(nameHit.hits, { room: false, theme: false, time: false, names: [{ name: '总有新点子的牛油果', whole: false }] });
   const matches = [0, 1, 2].map(i => query({ type: 'openMatch', id: `mock-history-${connection.uid}-${i}` }).match);
