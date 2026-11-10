@@ -44,12 +44,12 @@ test('首页入口与玩法介绍分区，宽屏固定入口并隐藏跳转链�
   assert.match(css, /\.home-story-heading, \.home-story-how \{ max-width: 600px; margin-inline: auto; \}/);
   assert.match(css, /\.home-story\s*\{[^}]*grid-column: 1;[^}]*grid-row: 1/);
 });
-test('顶栏固定悬浮，首页内容在滚动层内原生裁切，其他页面保持整页滚动', () => {
+test('顶栏固定悬浮，全站内容在顶栏下方的滚动层内滚动', () => {
   const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
   assert.match(css, /\.site-header\s*\{[^}]*position: fixed;[^}]*top: var\(--header-gap\);[^}]*background: var\(--card\)/);
-  assert.match(css, /\.app\s*\{[^}]*min-height: 100dvh;[^}]*--app-w: min\(100% - 40px, 600px\);/);
-  assert.match(css, /\.app\s*\{[^}]*padding: calc\(var\(--header-gap\) \+ var\(--header-h\)\) 0 24px/);
-  assert.match(css, /\.app:has\(\.home-page\)\s*\{[^}]*position: fixed;[^}]*overflow-y: auto/);
+  assert.match(css, /\.app\s*\{[^}]*position: fixed;[^}]*top: calc\(var\(--header-gap\) \+ var\(--header-h\)\);[^}]*overflow-y: auto/);
+  assert.match(css, /\.app\s*\{[^}]*--app-w: min\(100% - 40px, 600px\);/);
+  assert.match(css, /\.app \.stage,\s*\.app \.site-footer \{ width: var\(--app-w\); \}/);
   assert.match(css, /\.app:has\(\.home-page\)\s*\{\s*--app-w: min\(100% - 64px, 960px\); \}/);
   // 640–760 之间内容宽连续增长，760 档的 696px 正好接住，不再卡在 600px
   assert.match(css, /@media \(min-width: 640px\)\s*\{\s*\.app:has\(\.home-page\)\s*\{\s*--app-w: clamp\(600px, calc\(80% \+ 88px\), 696px\)/);
@@ -64,7 +64,9 @@ test('顶栏固定悬浮，首页内容在滚动层内原生裁切，其他页�
   assert.match(css, /\.stage\s*\{[^}]*flex: 1 0 auto;[^}]*width: 100%;[^}]*margin-inline: auto/);
   assert.match(css, /\.site-footer\s*\{[^}]*width: 100%;[^}]*margin: 32px auto 0/);
   assert.match(css, /@media \(max-width: 560px\)\s*\{[\s\S]*?\.app\s*\{\s*--app-w: min\(100vw - 32px, 600px\)/);
-  assert.match(css, /\.app:not\(:has\(\.home-page\)\) \.stage\s*\{\s*clip-path: inset\(var\(--stage-top-clip/);
+  assert.doesNotMatch(css, /--stage-top-clip|\.app:not\(:has\(\.home-page\)\) \.stage/);
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(app, /updateStageClip|--stage-top-clip/);
   assert.match(css, /\.scrollbar-overlay\.is-vertical\.is-left \.scrollbar-overlay-thumb\s*\{[^}]*left: 2px/);
   assert.doesNotMatch(css, /--story-top-clip/);
   assert.doesNotMatch(css, /\.site-header::before/);

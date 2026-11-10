@@ -39,20 +39,6 @@ const WRITE_COOLDOWN_MS = 520;
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
 
-// 首页由整屏滚动层原生裁切；其他页面按整页滚动位置裁掉滚过顶栏的内容。
-function updateStageClip() {
-  const stage = app.querySelector('#stage');
-  const header = app.querySelector('#site-header');
-  if (!stage || !header) return;
-  if (app.querySelector('.home-page')) {
-    stage.style.removeProperty('--stage-top-clip');
-    return;
-  }
-  const overlap = Math.max(0, header.getBoundingClientRect().bottom - stage.getBoundingClientRect().top);
-  stage.style.setProperty('--stage-top-clip', `${overlap}px`);
-}
-window.addEventListener('scroll', updateStageClip, { passive: true });
-window.addEventListener('resize', updateStageClip);
 let state = { room: null, profile: null };
 let settings = {
   mode: 'free',
@@ -838,7 +824,6 @@ function ensureShell(inRoom) {
     stage = app.querySelector('#stage');
   }
   patchHeaderDOM(inRoom);
-  updateStageClip();
   return stage;
 }
 

@@ -160,15 +160,19 @@ button svg {
 }
 
 .app {
+  position: fixed;
+  top: calc(var(--header-gap) + var(--header-h));
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
   --app-w: min(100% - 40px, 600px);
-  /* 顶栏宽度只跟随内容宽度：各页面共用一条公式，跨过任何断点都不会突然变宽 */
+  /* 顶栏宽度只跟随内容宽度。 */
   --header-w: calc(var(--app-w) + 32px);
-  width: var(--app-w);
-  margin: 0 auto;
-  padding: calc(var(--header-gap) + var(--header-h)) 0 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 0 24px;
 }
 
 .restore-status { margin: auto; color: var(--ink-secondary); text-align: center; }
@@ -383,25 +387,9 @@ html:has(.rename-modal.is-open) .app {
   margin-inline: auto;
 }
 
-/* 首页内容在顶栏下方的整屏滚动层内滚动，越界内容由滚动层原生裁切；
-   其他页面保持整页滚动，滚过顶栏的部分按滚动位置裁掉。 */
-.app:has(.home-page) {
-  position: fixed;
-  top: calc(var(--header-gap) + var(--header-h));
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: auto;
-  margin-inline: 0;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 16px 0 24px;
-}
-.app:has(.home-page) .stage,
-.app:has(.home-page) .site-footer { width: var(--app-w); }
-.app:not(:has(.home-page)) .stage { clip-path: inset(var(--stage-top-clip, 0px) -20px -20px); }
-.app:not(:has(.home-page)) .stage:has(.start-countdown) { clip-path: none; }
+/* 内容和页脚共用顶栏下方的原生滚动区域。 */
+.app .stage,
+.app .site-footer { width: var(--app-w); }
 
 
 .page { animation: none; }
@@ -1839,7 +1827,7 @@ html.overlay-scrollbars *::-webkit-scrollbar { display: none; }
   :root { --header-gap: 24px; }
   .app {
     --app-w: min(100vw - 32px, 600px);
-    padding: calc(var(--header-gap) + var(--header-h)) 0 20px;
+    padding-bottom: 20px;
   }
 
   h1 {
