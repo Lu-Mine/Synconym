@@ -232,7 +232,7 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 | `deploy/bt-start.sh` | `/opt/synconym-deploy/bt-start.sh`，并核对当前版本中的启动脚本及宝塔启动命令 |
 | `deploy/apache.synconym.conf` | 管理员确认的 Apache 配置加载位置，不能直接套用 Nginx 路径 |
 
-工作流在打包前先用 `checksum` 读取服务器上 `github-deploy.sh`、`prepare-frontend.py`、`bt-restart.py` 三个文件的 SHA-256，与本次提交中的同名文件逐项比对。任一文件缺失、内容不一致，或服务器脚本还不支持 `checksum`，发布都会在改动任何线上文件之前中止并提示重新安装。这样服务器副本与仓库的契约（例如健康检查判据）不会在无人察觉时错位。
+工作流在打包前先用 `checksum` 读取服务器上 `github-deploy.sh`、`prepare-frontend.py`、`bt-restart.py` 三个文件的 SHA-256，与本次提交中的同名文件逐项比对。任一文件缺失、内容不一致，或服务器脚本还不支持 `checksum`，发布都会在改动任何线上文件之前中止并提示重新安装。这样服务器副本与仓库的契约（例如健康检查判据）不会在无人察觉时错位。指纹只覆盖这三份通用脚本：`bt-start.sh` 带着站点自己的地址和路径，`apache.synconym.conf` 的加载位置由管理员决定，两者仍按上表随仓库改动人工核对。
 
 受限命令格式为 `status`（返回 `前端SHA 后端SHA`）、`checksum`（返回上述三个文件的 `SHA256  文件名`）或 `deploy frontend|backend <目标40位SHA> <归档64位SHA256> <预期前端40位SHA> <预期后端40位SHA>`。入口验证双基线、部署锁和归档安全；工作流与服务器脚本必须同步升级，旧单基线及 `deploy-frontend` 调用方式不适用。`deploy.pending` 记录未完成事务；残留时拒绝新发布，管理员须根据其中旧版本路径和实际链接完成恢复、验收后再清理标记，不能为重试直接删除。
 
