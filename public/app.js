@@ -1006,6 +1006,8 @@ function render({ forceFull = false, initialSync = false } = {}) {
   activeSceneTransition?.skipTransition();
   const transition = document.startViewTransition(applyDOM);
   activeSceneTransition = transition;
+  // 被下一次切换 skipTransition 打断时 ready 会 reject，吞掉以免留下未处理的 promise 错误。
+  transition.ready.catch(() => {});
   const finish = () => {
     if (activeSceneTransition !== transition) return;
     activeSceneTransition = null;
