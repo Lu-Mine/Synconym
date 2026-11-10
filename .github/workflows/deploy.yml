@@ -36,6 +36,15 @@ jobs:
           printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/synconym_deploy' EXIT
           ssh_opts=(-i ~/.ssh/synconym_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=10)
+          # Infrastructure scripts are installed by an administrator, so compare them before touching production.
+          infra=$(ssh "${ssh_opts[@]}" "root@$DEPLOY_HOST" checksum) || {
+            echo 'Cannot read server deployment checksums; install deploy/ infrastructure files on the host first (see DEPLOY.md)' >&2
+            exit 1
+          }
+          if ! ( cd deploy && printf '%s\n' "$infra" | sha256sum -c --strict --quiet ); then
+            echo 'Server deployment infrastructure differs from this repository; reinstall deploy/ files before publishing' >&2
+            exit 1
+          fi
           archive="$RUNNER_TEMP/synconym.tar.gz"
           git archive --format=tar.gz "$GITHUB_SHA" > "$archive"
           checksum=$(sha256sum "$archive" | cut -d ' ' -f 1)

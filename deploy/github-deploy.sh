@@ -216,6 +216,17 @@ deploy_release() {
   echo "$mode deployed $revision"
 }
 
+# 部署基础设施由管理员单独安装；工作流用 checksum 核对服务器副本与仓库一致。
+# 只读、无文件系统副作用，可在 mkdir、加锁之前返回。
+infrastructure_checksums() {
+  local file digest
+  for file in github-deploy.sh prepare-frontend.py bt-restart.py; do
+    [[ -f $base/$file ]] || { echo "Missing infrastructure file: $base/$file" >&2; return 1; }
+    digest=$(sha256sum "$base/$file") || return 1
+    printf '%s  %s\n' "${digest%% *}" "$file"
+  done
+}
+
 configure_deployment() {
   local node_bin=${SYNCONYM_NODE_BIN_DIR-/www/server/nodejs/v20.19.2/bin}
   export PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -231,12 +242,13 @@ deploy_main() {
   umask 077
   local command=${SSH_ORIGINAL_COMMAND:-}
   # Validate before filesystem side effects. Do not eval SSH_ORIGINAL_COMMAND.
-  if [[ $command != status && ! $command =~ ^deploy\ (frontend|backend)\ ([0-9a-f]{40})\ ([0-9a-f]{64})\ ([0-9a-f]{40})\ ([0-9a-f]{40})$ ]]; then
+  if [[ $command != status && $command != checksum && ! $command =~ ^deploy\ (frontend|backend)\ ([0-9a-f]{40})\ ([0-9a-f]{64})\ ([0-9a-f]{40})\ ([0-9a-f]{40})$ ]]; then
     echo 'Invalid deploy command' >&2; return 2
   fi
   local mode=${BASH_REMATCH[1]:-} revision=${BASH_REMATCH[2]:-} checksum=${BASH_REMATCH[3]:-}
   local expected_front=${BASH_REMATCH[4]:-} expected_backend=${BASH_REMATCH[5]:-}
   configure_deployment
+  if [[ $command == checksum ]]; then infrastructure_checksums; return; fi
   mkdir -p "$releases" "$assets"
   exec 9>"$base/deploy.lock"
   flock -w 600 9 || { echo 'Deployment is locked' >&2; return 1; }

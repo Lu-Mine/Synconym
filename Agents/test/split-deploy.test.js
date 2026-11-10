@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -276,6 +277,7 @@ test('工作流连接失败后重新读取基准；发布成功但 SSH 断开时
   const setup = `
 HOME=$RUNNER_TEMP/home
 mkdir -p "$HOME/.ssh"
+for file in github-deploy.sh prepare-frontend.py bt-restart.py; do echo "# $file" > "deploy/$file"; done
 bash() { command "$TEST_SHELL" "$@"; }
 install() { :; }
 chmod() { :; }
@@ -284,6 +286,10 @@ sleep() { :; }
 ssh() {
   local command= arg count=0
   for arg in "$@"; do command=$arg; done
+  if [[ $command == checksum ]]; then
+    ( cd deploy && sha256sum github-deploy.sh prepare-frontend.py bt-restart.py )
+    return 0
+  fi
   [[ ! -f $RUNNER_TEMP/status-count ]] || count=$(cat "$RUNNER_TEMP/status-count")
   if [[ $command == status ]]; then
     count=$((count + 1))
@@ -414,4 +420,38 @@ rollback_deployment
   assert.match(readFileSync(join(root, 'events'), 'utf8'), /front\npanel stop\nback old-back\npanel start/);
   assert.match(result.stderr, /Rollback failed/);
   assert.equal(existsSync(join(root, 'deploy.pending')), true);
+});
+
+test('基础设施校验和只读返回仓库文件指纹，缺少文件即失败', shellOptions, (t) => {
+  const root = temporary(t);
+  const infra = join(root, 'infra');
+  mkdirSync(infra);
+  const files = ['github-deploy.sh', 'prepare-frontend.py', 'bt-restart.py'];
+  const expected = files.map((file) => {
+    const content = `# ${file}\n`;
+    writeFileSync(join(infra, file), content);
+    return `${createHash('sha256').update(content).digest('hex')}  ${file}`;
+  }).join('\n');
+  const code = `base=$TEST_INFRA
+if command -v cygpath >/dev/null; then base=$(cygpath -u "$base"); fi
+infrastructure_checksums`;
+  const result = bash(code, { env: { TEST_INFRA: infra.replaceAll('\\', '/') } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), expected);
+  assert.equal(existsSync(join(infra, 'releases')), false, '读取指纹不创建部署目录');
+  rmSync(join(infra, 'bt-restart.py'));
+  const missing = bash(code, { env: { TEST_INFRA: infra.replaceAll('\\', '/') } });
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /Missing infrastructure file/);
+});
+
+test('部署入口只接受 checksum 命令，工作流在打包前比对服务器基础设施', shellOptions, () => {
+  for (const command of ['checksum; touch /tmp/injected', 'checksum extra']) {
+    const result = bash('deploy_main', { env: { SSH_ORIGINAL_COMMAND: command } });
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /Invalid deploy command/);
+  }
+  assert.match(workflow, /"root@\$DEPLOY_HOST" checksum/);
+  assert.match(workflow, /printf '%s\\n' "\$infra" \| sha256sum -c --strict --quiet/);
+  assert.ok(workflow.indexOf('"root@$DEPLOY_HOST" checksum') < workflow.indexOf('git archive --format=tar.gz'), '校验必须发生在打包上传之前');
 });
