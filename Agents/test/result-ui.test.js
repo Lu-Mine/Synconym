@@ -1,22 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resultMarkup, writingMarkup, resultTitle } from '../../public/render.js';
-import { chartMarkup } from '../../public/chart.js';
 
 function fixture() {
   const players = [{ uid: 'a', name: '<甲>', seat: 0, connected: true }, { uid: 'b', name: '乙', seat: 1, connected: false }];
   return { uid: 'a', room: { code: '12345', phase: 'result', round: 2, maxRounds: 4, outcome: 'voted', players: [players[0]], resultPlayers: players,
     history: [{ n: 1, words: { a: '[非法答案]', b: '[未提交]' }, marks: { a: 'invalid', b: 'empty' }, outcome: 'miss', votes: { a: false } }, { n: 2, words: { a: '苹果', b: '香蕉' }, marks: { a: 'none', b: 'none' }, outcome: 'voted', votes: { a: true, b: true } }],
-    chart: [{ n: 1, similarity: null }, { n: 2, similarity: 1 }]
   } };
 }
 
 test('结算展示完整历史成员、标记、投票与相遇轮次并转义内容', () => {
   const html = resultMarkup(fixture());
-  for (const text of ['完整词路径', '投票记录', '[非法答案]', '[未提交]', '乙', '拒绝 / 超时', '未参与', '第 2 轮投票达成一致', '导出 SVG', '重赛', '回房间', '回主页', '&lt;甲&gt;']) assert.ok(html.includes(text), text);
+  for (const text of ['完整词路径', '投票记录', '[非法答案]', '[未提交]', '乙', '拒绝 / 超时', '未参与', '第 2 轮投票达成一致', '重赛', '回房间', '回主页', '&lt;甲&gt;']) assert.ok(html.includes(text), text);
   assert.ok(!html.includes('<甲>'));
   assert.match(html, /<details class="surface-block result-votes">/);
-  assert.ok(!writingMarkup({ ...fixture(), room: { ...fixture().room, phase: 'writing' } }).includes('convergence-chart'));
+  assert.ok(!writingMarkup({ ...fixture(), room: { ...fixture().room, phase: 'writing' } }).includes('收敛曲线'));
 });
 test('投票记录使用右侧图标而非原生三角标记', () => {
   const html = resultMarkup(fixture());
@@ -78,38 +76,8 @@ test('有效玩家选择回房间后禁用重赛，离开后可再次选择', ()
   assert.match(resultMarkup(state), /data-action="rematch-yes" >/);
 });
 
-test('曲线含未知虚线、玩家颜色、轮次和可独立导出的SVG', () => {
-  const html = chartMarkup(fixture().room);
-  assert.ok(html.includes('xmlns="http://www.w3.org/2000/svg"'));
-  assert.ok(html.includes('stroke-dasharray="5 5"'));
-  for (const text of ['#3D5AFE', '#FF5A46', '无法计算', '第 1 轮', '第 2 轮', '投票相遇', '&lt;甲&gt;']) assert.ok(html.includes(text), text);
-  assert.ok(!html.includes('NaN'));
-});
-
-test('曲线渐变仅覆盖连续已知区间，未知值单独标识', () => {
-  const state = fixture();
-  state.room.chart = [0.2, 0.4, null, 0.7, 0.9].map((similarity, index) => ({ n: index + 1, similarity }));
-  const html = chartMarkup(state.room);
-  assert.equal((html.match(/fill="url\(#chart-area-gradient\)"/g) || []).length, 2);
-  assert.match(html, /gradientUnits="userSpaceOnUse"/);
-  assert.match(html, />未知<\/text>/);
-  assert.match(html, /fill="white" stroke="#3D5AFE"/);
-  assert.match(html, /stroke-dasharray="5 5"/);
-});
-
-test('单轮与长局曲线保持可导出且避免无效坐标', () => {
-  const state = fixture();
-  for (const count of [1, 20]) {
-    state.room.chart = Array.from({ length: count }, (_, index) => ({ n: index + 1, similarity: index % 2 ? null : 0 }));
-    const html = chartMarkup(state.room);
-    assert.doesNotMatch(html, /NaN|Infinity/);
-    assert.match(html, /xmlns="http:\/\/www.w3.org\/2000\/svg"/);
-    if (count > 6) assert.match(html, /min-width:1530px/);
-  }
-});
-
-test('未相遇与单轮曲线不会出现错误胜利标题或非法坐标', () => {
-  const state = fixture(); state.room.outcome = 'none'; state.room.history = [state.room.history[0]]; state.room.chart = [state.room.chart[0]];
+test('未相遇且只有一轮时不会出现错误胜利标题或非法坐标', () => {
+  const state = fixture(); state.room.outcome = 'none'; state.room.history = [state.room.history[0]];
   const html = resultMarkup(state);
   assert.ok(html.includes(resultTitle(state.room)));
   assert.ok(!html.includes('我们相遇了'));

@@ -11,7 +11,6 @@
     "dev": "node --watch server/index.js --mock",
     "start": "node server/index.js",
     "build:icons": "node scripts/build-icons.js",
-    "build:vectors": "node scripts/build-vectors.js",
     "test": "node --test"
   },
   "dependencies": {

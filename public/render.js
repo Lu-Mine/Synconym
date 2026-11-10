@@ -1,5 +1,4 @@
 import { historyHref, historySearchMarkup, highlightMatch } from './match-history.js';
-import { chartMarkup } from './chart.js';
 
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -785,7 +784,6 @@ export function resultMarkup(state) {
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
     ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${room.outcome === 'break' ? '崩局投票通过，本局记录不会保存。' : met ? `第 ${escapeHtml(history.at(-1)?.n ?? room.round)} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}` : `走过 ${escapeHtml(history.length)} 轮，留下了这些不同的想法。`}</p>`, headingMetaMarkup(room.code, room))}
     <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
-    <section class="surface-block"><div class="section-heading"><h2>${icon('chart-line')}<span>收敛曲线</span></h2><button class="path-open" type="button" data-action="export-chart">${icon('download')}<span>导出 SVG</span></button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><ul class="result-legend">${players.map((p) => `<li style="--player:var(--player-${p.seat})"><i></i>${escapeHtml(p.name)}</li>`).join('')}</ul><p class="game-hint">词向量估计仅供回顾，不参与胜负判定。空心点及虚线表示无法计算，不代表 0%；投票相遇以终点标识为准。多人局使用所有玩家两两相似度的平均值。</p></section>
     ${resultPathMarkup({ ...room, players })}
     <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录<span class="result-votes-sub">按需查看每轮选择</span></span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
   </div>`;
@@ -801,10 +799,9 @@ export function matchDetailMarkup(detail, query = {}) {
   return `<div class="page match-detail-page" data-screen="match-detail">${back}
     ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1><dl class="match-detail-facts"><div><dt>开始时间</dt><dd>${escapeHtml(date(match.startedAt))}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(date(match.endedAt))}</dd></div><div><dt>轮次</dt><dd>${match.totalRounds} / ${match.maxRounds}</dd></div></dl>`, headingMetaMarkup(match.roomCode, { mode: match.themeName ? 'theme' : 'free', phase: 'result', themeName: match.themeName }))}
     <div class="match-detail-main">
-    <section class="surface-block"><div class="section-heading"><h2>${icon('chart-line')}<span>收敛曲线</span></h2><button class="path-open" type="button" data-action="export-chart">${icon('download')}<span>导出 SVG</span></button></div><div class="result-chart-scroll">${chartMarkup(room)}</div><p class="game-hint">按当前词向量重新计算，仅供回顾，不参与胜负判定。空心点和虚线表示无法计算，并非 0%。</p></section>
+    ${resultPathMarkup(room)}
     </div><div class="match-detail-aside">
     <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
-    ${resultPathMarkup(room)}
     <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>
     </div>
   </div>`;

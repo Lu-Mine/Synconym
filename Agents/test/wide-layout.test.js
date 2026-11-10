@@ -105,16 +105,15 @@ test('所有游戏阶段退出房间按钮单列留空探底、双列左侧居�
   assert.match(css, /\.writing-page \.game-leave\s*\{[^}]*order:\s*unset;\s*align-self:\s*center;\s*width:\s*50%;\s*margin-top:\s*12px/);
 });
 
-test('历史详情的词路径与曲线投票使用独立宽屏列，窄屏阅读顺序不变', () => {
-  const html = matchDetailMarkup({ match: { players, rounds: room.history, chart: [], roomCode: '12345', outcome: 'none', totalRounds: 1, maxRounds: 12, startedAt: 1, endedAt: 2 } });
+test('历史详情的词路径与同局玩家投票使用独立宽屏列，窄屏阅读顺序不变', () => {
+  const html = matchDetailMarkup({ match: { players, rounds: room.history, roomCode: '12345', outcome: 'none', totalRounds: 1, maxRounds: 12, startedAt: 1, endedAt: 2 } });
   const main = html.indexOf('class="match-detail-main"');
   const aside = html.indexOf('class="match-detail-aside"');
   assert.ok(main > html.indexOf('match-detail-heading'));
-  assert.ok(main < html.indexOf('收敛曲线'));
-  assert.ok(html.indexOf('收敛曲线') < aside);
+  assert.ok(main < html.indexOf('完整词路径'));
+  assert.ok(html.indexOf('完整词路径') < aside);
   assert.ok(aside < html.indexOf('同局玩家'));
-  assert.ok(html.indexOf('同局玩家') < html.indexOf('完整词路径'));
-  assert.ok(html.indexOf('完整词路径') < html.indexOf('逐轮投票记录'));
+  assert.ok(html.indexOf('同局玩家') < html.indexOf('逐轮投票记录'));
   for (const detail of [null, { error: '对局不存在或无权查看' }]) {
     assert.doesNotMatch(matchDetailMarkup(detail), /class="match-detail-(main|aside)"/);
   }

@@ -6,7 +6,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
-import { vectorInfo } from './similarity.js';
 import { createSecurityPolicy } from './security.js';
 import { loadConfig } from './config.js';
 import { createMockControls } from './mock.js';
@@ -42,7 +41,7 @@ export function createSynconymServer({
         response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
         response.end(JSON.stringify({
           status: 'ok', rooms: manager.rooms.size, clients: manager.clients.size,
-          vectors: Boolean(vectorInfo), uptime: Math.round(process.uptime())
+          uptime: Math.round(process.uptime())
         }));
         return;
       }
@@ -225,7 +224,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
     maxRooms: config.maxRooms, maxPayload: config.wsMaxPayload, security: config.security, publicUrl: config.publicUrl });
   server.listen(config.port, config.host || undefined, () => {
     console.log(`Synconym listening on http://localhost:${config.port}`);
-    if (vectorInfo) console.log(`词向量已加载：${vectorInfo.count} 个词，构建于 ${vectorInfo.builtAt}`);
   });
   const shutdown = () => server.close(() => process.exit(0));
   process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

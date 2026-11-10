@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createDatabase } from '../../server/db.js';
 import { RoomManager } from '../../server/rooms.js';
-import { buildChart } from '../../server/similarity.js';
 
 const A = 'AAAAAAAA', B = 'BBBBBBBB', C = 'CCCCCCCC';
 const theme = JSON.parse(readFileSync(new URL('../../data/themes.json', import.meta.url), 'utf8'))[0];
@@ -132,11 +131,9 @@ for (const sqlite of [true, false]) {
     manager.handle(connection, { type: 'openMatch', id: 'match-00' });
     const response = messages.at(-1);
     assert.equal(response.type, 'matchDetail'); assert.equal(response.id, original.id);
-    const { history, chart, themeName, ...stored } = response.match;
+    const { history, themeName, ...stored } = response.match;
     assert.deepEqual(stored, original);
     assert.equal(themeName, theme.name);
-    assert.deepEqual(chart, buildChart(original.players, original.rounds));
-    assert.equal(chart[0].similarity, null); assert.equal(chart[1].similarity, 1);
     assert.deepEqual(history.map(({ wordKeys, ...round }) => round), original.rounds);
     assert.deepEqual(history[0].wordKeys, { [A]: 'a台湾' });
     assert.deepEqual(db.getMatch(original.id), original);

@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { buildChart } from './similarity.js';
 import { normalizeMatchFilter } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
@@ -176,7 +175,7 @@ export class RoomManager {
         votes: room.phase === 'voting' ? null : room.currentRecord?.votes ?? null,
         wordKeys: room.phase === 'writing' || room.phase === 'lobby' ? null : wordKeys(room.currentRecord),
         outcome: room.outcome ?? null, history: room.history.map((record) => ({ ...record, wordKeys: wordKeys(record) })),
-        resultPlayers: room.resultPlayers ?? null, chart: room.chart ?? null,
+        resultPlayers: room.resultPlayers ?? null,
         rematchEligibleUids: room.rematchEligibleUids ?? [], rematchVotes: room.rematchVotes ?? {},
         rematchDeadline: room.rematchDeadline ?? null
       } : null,
@@ -224,7 +223,6 @@ export class RoomManager {
       ...match,
       themeName: match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null,
       history: match.rounds.map((round) => ({ ...round, wordKeys: wordKeys(round) })),
-      chart: buildChart(match.players, match.rounds)
     } }));
   }
 
@@ -410,7 +408,6 @@ export class RoomManager {
   settle(room) {
     if (room.persisted) return;
     room.resultPlayers = room.matchPlayers.map((player) => ({ ...player }));
-    room.chart = buildChart(room.resultPlayers, room.history);
     room.endedAt = Date.now();
     if (!room.dropped) this.db.saveMatch({
       id: room.matchId, roomCode: room.code, mode: room.mode, themeId: room.themeId ?? null,
@@ -481,7 +478,7 @@ export class RoomManager {
       player.ready = false; player.draft = '';
       delete player.submittedWord; delete player.vote; delete player.breakVote; delete player.disconnectedAt; delete player.leftReason;
     }
-    for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'chart', 'outcome',
+    for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'outcome',
       'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchRosterUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
     room.history = []; room.round = 0; room.dropped = false;
     room.themeId = null; room.themeName = null;

@@ -98,13 +98,6 @@
   <path d="M14 12h.01" />
   <path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z" />
   <path d="M22 21h-3" />
-</symbol><symbol id="icon-chart-line" viewBox="0 0 24 24">
-  <path d="M3 3v16a2 2 0 0 0 2 2h16" />
-  <path d="m19 9-5 5-4-4-3 3" />
-</symbol><symbol id="icon-download" viewBox="0 0 24 24">
-  <path d="M12 15V3" />
-  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-  <path d="m7 10 5 5 5-5" />
 </symbol><symbol id="icon-vote" viewBox="0 0 24 24">
   <path d="m9 12 2 2 4-4" />
   <path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5V7Z" />

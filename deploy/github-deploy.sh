@@ -97,7 +97,7 @@ wait_free() { local i; for i in {1..15}; do port_free && return 0; sleep 1; done
 healthy() {
   local i
   for i in {1..20}; do
-    if curl -fsS --max-time 2 http://127.0.0.1:3001/healthz | node -e 'let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{try{let h=JSON.parse(s);process.exit(h.status==="ok"&&h.vectors===true?0:1)}catch{process.exit(1)}})'; then return 0; fi
+    if curl -fsS --max-time 2 http://127.0.0.1:3001/healthz | node -e 'let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{try{let h=JSON.parse(s);process.exit(h.status==="ok"?0:1)}catch{process.exit(1)}})'; then return 0; fi
     sleep 2
   done
   return 1

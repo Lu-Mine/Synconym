@@ -62,7 +62,6 @@ test('健康检查端点返回 200 与运行指标', async (t) => {
   assert.equal(body.rooms, 1);
   assert.equal(body.clients, 1);
   assert.equal(typeof body.uptime, 'number');
-  assert.equal(typeof body.vectors, 'boolean');
 });
 
 test('健康检查不需要 WebSocket，且不暴露静态文件目录', async (t) => {

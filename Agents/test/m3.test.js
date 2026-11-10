@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomManager } from '../../server/rooms.js';
 import { createDatabase } from '../../server/db.js';
-import { similarity, buildChart } from '../../server/similarity.js';
 
 function setup(t, count = 2, db) {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
@@ -28,37 +27,6 @@ function setup(t, count = 2, db) {
   return { manager, room, clients, send, connect, exact };
 }
 const snapshot = (c) => c.messages.filter((m) => m.type === 'state').at(-1).room;
-// 6 字纯汉字串：高频词只取 1–4 字，必收词清单里也没有，保证不在词表里
-const UNKNOWN = '未收录的词语';
-
-test('similarity: normalized exact, word-vector ordering and unknown', () => {
-  assert.equal(similarity(' Ａ臺灣 ', 'a台湾'), 1);
-  const fruit = similarity('苹果', '香蕉'), food = similarity('苹果', '白菜'), other = similarity('苹果', '猫');
-  assert.ok(fruit > food && food > other, `${fruit} > ${food} > ${other}`);
-  for (const score of [fruit, food, other]) assert.ok(score >= 0 && score < 1);
-  assert.equal(similarity(UNKNOWN, '苹果'), null);
-  assert.equal(similarity('', ''), null);
-});
-
-test('pairwise 2–4 players: complete mean only, invalid/unknown null, voted never fabricates pair semantics', () => {
-  const players = ['a', 'b', 'c', 'd'].map((uid) => ({ uid }));
-  const record = { n: 1, words: { a: '苹果', b: '香蕉', c: '白菜', d: '猫' },
-    marks: { a: 'none', b: 'none', c: 'none', d: 'none' }, outcome: 'miss' };
-  for (const count of [2, 3, 4]) {
-    const chart = buildChart(players.slice(0, count), [record])[0];
-    assert.equal(chart.pairs.length, count * (count - 1) / 2);
-    assert.equal(chart.similarity, chart.pairs.reduce((n, p) => n + p.similarity, 0) / chart.pairs.length);
-  }
-  record.words.c = UNKNOWN;
-  assert.equal(buildChart(players, [record])[0].similarity, null);
-  record.outcome = 'voted';
-  const voted = buildChart(players, [record])[0];
-  assert.equal(voted.similarity, 1);
-  assert.equal(voted.pairs.find((p) => p.uids.includes('c')).similarity, null);
-  record.marks.a = 'invalid';
-  assert.equal(buildChart(players, [record])[0].pairs[0].similarity, null);
-});
-
 test('result snapshot and in-memory persistence computed once; unanimous rematch resets every match field', (t) => {
   const { manager, room, clients: [a, b], send, exact } = setup(t);
   const id = room.matchId, startedAt = room.startedAt;
@@ -71,11 +39,8 @@ test('result snapshot and in-memory persistence computed once; unanimous rematch
   assert.equal(room.phaseDeadline, deadline);
   assert.deepEqual(new Set(room.rematchEligibleUids), new Set([a.uid, b.uid]));
   assert.deepEqual(room.rematchVotes, {});
-  assert.equal(snapshot(a).chart[0].similarity, 1);
   assert.deepEqual(snapshot(a).resultPlayers, room.matchPlayers);
-  const chart = room.chart;
   manager.settle(room); manager.finishRound(room, 'exact');
-  assert.equal(room.chart, chart);
   assert.equal(manager.db.listMatches().length, 1);
   assert.equal(room.rematchDeadline, deadline); assert.equal(room.timer, timer);
   const saved = manager.db.getMatch(id);
@@ -91,13 +56,12 @@ test('result snapshot and in-memory persistence computed once; unanimous rematch
   assert.equal(room.phase, 'countdown');
   manager.advanceDeadline(room);
   assert.equal(room.phase, 'writing'); assert.equal(room.round, 1); assert.deepEqual(room.history, []);
-  for (const key of ['endedAt', 'resultPlayers', 'chart', 'outcome', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) assert.equal(room[key], undefined, key);
+  for (const key of ['endedAt', 'resultPlayers', 'outcome', 'persisted', 'rematchEligibleUids', 'rematchVotes', 'rematchDeadline']) assert.equal(room[key], undefined, key);
   assert.equal(room.currentRecord, null);
   assert.deepEqual(room.matchPlayers, saved.players);
   assert.equal(room.phaseDeadline - Date.now(), room.writeSeconds * 1000);
   for (const [key, value] of Object.entries(settings)) assert.equal(room[key], value, key);
   assert.ok(room.players.every((p) => !p.ready && p.draft === '' && p.submittedWord === undefined && p.vote === undefined));
-  assert.equal(snapshot(a).chart, null);
   assert.notEqual(room.matchId, id); assert.ok(room.startedAt > startedAt);
   assert.deepEqual(manager.db.getMatch(id), saved);
   assert.equal(manager.db.getMatch(room.matchId), undefined);
@@ -226,7 +190,6 @@ test('90s cleanup retains all original names/seats and full marked word path at 
   assert.equal(room.phase, 'result'); assert.deepEqual(room.resultPlayers, original);
   assert.equal(room.history[0].words[c.uid], '猫');
   assert.equal(room.history[1].words[c.uid], '[未提交]'); assert.equal(room.history[1].marks[c.uid], 'empty');
-  assert.equal(room.chart[1].similarity, 1); assert.ok(room.chart[1].pairs.some((p) => p.similarity === null));
   assert.equal(manager.db.getMatch(room.matchId).players.length, 3);
 });
 
@@ -235,9 +198,6 @@ test('voted result keeps real pair score, vote history, and persisted voted outc
   send(a, { type: 'submitWord', word: '苹果' }); send(b, { type: 'submitWord', word: '猫' });
   send(a, { type: 'vote', yes: true }); send(b, { type: 'vote', yes: true }); manager.advanceDeadline(room);
   manager.broadcast(room);
-  assert.equal(room.chart[0].similarity, 1);
-  const pair = room.chart[0].pairs[0].similarity;
-  assert.equal(pair, similarity('苹果', '猫')); assert.ok(pair < 1);
   assert.deepEqual(snapshot(a).history[0].votes, { [a.uid]: true, [b.uid]: true });
   assert.equal(manager.db.getMatch(room.matchId).outcome, 'voted');
 });
@@ -257,7 +217,7 @@ test('SQLite stores completed matches atomically and idempotently; unfinished ma
   assert.equal(db.getMatch(bad.id).players.length, 2);
 });
 
-test('round-limit nonconvergence persists null convergence and unknown/invalid curve gaps', (t) => {
+test('round-limit nonconvergence persists null convergence and invalid marks', (t) => {
   const { manager, room, clients: [a], send } = setup(t);
   send(a, { type: 'typing', word: 'bad!' });
   for (let n = 1; n <= room.maxRounds; n += 1) {
@@ -268,7 +228,6 @@ test('round-limit nonconvergence persists null convergence and unknown/invalid c
   assert.equal(saved.outcome, 'none'); assert.equal(saved.convergedRound, null);
   assert.equal(saved.rounds.length, room.maxRounds);
   assert.equal(saved.rounds[0].marks[a.uid], 'invalid');
-  assert.ok(room.chart.every((point) => point.similarity === null));
 });
 
 for (const choice of ['rematch', 'room']) test(`timeout retains multiple ${choice} voters with appropriate next phase`, (t) => {

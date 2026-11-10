@@ -40,7 +40,6 @@ test('mock 档案预置三页记录，支持搜索与真实详情且不重复初
   assert.equal(matches[2].history[1].marks.MOCK0001, 'empty');
   assert.equal(matches[2].history[2].marks.MOCK0002, 'invalid');
   assert.equal(matches[1].history.at(-1).votes[connection.uid], true);
-  assert.equal(matches[0].chart.length, matches[0].totalRounds);
 });
 
 test('正式 manager 不注入模拟历史', t => {

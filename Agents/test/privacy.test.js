@@ -61,14 +61,13 @@ test('隐私路由返回应用入口，旧独立页面不存在', async (t) => {
   assert.equal((await fetch(`${base}/privacy.html`)).status, 404);
 });
 
-test('许可声明：代码 AGPL-3.0，词向量保留 CC BY-SA 3.0', async () => {
+test('许可声明：代码 AGPL-3.0', async () => {
   const license = await readFile(new URL('../../LICENSE', import.meta.url), 'utf8');
   assert.match(license, /GNU AFFERO GENERAL PUBLIC LICENSE/);
   assert.match(license, /Version 3, 19 November 2007/);
   assert.doesNotMatch(license, /All rights reserved/);
   const notice = await readFile(new URL('../../NOTICE.md', import.meta.url), 'utf8');
   assert.match(notice, /AGPL-3\.0-only/);
-  assert.match(notice, /CC BY-SA 3\.0/);
   const pkg = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.license, 'AGPL-3.0-only');
 });

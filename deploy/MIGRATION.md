@@ -105,7 +105,7 @@ mv -Tf "$base/frontend.next" "$base/frontend-current"
 
 1. 在维护窗口准备兼容后端版本、完成 `npm ci --omit=dev`，保存其 `.deployed-revision`。确认数据目录不会被代码替换。若当前后端并非受管理的版本目录，先迁入 `releases/` 并保留原目录及链接，自动部署脚本不会替管理员完成这一初始迁移。
 2. 用宝塔仅停止 `synconym` 项目，确认旧 Node 和启动循环已退出、`3000` / `3001` 无冲突。后端切换后用核实过的 `bt-start.sh` 启动，确认 Node **仅**监听 `127.0.0.1:3001`。
-3. 检查 `curl -fsS http://127.0.0.1:3001/healthz`。当前部署脚本要求 `status=ok` 且 `vectors=true`；若词向量未加载，不应把启动当作发布成功。
+3. 检查 `curl -fsS http://127.0.0.1:3001/healthz`。部署脚本要求 `status=ok` 才算发布成功。
 4. 将 `deploy/apache.synconym.conf` 的内容合并到实际 Apache 配置，核对 `ServerName`、唯一的 `Listen 3000`、两个静态目录和三个反代路径，避免已有 `Listen` 重复定义。确认启用 `proxy`、`proxy_http`、`proxy_wstunnel`、`headers` 等所需模块及目录访问权限。
 5. 使用**该服务器实际运行的 Apache 程序及配置参数**执行语法检查；失败不得重载。检查通过后按该实例的管理方式平滑重载，仅变更游戏入口，不重启整个面板或影响其他站点。
 6. 检查 Apache 监听 `:3000`、Node 监听 `127.0.0.1:3001`；再执行下一节验收。记录实际命令和结果，不把本指南当作已执行记录。

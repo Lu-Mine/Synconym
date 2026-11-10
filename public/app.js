@@ -1428,17 +1428,6 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
-  if (button.dataset.action === 'export-chart') {
-    const chart = app.querySelector('#convergence-chart');
-    if (!chart) return;
-    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(chart)], { type: 'image/svg+xml;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `synconym-${state.room.code}.svg`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    return;
-  }
   if (button.dataset.action === 'rematch-yes' || button.dataset.action === 'rematch-room') {
     event.preventDefault();
     if (!['result', 'rematch', 'interrupted'].includes(state.room?.phase)) return;
