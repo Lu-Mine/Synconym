@@ -2021,20 +2021,23 @@ body[data-scene="result"], .poster[data-scene="result"] { --bg-a: #CBD6FF; --bg-
 #path-content { overflow-y: auto; overscroll-behavior: contain; }
 .path-hint, .path-empty { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .path-empty { padding: 16px 0; }
-.path-rounds { list-style: none; padding: 0; margin: 10px 0 0; }
-.path-round-group { container-type: inline-size; }
-.path-round-group h3 { margin: 0 0 5px; color: var(--ink-secondary); font-size: 15px; font-weight: 600; text-align: center; }
-.path-answers { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; list-style: none; padding: 0; margin: 0; }
-.path-answer { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; padding: 14px 10px; border-radius: 8px; background: var(--card-color); }
-.path-player-heading { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; transform: translateX(-4px); }
-.path-avatar.avatar { width: 20px; height: 20px; border-radius: 6px; }
-.path-name { min-width: 0; color: #fff; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; text-align: center; }
-.path-word { min-width: 0; color: #fff; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; text-align: center; }
+.path-table { min-width: 0; margin-top: 16px; padding: 12px 14px 14px; border-radius: var(--radius-lg); background: var(--bg); }
+.path-table-header, .path-round-item { display: grid; grid-template-columns: minmax(38px, .42fr) repeat(var(--path-players), minmax(0, 1fr)); align-items: center; gap: 8px; padding: 12px 16px; }
+.path-table-header { margin-bottom: 16px; }
+.path-round-label, .path-round-number { color: var(--muted); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.path-rounds { display: grid; gap: 16px; list-style: none; padding: 0; margin: 0; }
+.path-round-item { min-height: 64px; border-radius: var(--radius-md); background: var(--card); }
+.path-round-item:nth-child(even) { background: var(--bg-subtle); }
+.path-round-item.is-met { background: var(--jade-soft); }
+.path-round-item.is-met .path-round-number, .path-round-item.is-met .path-word { color: var(--jade); }
+.path-player-heading { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.path-avatar.avatar { width: 28px; height: 28px; flex: none; border-radius: 8px; }
+.path-name { min-width: 0; color: var(--ink-secondary); font-size: 15px; font-weight: 650; overflow-wrap: anywhere; text-align: center; }
+.path-answer { min-width: 0; text-align: center; }
+.path-word { color: var(--ink); font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
 .path-connector { height: 38px; display: grid; place-items: center; color: var(--muted); }
 .path-connector .icon { width: 18px; height: 18px; }
-@container (min-width: 240px) { .path-answers[data-player-count="2"], .path-answers[data-player-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@container (min-width: 390px) { .path-answers[data-player-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@container (min-width: 520px) { .path-answers[data-player-count="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .path-table { padding: 8px 6px 10px; } .path-table-header, .path-round-item { gap: 4px; padding-inline: 10px; } .path-rounds { gap: 12px; } .path-player-heading { flex-wrap: wrap; gap: 4px; } .path-name { font-size: 14px; } .path-word { font-size: 16px; } }
 @media (max-width: 560px) { .path-dialog { max-height: 85dvh; padding: 16px; } }
 
 /* M3：结算与重赛，沿用大厅和思考路径的组件与席位配色。 */
@@ -2085,7 +2088,6 @@ body[data-scene="result"], .poster[data-scene="result"] { --bg-a: #CBD6FF; --bg-
 .result-path-content { padding-top: 20px; }
 .result-path-poster { margin-left: auto; flex-shrink: 0; gap: 6px; min-height: 34px; border-radius: var(--radius-sm); padding: 6px 14px; font-size: 13px; }
 .result-path-poster .icon { width: 15px; height: 15px; }
-.result-path .path-round-group h3 { margin-bottom: 10px; }
 .result-rematch { border: 1px solid var(--line); }
 .result-rematch > .section-heading { align-items: flex-start; }
 .rematch-description { margin: 12px 0 20px; color: var(--muted); font-size: 14px; line-height: 1.7; }

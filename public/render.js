@@ -605,15 +605,16 @@ export function thoughtPathMarkup(room, compactRounds = false, { hint = true } =
     rounds.push({ n: room.round, words: room.words, marks: room.marks || {} });
   }
   if (!rounds.length) return '<p class="path-empty">还没有揭晓的词，完成第一轮后就能看到思考路径。</p>';
-  return `${hint ? '<p class="path-hint">按轮次查看每位玩家已揭晓的词</p>' : ''}<ol class="path-rounds">${rounds.map((round, index) => {
-    const cards = players.map((player) => {
+  const headings = players.map((player) => `<div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div>`).join('');
+  return `${hint ? '<p class="path-hint">按轮次查看每位玩家已揭晓的词</p>' : ''}<div class="path-table" style="--path-players:${Math.max(players.length, 1)}"><div class="path-table-header"><span class="path-round-label">轮次</span>${headings}</div><ol class="path-rounds">${rounds.map((round, index) => {
+    const answers = players.map((player) => {
       const mark = round.marks?.[player.uid];
       const word = mark === 'empty' ? '[未提交]' : mark === 'invalid' ? '[非法答案]' : round.words?.[player.uid] || '[未参与]';
-      const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
-      return `<li class="path-answer" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div><strong class="path-word">${escapeHtml(word)}</strong></li>`;
+      return `<span class="path-answer"><strong class="path-word">${escapeHtml(word)}</strong></span>`;
     }).join('');
-    return `<li class="path-round-item">${index ? `<div class="path-connector" aria-hidden="true">${icon('arrow-down')}</div>` : ''}<section class="path-round-group"><h3>${compactRounds ? roundNumberMarkup(round.n) : `第 ${escapeHtml(round.n)} 轮`}</h3><ul class="path-answers" data-player-count="${Math.min(players.length, 4)}">${cards}</ul></section></li>`;
-  }).join('')}</ol>`;
+    const met = round.outcome === 'exact' || round.outcome === 'voted' || (index === rounds.length - 1 && ['exact', 'voted'].includes(room?.outcome));
+    return `<li class="path-round-item${met ? ' is-met' : ''}"><span class="path-round-number" aria-label="第 ${escapeHtml(round.n)} 轮">${escapeHtml(String(round.n).padStart(2, '0'))}</span>${answers}</li>`;
+  }).join('')}</ol></div>`;
 }
 
 export function writingMarkup(state, ui = {}) {

@@ -27,7 +27,8 @@ test('结算说明与选择规则一致，词路径默认展开并使用简洁�
   assert.match(html, /已选择且在线的玩家回房间，其余玩家退出/);
   assert.doesNotMatch(html, /剩余全选重赛/);
   assert.match(html, /<details class="surface-block result-votes result-path" open><summary>/);
-  assert.match(html, /class="record-round-number" aria-label="第 1 轮">1<\/span>/);
+  assert.match(html, /class="path-round-number" aria-label="第 1 轮">01<\/span>/);
+  assert.match(html, /class="path-round-item is-met"[^]*?苹果[^]*?香蕉/);
 });
 
 test('投票记录区分选择并显示头像、结果与崩局节点', () => {

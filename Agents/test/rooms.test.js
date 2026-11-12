@@ -400,10 +400,10 @@ test('思考路径按轮次展示已揭晓词语，不泄露写词阶段当前�
   assert.match(voting, /\[非法答案\]/);
   assert.equal((voting.match(/第 2 轮/g) || []).length, 1);
   assert.equal((voting.match(/class="path-answer"/g) || []).length, 4);
-  assert.equal((voting.match(/path-avatar/g) || []).length, 4);
-  assert.equal((voting.match(/data-player-count="2"/g) || []).length, 2);
-  assert.equal((voting.match(/class="path-connector"/g) || []).length, 1);
-  assert.match(voting, /path-connector[^]*?icons.svg#icon-arrow-down/);
+  assert.equal((voting.match(/path-avatar/g) || []).length, 2);
+  assert.match(voting, /--path-players:2/);
+  assert.doesNotMatch(voting, /path-connector/);
+  assert.match(voting, /path-table-header[^]*?path-avatar[^]*?&lt;甲&gt;[^]*?path-avatar[^]*?乙/);
   assert.match(shellMarkup(true, { uid: 'a', name: '甲' }), /id="path-title"[^]*?icons.svg#icon-route/);
   assert.ok(voting.indexOf('第 1 轮') < voting.indexOf('苹果'));
   assert.ok(voting.indexOf('苹果') < voting.indexOf('第 2 轮'));

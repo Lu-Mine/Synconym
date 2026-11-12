@@ -35,7 +35,7 @@ test('海报复用品牌标识、标题区与思考路径组件', () => {
   // 词过程：直接使用结算页同款思考路径
   assert.match(html, /<ol class="path-rounds">/);
   assert.match(html, /class="path-answer"/);
-  assert.match(html, /class="record-round-number" aria-label="第 1 轮">1<\/span>/);
+  assert.match(html, /class="path-round-number" aria-label="第 1 轮">01<\/span>/);
   // 对局信息放在标题区的 meta 行，不单独占一块
   assert.match(html, /class="page-heading-meta"><span>2 人<\/span><span>第 2 \/ 12 轮<\/span><span>自由联想<\/span>/);
   assert.equal(html.includes('对局概览'), false);
