@@ -12,27 +12,35 @@ const room = { code: '12345', hostUid: 'a', players, round: 2, maxRounds: 12,
   mode: 'free', writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
   history: [{ n: 1, words: { a: '海洋', b: '天空' }, marks: {} }], words: { a: '海洋', b: '天空' } };
 
-test('页脚和宽屏顶栏提供站点链接与 Q&A 预留入口', () => {
+test('页脚和宽屏顶栏提供站点链接、开始游戏与 Q&A 入口', () => {
   for (const inRoom of [false, true]) {
     const html = shellMarkup(inRoom);
     const header = html.match(/<nav class="header-nav"[\s\S]*?<\/nav>/)[0];
     const footer = html.match(/<nav class="footer-links"[\s\S]*?<\/nav>/)[0];
     assert.match(header, /href="https:\/\/github\.com\/Lu-Mine\/Synconym"/);
-    assert.match(header, /href="\/\?privacy"/);
-    assert.match(header, inRoom ? /target="_blank"/ : /data-action="open-privacy"/);
-    assert.match(header, /<button[^>]*disabled[^>]*>[\s\S]*?icon-circle-help[\s\S]*?<span>Q&amp;A<\/span><\/button>/);
-    assert.match(footer, /<button[^>]*disabled[^>]*>[\s\S]*?icon-circle-help[\s\S]*?<span>Q&amp;A<\/span><\/button>/);
+    assert.match(footer, /href="https:\/\/github\.com\/Lu-Mine\/Synconym"/);
+    assert.match(footer, /href="\/\?privacy"/);
+    assert.match(footer, inRoom ? /target="_blank"/ : /data-action="open-privacy"/);
+    assert.match(header, /<a class="site-nav-link[^"]*" href="\/\?qa"/);
+    assert.match(header, inRoom ? /target="_blank"/ : /data-action="open-qa"/);
+    assert.match(footer, /<a class="footer-privacy" href="\/\?qa"/);
+    assert.match(footer, inRoom ? /target="_blank"/ : /data-action="open-qa"/);
+    // 顶栏主入口是开始游戏，对局中不打断当前这局
+    assert.equal(/data-action="open-start"/.test(header), !inRoom);
   }
   const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
   assert.match(css, /\.header-nav\s*\{\s*display: none/);
   assert.match(css, /@container site-header \(min-width: 680px\)\s*\{\s*\.header-nav\s*\{[^}]*display: flex/);
+  // 顶栏够宽先只显示开始按钮，再宽裕才补 GitHub 与 Q&A
+  assert.match(css, /\.header-nav-secondary\s*\{\s*display: none/);
+  assert.match(css, /@container site-header \(min-width: 820px\)\s*\{\s*\.header-nav-secondary\s*\{\s*display: inline-flex/);
 });
 
 test('首页入口与玩法介绍分区，宽屏固定入口并隐藏跳转链接', () => {
   const html = homeMarkup(room);
   assert.match(html, /class="home-entry"[\s\S]*class="intro"[\s\S]*class="entry-deck"[\s\S]*class="home-story-link"[\s\S]*class="home-story"/);
   const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
-  assert.match(css, /@media \(min-width: 1200px\)\s*\{\s*\.app:has\(\.home-page\)[^}]*\}[\s\S]*?\.home-entry\s*\{[^}]*position: fixed/);
+  assert.match(css, /@media \(min-width: 1200px\)\s*\{\s*\.app\s*\{[^}]*\}\s*\.app:has\(\.home-page\)[^}]*\}[\s\S]*?\.home-entry\s*\{[^}]*position: fixed/);
   assert.match(css, /\.home-story-link\s*\{\s*display: none/);
   assert.match(css, /\.home-entry\s*\{[^}]*top: 25dvh;[^}]*height: 75dvh;[^}]*\}/);
   assert.match(css, /\.home-entry:has\(\.drawer-grid\.is-open\)\s*\{[^}]*top: max\(120px, 20dvh\);[^}]*height: max\(0px, calc\(90dvh - max\(120px, 20dvh\)\)\)/);
@@ -52,10 +60,13 @@ test('顶栏固定悬浮，全站内容在顶栏下方的滚动层内滚动', ()
   assert.match(css, /\.app \.stage,\s*\.app \.site-footer \{ width: var\(--app-w\); \}/);
   assert.match(css, /\.app:has\(\.home-page\)\s*\{\s*--app-w: min\(100% - 64px, 960px\); \}/);
   // 640–760 之间内容宽连续增长，760 档的 696px 正好接住，不再卡在 600px
-  assert.match(css, /@media \(min-width: 640px\)\s*\{\s*\.app:has\(\.home-page\)\s*\{\s*--app-w: clamp\(600px, calc\(80% \+ 88px\), 696px\)/);
-  assert.match(css, /\.app\s*\{[^}]*--header-w: calc\(var\(--app-w\) \+ 32px\)/);
-  assert.match(css, /width: var\(--header-w, calc\(var\(--app-w\) \+ 32px\)\)/);
-  // 顶栏宽度只定义一次，媒体查询里不再另设档位，跨断点时宽度才连续
+  assert.match(css, /@media \(min-width: 640px\)\s*\{\s*\.app\s*\{[^}]*\}\s*\.app:has\(\.home-page\)\s*\{\s*--app-w: clamp\(600px, calc\(80% \+ 88px\), 696px\)/);
+  // 所有页面共用首页顶栏宽度曲线，页面内容宽度变化不影响顶栏
+  assert.match(css, /\.app\s*\{[^}]*--header-content-w: min\(100vw - 40px, 600px\);[^}]*--header-w: calc\(var\(--header-content-w\) \+ 32px\)/);
+  assert.match(css, /\.site-header\s*\{[^}]*width: var\(--header-w\);[^}]*max-width: calc\(100vw - 16px\)/);
+  assert.match(css, /@media \(min-width: 640px\)\s*\{\s*\.app\s*\{\s*--header-content-w: clamp\(600px, calc\(80vw \+ 88px\), 696px\)/);
+  assert.match(css, /@media \(min-width: 760px\)\s*\{\s*\.app\s*\{\s*--header-content-w: min\(100vw - 64px, 960px\)/);
+  assert.match(css, /@media \(min-width: 1200px\)\s*\{\s*\.app\s*\{\s*--header-content-w: min\(100vw - 64px, 1120px\)/);
   assert.equal(css.match(/--header-w:/g).length, 1);
   // 顶栏内部自适应只按自身宽度分档，不混用视口断点
   assert.match(css, /\.header-user-name\s*\{[^}]*max-width: clamp\(80px, 12cqw, 132px\)/);

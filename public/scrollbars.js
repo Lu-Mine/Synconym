@@ -20,6 +20,8 @@ function update() {
   const elements = [root, ...document.body.querySelectorAll('*')];
   for (const element of elements) {
     if (element.closest?.('.scrollbar-overlay')) continue;
+    // 自带滚动的卡片（如开始游戏弹窗）可以整体不画滚动条轨道
+    if (element.classList?.contains('scrollbars-hidden')) continue;
     if (topModal && !topModal.contains(element)) continue;
     if (getComputedStyle(element).visibility !== 'visible') continue;
     const isRoot = element === root;
@@ -111,6 +113,8 @@ const observer = new MutationObserver(records => {
 observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'open'] });
 new ResizeObserver(schedule).observe(document.documentElement);
 document.addEventListener('scroll', schedule, true);
+// 弹层带进出动画：动画期间量到的是缩放中的位置，结束后要按最终几何重算轨道
+document.addEventListener('transitionend', schedule, true);
 window.addEventListener('resize', schedule);
 document.documentElement.classList.add('overlay-scrollbars');
 schedule();

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { posterMarkup } from '../../public/poster.js';
-import { resultMarkup, resultSummary } from '../../public/render.js';
+import { matchRoom, resultMarkup, resultSummary } from '../../public/render.js';
 
 function room(overrides = {}) {
   const players = [{ uid: 'a', name: '甲', seat: 0 }, { uid: 'b', name: '乙', seat: 1 }];
@@ -95,4 +95,17 @@ test('结算页在完整词路径标题行提供导出海报入口', () => {
 test('中断页没有可导出的对局', () => {
   const html = resultMarkup({ uid: 'a', room: room({ phase: 'interrupted' }) });
   assert.equal(html.includes('export-poster'), false);
+});
+
+test('历史详情导出与结算页同一张海报，不含房号', () => {
+  const match = {
+    id: 'm1', roomCode: '12345', mode: 'free', maxRounds: 12, totalRounds: 1, convergedRound: 1,
+    outcome: 'voted', startedAt: 1, endedAt: 2,
+    players: [{ uid: 'a', name: '甲', seat: 0 }, { uid: 'b', name: '乙', seat: 1 }],
+    rounds: [{ n: 1, words: { a: '苹果', b: '苹果' }, marks: {}, outcome: 'voted' }]
+  };
+  const html = posterMarkup(matchRoom(match), day);
+  assert.match(html, /<span>2 人<\/span><span>第 1 \/ 12 轮<\/span>/);
+  assert.match(html, /<strong class="path-word">苹果<\/strong>/);
+  assert.equal(html.includes('12345'), false);
 });

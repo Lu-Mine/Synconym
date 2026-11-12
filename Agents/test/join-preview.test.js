@@ -10,7 +10,7 @@ const check = source.match(/async function checkJoinInput\([\s\S]*?\n}\n/)[0];
 
 function setup(value, response) {
   const messages = [], number = { textContent: '' }, host = { innerHTML: '' };
-  const input = { value, isConnected: true };
+  const input = { value, isConnected: true, closest: () => null };
   const calls = [];
   const modal = { removeAttribute: () => calls.push('enable'), classList: { add: () => calls.push('open') }, querySelector: () => ({ focus: () => calls.push('focus') }) };
   const elements = { '#join-modal': modal, '#join-host': host, '#join-room-number .room-code-display > span': number };

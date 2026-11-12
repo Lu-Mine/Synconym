@@ -1,8 +1,9 @@
 import { historyQuery, historyFilter, historyHref, parseHistoryTime } from './match-history.js';
-import { matchDetailMarkup } from './render.js';
+import { matchDetailMarkup, matchRoom } from './render.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
-import { countdownState } from './countdown.js';
+import { countdownState, updateStartCountdown, showLaunchCurtain, clearLaunchCurtain, fadeFirstRound } from './countdown.js';
+import { motionTarget, sceneMotion } from './motion.js';
 import { patchMarkup } from './dom.js';
 import { downloadPoster } from './poster.js';
 import { copyText, readClipboardText } from './clipboard.js';
@@ -11,6 +12,7 @@ import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
 import {
   avatarDetails,
+  homeEntryMarkup,
   homeMarkup,
   icon,
   lobbyMarkup,
@@ -18,6 +20,7 @@ import {
   playerItemMarkup,
   privacyMarkup,
   profileMarkup,
+  qaMarkup,
   rematchMarkup,
   resultMarkup,
   settingValueMarkup,
@@ -39,6 +42,11 @@ const WRITE_COOLDOWN_MS = 520;
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
 
+// 阻止浏览器将界面图片或导航链接作为拖拽对象，保留输入文字拖放。
+document.addEventListener('dragstart', (event) => {
+  if (event.target instanceof Element && event.target.closest('img, svg, a')) event.preventDefault();
+});
+
 let state = { room: null, profile: null };
 let settings = {
   mode: 'free',
@@ -51,8 +59,14 @@ let homeSettingsOpen = false;
 let renameOpen = false;
 let profileOpen = new URLSearchParams(location.search).has('me');
 let privacyOpen = new URLSearchParams(location.search).has('privacy');
+let qaOpen = new URLSearchParams(location.search).has('qa');
 let pathOpen = false;
 let pathTrigger = null;
+let startOpen = false;
+let startTrigger = null;
+let startBorrowed = null;
+let startCleanupTimer;
+let stopStartPlaceholder = () => {};
 let pendingTransfer = null;
 let pendingConfirm = null;
 let pendingJoin = null;
@@ -64,6 +78,10 @@ let currentScreen = '';
 // 每次渲染自增：用于丢弃 view transition 里尚未执行的过期快照。
 let renderGeneration = 0;
 let activeSceneTransition;
+let currentMotionTarget;
+let pendingMotionTarget;
+let deferredSceneRender = false;
+let deferredForceFull = false;
 let timeOffset = 0;
 const gameNow = () => MOCK && Number.isFinite(state.mockPausedAt ?? state.room?.mockPausedAt) ? (state.mockPausedAt ?? state.room.mockPausedAt) : Date.now() + timeOffset;
 let countdownTimer;
@@ -166,6 +184,63 @@ function closeJoin() {
   if (trigger?.isConnected) trigger.focus({ preventScroll: true });
 }
 
+// 顶栏「开始游戏」弹窗：首页把现成的入口区借进来，其他页面按当前设置现渲一份
+function openStartEntry(trigger) {
+  if (startOpen || state.room) return;
+  clearStartEntry();
+  const modal = app.querySelector('#start-modal');
+  const body = app.querySelector('#start-entry');
+  if (!modal || !body) return;
+  const featured = app.querySelector('#stage .home-page .home-entry');
+  if (featured) {
+    startBorrowed = { node: featured, parent: featured.parentNode, next: featured.nextSibling };
+    body.replaceChildren(featured);
+  } else {
+    body.innerHTML = homeEntryMarkup(settings, homeSettingsOpen);
+    stopStartPlaceholder = observeJoinPlaceholder(body);
+    syncRecentRoomDOM();
+    refreshPlayingCount(body.querySelector('#playing-count'));
+  }
+  startOpen = true;
+  startTrigger = trigger;
+  modal.removeAttribute('inert');
+  modal.classList.add('is-open');
+  syncModalScrollLock();
+  requestAnimationFrame(() => body.querySelector('.create-submit')?.focus({ preventScroll: true }));
+}
+
+// 清空弹窗内容。收起草稿时等淡出结束再调用，卡片才不会先塌掉再消失。
+function clearStartEntry() {
+  clearTimeout(startCleanupTimer);
+  startCleanupTimer = undefined;
+  stopStartPlaceholder();
+  stopStartPlaceholder = () => {};
+  app.querySelector('#start-entry')?.replaceChildren();
+}
+
+function closeStartEntry({ focus = true, immediate = false } = {}) {
+  if (!startOpen) return;
+  startOpen = false;
+  const modal = app.querySelector('#start-modal');
+  const body = app.querySelector('#start-entry');
+  modal?.classList.remove('is-open');
+  modal?.setAttribute('inert', '');
+  // 借来的入口区立即归位，弹窗里留一份快照供淡出使用
+  if (startBorrowed) {
+    const { node, parent, next } = startBorrowed;
+    startBorrowed = null;
+    body?.replaceChildren(node.cloneNode(true));
+    if (parent?.isConnected) parent.insertBefore(node, next?.isConnected ? next : null);
+    else node.remove();
+  }
+  syncModalScrollLock();
+  if (immediate) clearStartEntry();
+  else startCleanupTimer = setTimeout(clearStartEntry, 320);
+  const trigger = startTrigger;
+  startTrigger = null;
+  if (focus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+}
+
 function markInvalid(input) {
   if (!input) return;
   input.setAttribute('aria-invalid', 'true');
@@ -175,7 +250,9 @@ function markInvalid(input) {
 }
 
 async function checkJoinInput(input, version) {
-  if (!input.isConnected || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+  // 顶栏「开始游戏」弹窗里的输入也要能查房，此时 profileOpen 只影响页面本身
+  const inStartEntry = Boolean(input.closest('#start-entry'));
+  if (!input.isConnected || state.room || (profileOpen && !inStartEntry) || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
   const value = input.value.trim();
   if (!value) return;
   const code = parseRoomCode(value);
@@ -183,7 +260,7 @@ async function checkJoinInput(input, version) {
   try {
     const response = await fetch(`${MOCK ? '/__mock' : ''}/api/rooms/${code}`, { cache: 'no-store' });
     const data = await response.json();
-    if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || profileOpen || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
+    if (version !== joinCheckVersion || !input.isConnected || input.value.trim() !== value || state.room || (profileOpen && !inStartEntry) || pendingJoin || pendingConfirm || renameOpen || inviteTrigger) return;
     if (!response.ok) { toast(data.error || '房间不存在或无法加入'); markInvalid(input); return; }
     const modal = app.querySelector('#join-modal');
     const host = app.querySelector('#join-host');
@@ -254,6 +331,7 @@ window.addEventListener('popstate', async () => {
   if (!state.room) {
     profileOpen = new URLSearchParams(location.search).has('me');
     privacyOpen = new URLSearchParams(location.search).has('privacy');
+    qaOpen = new URLSearchParams(location.search).has('qa');
     state.profile = null;
     if (profileOpen && socket.ready) requestProfile(historyQuery(location.search).page);
     render();
@@ -326,7 +404,8 @@ function updateCountdown() {
     }
     const element = document.querySelector('#countdown');
     if (element) {
-      element.textContent = seconds === null ? '–' : state.room?.phase === 'countdown' ? String(seconds) : `${seconds} 秒`;
+      if (state.room?.phase === 'countdown') updateStartCountdown(element, seconds, deadline > 0 ? deadline - gameNow() : 5000);
+      else element.textContent = seconds === null ? '–' : `${seconds} 秒`;
       element.parentElement?.classList.toggle('urgent', urgent);
       element.parentElement?.classList.toggle('reconnect-grace', grace);
       const hint = document.querySelector('#prepare-grace-hint');
@@ -552,7 +631,7 @@ function syncHomeDrawerDOM() {
 }
 
 function syncModalScrollLock() {
-  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(pendingJoin) || Boolean(inviteTrigger) || pathOpen);
+  document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(pendingJoin) || Boolean(inviteTrigger) || pathOpen || startOpen);
 }
 
 function syncRenameModalDOM(focusInput = false) {
@@ -656,6 +735,7 @@ function requestProfile(page = 1) {
 function openProfile() {
   if (state.room) return;
   privacyOpen = false;
+  qaOpen = false;
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
@@ -802,7 +882,7 @@ function patchLobbyDOM(nextState) {
 }
 
 function screenKeyFor(nextState) {
-  if (!nextState.room) return privacyOpen ? 'privacy' : profileOpen ? 'profile' : 'home';
+  if (!nextState.room) return privacyOpen ? 'privacy' : qaOpen ? 'qa' : profileOpen ? 'profile' : 'home';
   return nextState.room.phase || 'writing';
 }
 
@@ -810,6 +890,7 @@ function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
   if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search)) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
   if (screen === 'privacy') return privacyMarkup();
+  if (screen === 'qa') return qaMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'countdown') return startCountdownMarkup(state.room);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
@@ -841,6 +922,8 @@ function patchSameScene(stage, nextScreen) {
       return true;
     }
   }
+  // 全量快照不能重建开场舞台，否则会重放动画、闪回数字 5。
+  if (nextScreen === 'countdown' && stage.querySelector('.start-countdown')?.dataset.room === state.room?.code) return true;
   if (nextScreen === 'profile' && stage.querySelector('.profile-page')) {
     patchMarkup(stage, buildScreenMarkup('profile'));
     hydrateAvatars(stage);
@@ -915,30 +998,69 @@ function replaceScene(stage, nextScreen, generation) {
 }
 
 function render({ forceFull = false, initialSync = false } = {}) {
+  // 重渲染会重建舞台内容，先把借给弹窗的入口区放回原位并清掉淡出快照
+  closeStartEntry({ focus: false, immediate: true });
+  clearStartEntry();
   if (!state.room || state.room.phase === 'lobby') pathOpen = false;
   const nextScreen = screenKeyFor(state);
   const previousScreen = currentScreen;
+  const query = historyQuery(location.search);
+  const nextMotionTarget = motionTarget(nextScreen, {
+    detail: query.id || '', page: state.profile?.page || 1, query: query.q || ''
+  });
+  // 同一目标的网络回包不能取消捕获或露出未完成的快照；收尾时合并刷新。
+  if (activeSceneTransition && !initialSync && !sceneMotion(pendingMotionTarget, nextMotionTarget)) {
+    deferredSceneRender = true;
+    deferredForceFull ||= forceFull;
+    return;
+  }
+  deferredSceneRender = false;
+  deferredForceFull = false;
+  const motion = sceneMotion(currentMotionTarget, nextMotionTarget);
   if (nextScreen === 'home' && currentScreen !== 'home') homeSettingsOpen = false;
   syncModalScrollLock();
+  const launch = !initialSync && previousScreen === 'countdown' && nextScreen === 'writing';
+  if (previousScreen !== nextScreen) clearLaunchCurtain();
   const shouldTransition = Boolean(
-    !initialSync && previousScreen && previousScreen !== nextScreen && document.startViewTransition
+    !launch && !initialSync && motion && document.startViewTransition
       && !document.documentElement.classList.contains('is-modal-open')
       && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
   const generation = ++renderGeneration;
   const applyDOM = () => {
     if (generation !== renderGeneration) return;
+    currentMotionTarget = nextMotionTarget;
     const stage = ensureShell(Boolean(state.room));
+    if (shouldTransition) document.documentElement.dataset.sceneSnapshot = 'new';
     syncConnectionUI();
     syncPathModalDOM();
     document.body.dataset.scene = nextScreen;
     const patched = !forceFull && patchSameScene(stage, nextScreen);
     if (patched) refreshTimers();
     else replaceScene(stage, nextScreen, generation);
+    if (motion) {
+      window.scrollTo(0, 0);
+      app.scrollTo(0, 0);
+    }
   };
   currentScreen = nextScreen;
-  if (!shouldTransition) { applyDOM(); return; }
+  if (!shouldTransition) {
+    activeSceneTransition?.skipTransition();
+    activeSceneTransition = null;
+    delete document.documentElement.dataset.sceneMotion;
+    delete document.documentElement.dataset.sceneDirection;
+    delete document.documentElement.dataset.sceneSnapshot;
+    pendingMotionTarget = null;
+    if (launch) showLaunchCurtain();
+    applyDOM();
+    if (launch) fadeFirstRound(app.querySelector('.writing-page'));
+    return;
+  }
   activeSceneTransition?.skipTransition();
+  document.documentElement.dataset.sceneMotion = motion.kind;
+  document.documentElement.dataset.sceneDirection = motion.direction > 0 ? 'forward' : 'backward';
+  document.documentElement.dataset.sceneSnapshot = 'old';
+  pendingMotionTarget = nextMotionTarget;
   const transition = document.startViewTransition(applyDOM);
   activeSceneTransition = transition;
   // 被下一次切换 skipTransition 打断时 ready 会 reject，吞掉以免留下未处理的 promise 错误。
@@ -946,6 +1068,16 @@ function render({ forceFull = false, initialSync = false } = {}) {
   const finish = () => {
     if (activeSceneTransition !== transition) return;
     activeSceneTransition = null;
+    delete document.documentElement.dataset.sceneMotion;
+    delete document.documentElement.dataset.sceneDirection;
+    delete document.documentElement.dataset.sceneSnapshot;
+    pendingMotionTarget = null;
+    if (deferredSceneRender) {
+      const full = deferredForceFull;
+      deferredSceneRender = false;
+      deferredForceFull = false;
+      render({ forceFull: full });
+    }
   };
   transition.finished.then(finish, finish);
 }
@@ -1067,7 +1199,7 @@ const socket = new Socket({
     }
     const profile = state.profile;
     state = { ...next, profile, matchDetail: state.matchDetail };
-    if (nextRoom) { profileOpen = false; privacyOpen = false; state.profile = null; }
+    if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -1088,7 +1220,7 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (!profileOpen && !privacyOpen && location.search) history.replaceState(null, '', APP_ROOT);
+      if (!profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
     }
     if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
     finishRoomRestore();
@@ -1257,6 +1389,17 @@ app.addEventListener('keydown', (event) => {
     }
     return;
   }
+
+  if (startOpen) {
+    if (event.key === 'Escape') { event.preventDefault(); closeStartEntry(); return; }
+    if (event.key === 'Tab') {
+      const controls = [...app.querySelectorAll('#start-entry a[href], #start-entry button:not(:disabled), #start-entry input:not(:disabled)')];
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (event.key === 'Escape' && pathOpen) { event.preventDefault(); closePath(); return; }
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const row = event.target.closest?.('[data-action="transfer-host"]');
@@ -1265,7 +1408,28 @@ app.addEventListener('keydown', (event) => {
   requestTransfer(state.room?.players.find((player) => player.uid === row.dataset.uid));
 });
 
+// 折叠项同一时刻只展开一条：支持 name 的浏览器由原生处理，其余内核在这里兜底。
+app.addEventListener('toggle', (event) => {
+  const item = event.target;
+  if (!item.matches?.('.qa-item') || !item.open) return;
+  for (const other of app.querySelectorAll('.qa-item[open]')) {
+    if (other !== item) other.open = false;
+  }
+}, true);
+
 app.addEventListener('click', async (event) => {
+  const matchLink = event.target.closest('.profile-match-link, .match-detail-page > .privacy-back');
+  if (matchLink && !state.room && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    profileOpen = true;
+    privacyOpen = false;
+    qaOpen = false;
+    state.matchDetail = null;
+    history.pushState({ profile: true }, '', `${APP_ROOT}${new URL(matchLink.href).search}`);
+    requestProfile(historyQuery(location.search).page);
+    render();
+    return;
+  }
   const storyLink = event.target.closest('.home-story-link');
   if (storyLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     const target = document.querySelector('#home-story-title');
@@ -1276,6 +1440,15 @@ app.addEventListener('click', async (event) => {
     }
     return;
   }
+  const entryLink = event.target.closest('[data-action="home-to-entry"]');
+  if (entryLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    app.scrollTo({ top: 0, behavior: reducedMotion ? 'instant' : 'smooth' });
+    app.querySelector('#create-form .create-submit')?.focus({ preventScroll: true });
+    return;
+  }
+
   const privacySection = event.target.closest('.privacy-nav a');
   if (privacySection && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
@@ -1290,14 +1463,25 @@ app.addEventListener('click', async (event) => {
     if (state.room || privacyOpen) return;
     profileOpen = false;
     privacyOpen = true;
+    qaOpen = false;
     state.profile = null;
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
     render();
-    window.scrollTo(0, 0);
-    app.scrollTo(0, 0);
     return;
   }
 
+  const qaLink = event.target.closest('[data-action="open-qa"]');
+  if (qaLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    if (state.room || qaOpen) return;
+    profileOpen = false;
+    privacyOpen = false;
+    qaOpen = true;
+    state.profile = null;
+    history.pushState({ qa: true }, '', `${APP_ROOT}?qa`);
+    render();
+    return;
+  }
 
   const homeLink = event.target.closest('[data-action="home"]');
   if (homeLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -1309,6 +1493,7 @@ app.addEventListener('click', async (event) => {
       previousRoomCode = '';
       profileOpen = false;
       privacyOpen = false;
+      qaOpen = false;
       state.profile = null;
       if (location.search) history.replaceState(null, '', APP_ROOT);
       render();
@@ -1356,6 +1541,17 @@ app.addEventListener('click', async (event) => {
   if (button.dataset.action === 'close-invite') {
     event.preventDefault();
     closeInvite();
+    return;
+  }
+
+  if (button.dataset.action === 'open-start') {
+    event.preventDefault();
+    openStartEntry(button);
+    return;
+  }
+  if (button.dataset.action === 'close-start') {
+    event.preventDefault();
+    closeStartEntry();
     return;
   }
 
@@ -1520,10 +1716,12 @@ app.addEventListener('click', async (event) => {
     if (targetUid) enqueueWrite({ type: 'transferHost', uid: targetUid });
   } else if (button.dataset.action === 'export-poster') {
     event.preventDefault();
-    if (!state.room) return;
+    const match = profileOpen ? state.matchDetail?.match : null;
+    const room = match ? matchRoom(match) : state.room;
+    if (!room) return;
     button.disabled = true;
     try {
-      await downloadPoster(state.room);
+      await downloadPoster(room);
       toast('海报已导出');
     } catch {
       toast('海报导出失败，请重试');

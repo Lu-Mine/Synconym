@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 const names = [
   'plus', 'minus', 'check', 'x', 'copy', 'settings', 'user', 'log-out',
   'clock', 'play', 'users', 'chevron-down', 'rotate-ccw',
-  'arrow-right', 'arrow-down', 'route', 'pen-line', 'sliders-horizontal',
+  'arrow-right', 'arrow-left', 'arrow-down', 'route', 'pen-line', 'sliders-horizontal',
   'sparkles', 'book-open', 'lightbulb', 'tag', 'hash', 'shield-check', 'clipboard-paste', 'circle-help',
   'door-open', 'vote', 'download'
 ];

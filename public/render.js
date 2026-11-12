@@ -130,10 +130,14 @@ function headingMetaMarkup(code, room) {
 }
 
 export function startCountdownMarkup(room) {
-  return `<div class="start-countdown" data-screen="countdown" data-room="${escapeHtml(room.code || '')}" role="status">
+  return `<div class="start-countdown" data-screen="countdown" data-room="${escapeHtml(room.code || '')}" data-beat="5">
+    <div class="start-countdown-cosmos" aria-hidden="true"><div class="countdown-orbit countdown-orbit-a"><span class="countdown-planet countdown-planet-a"></span></div><div class="countdown-orbit countdown-orbit-b"><span class="countdown-planet countdown-planet-b"></span></div></div>
+    <div class="start-countdown-content">
     <p class="start-countdown-label">准备开始</p>
-    <div id="countdown" class="start-countdown-number" role="timer" aria-live="off">5</div>
+    <div id="countdown" class="start-countdown-number" role="timer" aria-label="距离开局的秒数" aria-live="off">5</div>
+    <div class="start-countdown-progress" aria-hidden="true">${[1, 2, 3, 4, 5].map((step) => `<span data-step="${step}"></span>`).join('')}</div>
     ${room.mode === 'theme' && room.themeName ? `<p class="start-countdown-theme"><span>本局主题</span><strong>${escapeHtml(room.themeName)}</strong></p>` : ''}
+    </div>
   </div>`;
 }
 
@@ -154,9 +158,9 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
   return `<header class="site-header" id="site-header" data-in-room="${inRoom}">
     ${brandMarkup()}
     <nav class="header-nav" aria-label="站点链接">
-      <a class="site-nav-link" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a>
-      <a class="site-nav-link" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私政策</span></a>
-      <button class="site-nav-link" type="button" disabled title="内容尚未开放">${icon('circle-help')}<span>Q&amp;A</span></button>
+      <a class="site-nav-link header-nav-secondary" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a>
+      ${inRoom ? '' : `<button class="header-start" type="button" data-action="open-start">${icon('play')}<span>开始游戏</span></button>`}
+      <a class="site-nav-link header-nav-secondary" href="/?qa" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-qa"'}>${icon('circle-help')}<span>Q&amp;A</span></a>
     </nav>
     <div class="header-actions">
       <div class="header-user ${user ? 'is-visible' : ''}" id="header-user">
@@ -247,7 +251,82 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
     </section>
   </div>
   <main id="stage" class="stage"></main>
-  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私说明</span></a><button class="footer-privacy" type="button" disabled title="内容尚未开放">${icon('circle-help')}<span>Q&amp;A</span></button></nav></footer>`;
+  <div class="rename-modal start-modal" id="start-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="close-start" aria-label="关闭开始游戏"></button>
+    <section class="rename-dialog start-dialog" role="dialog" aria-modal="true" aria-label="开始游戏">
+      <div class="start-entry scrollbars-hidden" id="start-entry"></div>
+      <p class="start-hint">点击空白处关闭</p>
+    </section>
+  </div>
+  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私政策</span></a><a class="footer-privacy" href="/?qa" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-qa"'}>${icon('circle-help')}<span>Q&amp;A</span></a></nav></footer>`;
+}
+
+// 常见问题：一条问题一个折叠项，name 相同让浏览器同一时刻只展开一条。
+const QA_ENTRIES = [
+  ['第一次来，怎么开一局？', [
+    '在首页点「创建房间」，把 5 位房号或邀请链接发给朋友就行，不用注册也不用下载。',
+    '一轮大概几十秒，一局通常几分钟。觉得太长，可以在创建时或等待大厅里把轮次上限调低。'
+  ]],
+  ['两个人没写出一样的词，算相遇吗？', [
+    '同时揭晓时大家写的是同一个词，直接算相遇。',
+    '不是同一个词就进入 5 秒投票，全票选「是」也算相遇；没通过就准备下一轮，看着上一轮的词继续往彼此的方向靠近。'
+  ]],
+  ['结算页 30 秒里能选什么？', [
+    '重赛：全员都选重赛且至少 2 人，按当前设置直接开下一局。',
+    '回房间：回到等待大厅，可以改设置再开。回主页：只有你自己离开，不打扰别人。',
+    '还能点「导出结算海报」存一张 PNG，里面有对局概览和完整词过程，不含房号。30 秒内没选，会被移出这间房。'
+  ]],
+  ['为什么我的词写不进去？', [
+    '每次可以写 1–12 个字，只能是汉字、字母和数字；标点和 emoji 打不进去，超过长度会被自动截断。',
+    '开了「禁止重复词」时，本局出现过的词不能再写，包括自己用过的。写重会被拦下，但不浪费这一轮，改一下再交。'
+  ]],
+  ['「iOS 手机」和「ios手机」算同一个词吗？', [
+    '算。比较前会统一繁简、大小写、全角半角和空格，所以「臺灣」和「台湾」也视为相同。',
+    '字面不同就不算相遇：「海洋」和「大海」意思再近，也不是同一个词。'
+  ]],
+  ['房间设置哪些能改？', [
+    '轮次上限 4–20 轮（默认 12）、写词时限 15/30/45/60 秒（默认 45）、准备时限同样四档（默认 30）、禁止重复词开或关（默认开），还可以选自由或主题模式。',
+    '创建时和等待大厅里都能改，开局后锁定。投票时间固定 5 秒，不提供开关。'
+  ]],
+  ['主题模式是什么？会判我跑题吗？', [
+    '每局开始随机抽一个主题并锁定整局，重赛会重新抽，可能又抽到刚才那个。主题只是大家联想的共同范围。',
+    '不设禁词，也不会自动判断你的答案算不算切题，靠彼此默契。'
+  ]],
+  ['刷新、断网或者关掉标签页会怎样？', [
+    '席位和已交的词会留 90 秒，期间回来还是原来的位置，游戏不等人。',
+    '有人掉线时，准备阶段会多等 10 秒，免得他刚回来就错过下一轮。主动点退出则立刻离开，席位不保留。'
+  ]],
+  ['玩到一半有人不想继续了？', [
+    '轮次上限设到 8 轮以上时，每满 5 轮会停下来问一次：继续下一轮，还是玩崩了。选「玩崩了」的人达到半数，本局就结束且不保存记录。',
+    '主动退出只会带走你自己；只剩一个人时本局直接中断，纪录不保存。房间连续 5 分钟没人操作会自动关闭。'
+  ]],
+  ['名字和 UID 是怎么回事？', [
+    '第一次进来会随机分到一个「形容词的水果」，比如「迷人的橙子」。点名字旁的改名按钮随时能换一个，改了之后还是同一个你，对局记录不会断。',
+    '在首页点头像或名字能打开档案页：UID、加入时间、用过的名字，以及参与过的对局，每页 10 局。'
+  ]],
+  ['点「我是新人」会怎样？', [
+    '会换一个新的 UID 和随机名字重新开始，这个操作要二次确认。',
+    '旧的对局记录会留在服务器上，但不会跟着新身份过来。服务器具体保存了什么，可以看站内的隐私说明。'
+  ]]
+];
+
+export function qaMarkup() {
+  const items = QA_ENTRIES.map(([question, answers]) => `<details class="qa-item" name="qa">
+      <summary><span class="qa-question">${escapeHtml(question)}</span>${icon('chevron-down', 'qa-item-icon')}</summary>
+      <div class="qa-answer">${answers.map((text) => `<p>${escapeHtml(text)}</p>`).join('')}</div>
+    </details>`).join('\n    ');
+  return `<article class="privacy-content privacy-in-app qa-content">
+    <a class="button secondary privacy-back" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <header class="privacy-title"><h1>常见问题</h1><p class="privacy-intro">玩之前想知道的事都在这。点开一条看答案。</p></header>
+    <div class="qa-list">
+    ${items}
+    </div>
+    <div class="qa-more">
+      <p>还是没解决？</p>
+      <a class="button secondary" href="https://github.com/Lu-Mine/Synconym/issues" target="_blank" rel="noopener">${icon('circle-help')}<span>去 GitHub 提 issue</span></a>
+    </div>
+    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+  </article>`;
 }
 
 export function privacyMarkup() {
@@ -325,7 +404,7 @@ function storyDemos() {
     theme: `${segmented('demo-mode', 'theme', [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }])}<div class="writing-stage"><div class="stage-copy"><h1>各自写下此刻想到的词</h1><p>词语会在所有人提交后揭晓</p></div><div class="stage-theme">${themeMarkup({ mode: 'theme', phase: 'writing', themeName: '王者荣耀' })}</div></div>`,
     settings: `${demoClockMarkup(45)}<div class="setting-row"><span class="setting-label">写词时限</span>${segmented('demo-write', 45, durations)}</div><div class="setting-row"><span class="setting-label">禁止重复词</span><button class="switch" type="button" role="switch" aria-checked="true" tabindex="-1"><span class="switch-thumb"></span></button></div>`,
     reconnect: `<ul class="player-list">${playerItemMarkup(a, lobby, '')}${playerItemMarkup({ ...b, ready: true }, lobby, '')}</ul>`,
-    path: thoughtPathMarkup({ phase: 'result', players: DEMO_PLAYERS, history: [{ n: 1, words: words('海洋', '天空'), marks: {} }, { n: 2, words: words('蓝色', '蓝色'), marks: {} }] }).replace(/<p class="path-hint">[^<]*<\/p>/, ''),
+    path: thoughtPathMarkup({ phase: 'result', players: DEMO_PLAYERS, history: [{ n: 1, words: words('海洋', '天空'), marks: {} }, { n: 2, words: words('蓝色', '蓝色'), marks: {} }] }),
     profile: `<ol class="profile-matches">${matches.map(profileMatchMarkup).join('')}</ol>`,
     vote: `<div class="demo-scene-break"><div class="writing-stage"><nav class="stage-progress">${stageProgressMarkup('breakVote')}</nav><h1>继续下一轮，还是结束本局？</h1></div>`
       + `<section class="surface-block"><div class="section-heading"><h2>玩家状态</h2></div><ul class="game-status-list">${gameStatusItemMarkup(a, 'done', '已投票', true)}${gameStatusItemMarkup(b, 'done', '已投票', false)}</ul></section>`
@@ -333,10 +412,9 @@ function storyDemos() {
   };
 }
 
-export function homeMarkup(settings, settingsOpen = false) {
-  const demos = storyDemos();
-  return `<div class="page home-page" data-screen="home">
-    <div class="home-entry">
+// 入口区：首页正文与顶栏「开始游戏」弹窗共用同一份结构
+export function homeEntryMarkup(settings, settingsOpen = false) {
+  return `<div class="home-entry">
     <section class="intro">
       <div class="intro-logo" role="img" aria-label="近意词 Synconym">
         <span class="intro-orbits" aria-hidden="true"><span class="intro-orb intro-orb-a"></span><span class="intro-orb intro-orb-b"></span></span>
@@ -372,7 +450,13 @@ export function homeMarkup(settings, settingsOpen = false) {
         <button class="recent-room" id="recent-room" type="button" data-action="join-recent-room" hidden>${icon('rotate-ccw')}<span>回到最近的房间</span><strong></strong>${icon('arrow-right')}</button>
       </form>
     </div>
-    </div>
+  </div>`;
+}
+
+export function homeMarkup(settings, settingsOpen = false) {
+  const demos = storyDemos();
+  return `<div class="page home-page" data-screen="home">
+    ${homeEntryMarkup(settings, settingsOpen)}
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
     <section class="home-story" aria-labelledby="home-story-title">
       <div class="home-story-heading">
@@ -398,6 +482,12 @@ export function homeMarkup(settings, settingsOpen = false) {
           <article><div class="feature-copy"><h4>${icon('route', 'story-icon')}<span>回看你们的思考路径</span></h4><p>结算时回顾每轮词语、投票和相似度曲线，再选择重赛、回房间或回主页。</p></div>${storyDemo('feature-demo demo-path', 'path', demos.path)}</article>
           <article><div class="feature-copy"><h4>${icon('user', 'story-icon')}<span>留下自己的对局记录</span></h4><p>在个人档案查看 UID、曾用名和完成的对局；昵称可以随时修改。</p></div>${storyDemo('feature-demo demo-profile', 'profile', demos.profile)}</article>
           <article><div class="feature-copy"><h4>${icon('clock', 'story-icon')}<span>长局也有重新选择的机会</span></h4><p>轮次上限至少为 8 时，每完成 5 轮仍未相遇且尚未达到上限，会发起崩局投票；达到半数选择玩崩了，本局结束且不保存记录。</p></div>${storyDemo('feature-demo demo-vote', 'break', demos.vote)}</article>
+        </div>
+      </div>
+      <div class="home-story-cta">
+        <div class="surface-block home-story-cta-panel">
+          <p class="home-story-cta-copy">${icon('sparkles', 'home-story-cta-mark')}<span>看到这里，可以开局了</span></p>
+          <a class="button primary home-story-cta-button" href="#create-form" data-action="home-to-entry"><span>开始游戏</span>${icon('arrow-right', 'home-story-cta-icon')}</a>
         </div>
       </div>
     </section>
@@ -488,6 +578,11 @@ export function profileMarkup(state) {
         <p class="profile-meta">${icon('clock')}<span>加入于 ${escapeHtml(profileDate(user.createdAt))}${former.length ? ` · 曾用名 ${escapeHtml(former.join('、'))}` : ''}</span></p>
       </div>
     </section>
+    <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
+    <div class="profile-actions">
+      <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
+      <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
+    </div>
     <section class="surface-block profile-history">
       <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span></div>
       ${historySearchMarkup(state.historyQuery)}
@@ -496,11 +591,6 @@ export function profileMarkup(state) {
         : `<p class="profile-empty">${profile.filter?.type ? '没有符合条件的对局，请调整搜索条件。' : '还没有完成的对局。开一局，回来就能看到。'}</p>`}
       ${pager}
     </section>
-    <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
-    <div class="profile-actions">
-      <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
-      <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
-    </div>
   </div>`;
 }
 
@@ -598,7 +688,7 @@ function roundNumberMarkup(number) {
   return `<span class="record-round-number" aria-label="第 ${escapeHtml(number)} 轮">${escapeHtml(number)}</span>`;
 }
 
-export function thoughtPathMarkup(room, compactRounds = false, { hint = true } = {}) {
+export function thoughtPathMarkup(room, compactRounds = false) {
   const players = Array.isArray(room?.players) ? room.players : [];
   const rounds = Array.isArray(room?.history) ? [...room.history] : [];
   if (room?.phase === 'voting' && room.words && !rounds.some((round) => round.n === room.round)) {
@@ -606,7 +696,7 @@ export function thoughtPathMarkup(room, compactRounds = false, { hint = true } =
   }
   if (!rounds.length) return '<p class="path-empty">还没有揭晓的词，完成第一轮后就能看到思考路径。</p>';
   const headings = players.map((player) => `<div class="path-player-heading">${avatarMarkup(player.name || '玩家', 'path-avatar')}<span class="path-name">${escapeHtml(player.name || '玩家')}</span></div>`).join('');
-  return `${hint ? '<p class="path-hint">按轮次查看每位玩家已揭晓的词</p>' : ''}<div class="path-table" style="--path-players:${Math.max(players.length, 1)}"><div class="path-table-header"><span class="path-round-label">轮次</span>${headings}</div><ol class="path-rounds">${rounds.map((round, index) => {
+  return `<div class="path-table" style="--path-players:${Math.max(players.length, 1)}"><div class="path-table-header"><span class="path-round-label">轮次</span>${headings}</div><ol class="path-rounds">${rounds.map((round, index) => {
     const answers = players.map((player) => {
       const mark = round.marks?.[player.uid];
       const word = mark === 'empty' ? '[未提交]' : mark === 'invalid' ? '[非法答案]' : round.words?.[player.uid] || '[未参与]';
@@ -744,10 +834,10 @@ function voteRecordsMarkup(history, players) {
   return history.map((round) => entry(round) + (round.breakVote ? entry(round, true) : '')).join('');
 }
 
-function resultPathMarkup(room, { poster = false, hint = true } = {}) {
-  const path = thoughtPathMarkup(room, true, { hint });
+function resultPathMarkup(room, { poster = false, open = poster } = {}) {
+  const path = thoughtPathMarkup(room, true);
   const exportButton = poster ? `<button class="button secondary result-path-poster" type="button" data-action="export-poster">${icon('download')}<span>导出结算海报</span></button>` : '';
-  return `<details class="surface-block result-votes result-path"${poster ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${exportButton}${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${path}</div></details>`;
+  return `<details class="surface-block result-votes result-path"${open ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${exportButton}${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${path}</div></details>`;
 }
 
 export function rematchMarkup(state) {
@@ -800,21 +890,70 @@ export function resultMarkup(state) {
       <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
       <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
     </div>
-    <div class="result-main">${resultPathMarkup({ ...room, players }, { poster: true, hint: false })}</div>
+    <div class="result-main">${resultPathMarkup({ ...room, players }, { poster: true })}</div>
   </div>`;
 }
 
+const detailPad = (value) => String(value).padStart(2, '0');
+
+function detailDayLabel(date) {
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function detailClockLabel(date) {
+  return `${detailPad(date.getHours())}:${detailPad(date.getMinutes())}`;
+}
+
+// 起止时间同一自然日只写一次日期；跨天两端都带日期。
+function detailRangeLabel(startedAt, endedAt) {
+  const start = new Date(startedAt);
+  if (!Number.isFinite(start.getTime())) return '–';
+  const begin = `${detailDayLabel(start)} ${detailClockLabel(start)}`;
+  const end = new Date(endedAt);
+  if (!Number.isFinite(end.getTime())) return begin;
+  const sameDay = start.getFullYear() === end.getFullYear()
+    && start.getMonth() === end.getMonth()
+    && start.getDate() === end.getDate();
+  return sameDay ? `${begin} – ${detailClockLabel(end)}` : `${begin} – ${detailDayLabel(end)} ${detailClockLabel(end)}`;
+}
+
+function detailDurationLabel(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor(total % 3600 / 60);
+  if (hours) return `${hours} 小时 ${minutes} 分`;
+  if (minutes) return `${minutes} 分 ${total % 60} 秒`;
+  return `${total} 秒`;
+}
+
+// 详情页标题下的条目带：起止时间、轮次、房号、模式各格，共用一个描边底板，格内文字居中。
+function matchFactsMarkup(match) {
+  const theme = match.themeName || '';
+  const timed = Number.isFinite(match.startedAt) && Number.isFinite(match.endedAt);
+  const cells = [
+    { icon: 'clock', label: '起止时间', value: detailRangeLabel(match.startedAt, match.endedAt), note: timed ? `用时 ${detailDurationLabel(match.endedAt - match.startedAt)}` : '' },
+    { icon: 'rotate-ccw', label: '轮次', value: `${Number(match.totalRounds) || 0} / ${Number(match.maxRounds) || 0}` },
+    { icon: 'door-open', label: '房号', value: match.roomCode || '–' },
+    { icon: 'sparkles', label: '模式', value: theme ? '主题' : '自由', note: theme },
+  ];
+  return `<dl class="match-detail-facts">${cells.map((cell) => `<div><dt>${icon(cell.icon)}<span>${escapeHtml(cell.label)}</span></dt><dd>${escapeHtml(cell.value)}${cell.note ? `<span class="match-fact-note">${escapeHtml(cell.note)}</span>` : ''}</dd></div>`).join('')}</dl>`;
+}
+
+// 历史详情把库里的一局还原成海报与词路径共用的房间形状。
+export function matchRoom(match) {
+  return { ...match, code: match.roomCode, history: match.history || match.rounds, resultPlayers: match.players };
+}
+
 export function matchDetailMarkup(detail, query = {}) {
-  const back = `<a class="history-back" href="${escapeHtml(historyHref(query))}">返回对局记录</a>`;
+  const back = `<a class="button secondary privacy-back" href="${escapeHtml(historyHref(query))}">${icon('arrow-right')}<span>返回对局记录</span></a>`;
   if (!detail || detail.error) return `<div class="page match-detail-page" data-screen="match-detail">${back}<h1>对局详情</h1><p role="status">${escapeHtml(detail?.error || '正在读取对局…')}</p></div>`;
   const match = detail.match;
-  const room = { ...match, code: match.roomCode, history: match.history || match.rounds, resultPlayers: match.players };
+  const room = matchRoom(match);
   const outcome = match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
-  const date = (value) => new Date(value).toLocaleString('zh-CN', { hour12: false });
   return `<div class="page match-detail-page" data-screen="match-detail">${back}
-    ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1><dl class="match-detail-facts"><div><dt>开始时间</dt><dd>${escapeHtml(date(match.startedAt))}</dd></div><div><dt>结束时间</dt><dd>${escapeHtml(date(match.endedAt))}</dd></div><div><dt>轮次</dt><dd>${match.totalRounds} / ${match.maxRounds}</dd></div></dl>`, headingMetaMarkup(match.roomCode, { mode: match.themeName ? 'theme' : 'free', phase: 'result', themeName: match.themeName }))}
+    ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1>${matchFactsMarkup(match)}`, '')}
     <div class="match-detail-main">
-    ${resultPathMarkup(room)}
+    ${resultPathMarkup(room, { poster: true, open: false })}
     </div><div class="match-detail-aside">
     <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
     <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>

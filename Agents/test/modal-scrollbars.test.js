@@ -92,3 +92,7 @@ test('标记 scrollbars-left 的滚动容器把竖向滚动条放到左边', () 
   assert.ok(rail.className.includes('is-left'));
   assert.equal(rail.style.left, '2px');
 });
+
+test('弹层开合动画结束后按最终几何重算滚动条轨道', () => {
+  assert.match(source, /document\.addEventListener\('transitionend', schedule, true\);/);
+});

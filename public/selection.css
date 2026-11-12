@@ -3,7 +3,7 @@
 .setting-label, .setting-value, .theme-setting-hint,
 .stage-copy, .stage-round, .writing-clock, .section-heading,
 .room-heading-copy, .ticket-caption, .player-count, .ready-state,
-.badge, .readonly-tag, .game-hint, .path-hint, .path-empty,
+.badge, .readonly-tag, .game-hint, .path-empty,
 .profile-empty, .profile-total, .profile-page-count, .profile-privacy,
 .rematch-description, .rematch-footnote, .rematch-clock,
 .result-heading-copy > p, .result-title-row > h1,
@@ -16,4 +16,25 @@
 input, textarea, [contenteditable="true"], #transfer-target-name {
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* 界面默认不可选；可复制的正文和玩家数据按需保留选择能力。 */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable]:not([contenteditable="false"]),
+.privacy-main, .privacy-aside, .qa-answer, .profile-uid, .rename-uid,
+.match-detail-players, .player-name, .path-word, .word-card > strong,
+.room-code-display, #transfer-target-name {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* 说明页面中的导航仍是操作控件，不应在拖动时误选。 */
+a, button, summary, [role="button"], [role="tab"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+img, svg, a {
+  -webkit-user-drag: none;
 }

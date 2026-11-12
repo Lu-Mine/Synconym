@@ -95,8 +95,41 @@ test('详情展示历史信息、不展示实时房间操作，处理加载与�
   const rounds = [{ n: 1, words: { ABCDEFGH: '苹果', BCDEFGHJ: '香蕉' }, marks: {}, outcome: 'voted', votes: { ABCDEFGH: true, BCDEFGHJ: true } }];
   const html = matchDetailMarkup({ match: { roomCode: '12345', players, rounds, outcome: 'voted', convergedRound: 1, totalRounds: 1, maxRounds: 12, startedAt: 1, endedAt: 1000 } });
   for (const text of ['第 1 轮投票相遇', '完整词路径', '逐轮投票记录', 'ABCDEFGH', '&lt;甲&gt;', '苹果', '同意']) assert.ok(html.includes(text), text);
+  assert.match(html, /<summary>[^]*?data-action="export-poster"[^]*?<\/summary>/);
+  assert.doesNotMatch(html, /按轮次查看每位玩家已揭晓的词/);
+  assert.doesNotMatch(html, /<details class="surface-block result-votes result-path" open>/);
   assert.doesNotMatch(html, /data-action="(?:leave|rematch-yes|rematch-room)"/);
   assert.doesNotMatch(html, /<甲>/);
   const row = profileMatchMarkup({ id: 'm1', players: ['甲'], roomCode: '12345', startedAt: 1, outcome: 'none', totalRounds: 12 });
   assert.match(row, /<a class="profile-match-link" href="[^"]*match=m1/);
+});
+
+test('详情返回按钮沿用 Q&A 的次要按钮样式', () => {
+  const html = matchDetailMarkup(null);
+  assert.match(html, /<a class="button secondary privacy-back" href="[^"]*"><svg[^]*?<span>返回对局记录<\/span><\/a>/);
+});
+
+test('详情标题下用一条条目带展示起止时间、轮次、房号与主题', () => {
+  const players = [{ uid: 'ABCDEFGH', name: '甲', seat: 0 }, { uid: 'BCDEFGHJ', name: '乙', seat: 1 }];
+  const rounds = [{ n: 1, words: { ABCDEFGH: '苹果', BCDEFGHJ: '香蕉' }, marks: {}, outcome: 'miss' }];
+  const base = { roomCode: '12345', players, rounds, outcome: 'none', convergedRound: null, totalRounds: 1, maxRounds: 12 };
+  const startedAt = new Date(2026, 1, 25, 14, 13).getTime();
+  const endedAt = new Date(2026, 1, 25, 14, 19, 50).getTime();
+
+  const themed = matchDetailMarkup({ match: { ...base, themeName: '故宫', startedAt, endedAt } });
+  assert.ok(themed.indexOf('match-detail-heading') < themed.indexOf('class="match-detail-facts"'));
+  assert.match(themed, /icon-clock[^]*?起止时间<\/span><\/dt><dd>2026\/2\/25 14:13 – 14:19<span class="match-fact-note">用时 6 分 50 秒<\/span>/);
+  assert.match(themed, /icon-rotate-ccw[^]*?轮次<\/span><\/dt><dd>1 \/ 12<\/dd>/);
+  assert.match(themed, /icon-door-open[^]*?房号<\/span><\/dt><dd>12345<\/dd>/);
+  assert.match(themed, /icon-sparkles[^]*?模式<\/span><\/dt><dd>主题<span class="match-fact-note">故宫<\/span>/);
+
+  // 四种模式下第四格标题都写「模式」，主题名只出现在二级灰字；跨天时两端都写日期
+  const free = matchDetailMarkup({ match: { ...base, roomCode: '23456', startedAt, endedAt: endedAt + 26 * 60 * 60 * 1000 } });
+  assert.match(free, /icon-sparkles[^]*?模式<\/span><\/dt><dd>自由<\/dd>/);
+  assert.match(free, /2026\/2\/25 14:13 – 2026\/2\/26 16:19/);
+
+  // 时间缺失时只留占位，不输出 NaN 或 Invalid Date
+  const untimed = matchDetailMarkup({ match: { ...base, players, rounds } });
+  assert.match(untimed, /起止时间<\/span><\/dt><dd>–/);
+  assert.doesNotMatch(untimed, /NaN|Invalid Date/);
 });

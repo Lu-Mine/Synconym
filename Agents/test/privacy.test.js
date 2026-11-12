@@ -8,13 +8,13 @@ import { createSynconymServer } from '../../server/index.js';
 import { createDatabase } from '../../server/db.js';
 import { DEFAULT_SETTINGS } from '../../server/rules.js';
 
-test('隐私说明使用站内路由，房间内从新标签打开', () => {
+test('隐私政策使用站内路由，房间内从新标签打开', () => {
   const home = shellMarkup(false);
   const room = shellMarkup(true);
   assert.match(home, /href="\/\?privacy" data-action="open-privacy"/);
   assert.match(room, /href="\/\?privacy" target="_blank" rel="noopener"/);
-  assert.match(home, /icon-shield-check[\s\S]*隐私说明/);
-  assert.doesNotMatch(homeMarkup(DEFAULT_SETTINGS), /隐私说明/);
+  assert.match(home, /icon-shield-check[\s\S]*隐私政策/);
+  assert.doesNotMatch(homeMarkup(DEFAULT_SETTINGS), /隐私政策/);
 });
 
 test('隐私说明保留原文、目录及返回入口', () => {

@@ -91,10 +91,11 @@ export async function renderPosterCanvas(room, now = new Date()) {
   holder.remove();
 
   const symbols = sprite.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+  // SVG 内部的排版高度可能与页面里量到的高度差几个像素，底部会露出画布底色；让海报撑满视口盖住这段。
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${POSTER_WIDTH}" height="${height}">`
     + symbols
-    + `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">`
-    + `<style><![CDATA[${css}]]></style>${xml}</div></foreignObject></svg>`;
+    + `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%">`
+    + `<style><![CDATA[${css}\n.poster { height: 100%; }]]></style>${xml}</div></foreignObject></svg>`;
 
   const image = new Image();
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
