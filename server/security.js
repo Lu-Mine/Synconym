@@ -87,8 +87,6 @@ export function createSecurityPolicy(config = {}) {
       if (current <= 1) perSource.delete(ip); else perSource.set(ip, current - 1);
       connections = Math.max(0, connections - 1);
     },
-    connectionCount() { return connections; },
-    sourceCount(ip) { return perSource.get(ip) || 0; },
     // 匿名建号：滑动窗口计数
     allowAccount(ip) {
       const now = Date.now();
@@ -98,10 +96,6 @@ export function createSecurityPolicy(config = {}) {
       stamps.push(now);
       accounts.set(ip, stamps);
       return true;
-    },
-    accountCount(ip) {
-      const cutoff = Date.now() - options.accountWindowMs;
-      return (accounts.get(ip) || []).filter((t) => t > cutoff).length;
     },
     createMessageBucket() { return createBucket(options.messageBurst, options.messageRefillPerSecond); },
     tryAcquireGlobalMessage() { return globalBucket.take(); },
