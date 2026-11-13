@@ -25,6 +25,28 @@ test('房间玩家列表始终显示四个席位，离线玩家保留席位', ()
   }
 });
 
+test('人数上限大于 4 的房间自动折叠多余空位并显示省略提示', () => {
+  const players = Array.from({ length: 8 }, (_, seat) => ({ uid: `player${seat}`, name: `玩家${seat}`, seat, connected: true }));
+  for (const [mode, capacity] of [['impostor', 6], ['livonym', 8]]) {
+    for (let count = 1; count <= capacity; count++) {
+      const room = { code: '12345', mode, phase: 'lobby', hostUid: players[0].uid, players: players.slice(0, count), settings: {} };
+      const list = lobbyPlayersMarkup(room, players[0].uid);
+      const emptyCount = capacity - count;
+      assert.equal((list.match(/<li class="player (?!player-empty-more)/g) || []).length, emptyCount > 1 ? count + 1 : capacity);
+      assert.equal((list.match(/player-empty"/g) || []).length, emptyCount > 1 ? 1 : emptyCount);
+      assert.doesNotMatch(list, /<details/);
+      if (emptyCount > 1) {
+        const foldedCount = emptyCount - 1;
+        assert.match(list, /#icon-ellipsis/);
+        assert.match(list, new RegExp(`还有 ${foldedCount} 个空位`));
+      } else {
+        assert.doesNotMatch(list, /player-empty-more/);
+        assert.doesNotMatch(list, /还有 \d+ 个空位/);
+      }
+    }
+  }
+});
+
 test('名字默认生成，改名保留 uid 并写入数据库', (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 });
   const db = createMemoryDb();

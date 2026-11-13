@@ -84,6 +84,7 @@ export class Socket {
       if (event.code === 4003) {
         if (this.mock) {
           sessionStorage.removeItem(this.identityKey);
+          sessionStorage.removeItem(this.uidKey);
           sessionStorage.removeItem(this.leaveKey);
           this.uid = ''; this.credential = ''; this.roomCode = ''; this.pendingLeave = '';
           setTimeout(() => this.connect(), 100);

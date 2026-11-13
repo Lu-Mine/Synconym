@@ -30,7 +30,9 @@ import {
   startCountdownMarkup,
   thoughtPathMarkup,
   themeMarkup,
-  writingMarkup
+  writingMarkup,
+  roomCapacity,
+  canStartRoom
 } from './render.js';
 import { hydrateAvatars } from './avatar.js';
 
@@ -60,6 +62,8 @@ let renameOpen = false;
 let profileOpen = new URLSearchParams(location.search).has('me');
 let privacyOpen = new URLSearchParams(location.search).has('privacy');
 let qaOpen = new URLSearchParams(location.search).has('qa');
+// 隐私、Q&A、档案在站内点开时压入历史，「返回」据此退回上一页；直接打开链接时退回首页。
+let inAppNav = false;
 let pathOpen = false;
 let pathTrigger = null;
 let startOpen = false;
@@ -732,6 +736,22 @@ function requestProfile(page = 1) {
   socket.send({ type: 'openProfile', page: query.page, filter: historyFilter(query) }, true);
 }
 
+function resetToHome() {
+  socket.roomCode = '';
+  previousRoomCode = '';
+  profileOpen = false;
+  privacyOpen = false;
+  qaOpen = false;
+  state.profile = null;
+  if (location.search) history.replaceState(null, '', APP_ROOT);
+  render();
+}
+
+function goBack() {
+  if (inAppNav) history.back();
+  else resetToHome();
+}
+
 function openProfile() {
   if (state.room) return;
   privacyOpen = false;
@@ -739,6 +759,7 @@ function openProfile() {
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
+  inAppNav = true;
   requestProfile(1);
   render();
 }
@@ -780,15 +801,13 @@ function patchLobbyDOM(nextState) {
 
   const host = room.hostUid === uid;
   const me = room.players.find((player) => player.uid === uid);
-  const canStart = host && room.players.length >= 2 && room.players
-    .filter((player) => player.uid !== room.hostUid)
-    .every((player) => player.ready && player.connected);
+  const canStart = canStartRoom(room, uid);
 
   const codeEl = page.querySelector('#lobby-room-code');
   if (codeEl) codeEl.textContent = room.code;
 
   const countEl = page.querySelector('#player-count');
-  if (countEl) countEl.textContent = `${room.players.length} / 4`;
+  if (countEl) countEl.textContent = `${room.players.length} / ${roomCapacity(room.mode)}`;
 
   // 先量旧位置，再动其它区块，换位动画才能把设置区高度变化也算进去
   const list = page.querySelector('#player-list');
@@ -1426,6 +1445,7 @@ app.addEventListener('click', async (event) => {
     qaOpen = false;
     state.matchDetail = null;
     history.pushState({ profile: true }, '', `${APP_ROOT}${new URL(matchLink.href).search}`);
+    inAppNav = true;
     requestProfile(historyQuery(location.search).page);
     render();
     return;
@@ -1466,6 +1486,7 @@ app.addEventListener('click', async (event) => {
     qaOpen = false;
     state.profile = null;
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
+    inAppNav = true;
     render();
     return;
   }
@@ -1479,7 +1500,15 @@ app.addEventListener('click', async (event) => {
     qaOpen = true;
     state.profile = null;
     history.pushState({ qa: true }, '', `${APP_ROOT}?qa`);
+    inAppNav = true;
     render();
+    return;
+  }
+
+  const backLink = event.target.closest('[data-action="back"]');
+  if (backLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    goBack();
     return;
   }
 
@@ -1488,16 +1517,7 @@ app.addEventListener('click', async (event) => {
     event.preventDefault();
     if (state.room) {
       if (await confirmLeave()) enqueueWrite({ type: 'leave' });
-    } else {
-      socket.roomCode = '';
-      previousRoomCode = '';
-      profileOpen = false;
-      privacyOpen = false;
-      qaOpen = false;
-      state.profile = null;
-      if (location.search) history.replaceState(null, '', APP_ROOT);
-      render();
-    }
+    } else resetToHome();
     return;
   }
 
@@ -1692,6 +1712,7 @@ app.addEventListener('click', async (event) => {
     if (me) enqueueWrite({ type: 'setReady', ready: !me.ready });
   } else if (button.dataset.action === 'start') {
     event.preventDefault();
+    if (!canStartRoom(state.room, state.uid)) return;
     enqueueWrite({ type: 'start' });
   } else if (button.dataset.action === 'leave') {
     event.preventDefault();

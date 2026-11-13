@@ -142,3 +142,51 @@ test('保存凭证并在重连和重置身份后使用新的凭证', (t) => {
   assert.equal(socket.closed, true);
   assert.equal(scheduled.length, 0);
 });
+
+test('mock 模式使用 sessionStorage 身份并在 4003 失效后清理重连', (t) => {
+  const storage = (entries = []) => { const values = new Map(entries); return { getItem: (k) => values.get(k) || null, setItem: (k, v) => values.set(k, v), removeItem: (k) => values.delete(k) }; };
+  class FakeSocket {
+    static OPEN = 1;
+    static instances = [];
+    constructor(url) { this.url = url; this.readyState = 0; this.events = new Map(); this.sent = []; FakeSocket.instances.push(this); }
+    addEventListener(name, callback) { this.events.set(name, callback); }
+    send(raw) { this.sent.push(JSON.parse(raw)); }
+    emit(name, data) { this.events.get(name)?.(data); }
+    open() { this.readyState = 1; this.emit('open'); }
+    message(data) { this.emit('message', { data: JSON.stringify(data) }); }
+    close(code = 1006) { this.readyState = 3; this.emit('close', { code }); }
+  }
+  const scheduled = [];
+  const originals = Object.fromEntries(['WebSocket', 'localStorage', 'sessionStorage', 'location', 'document', '__SYNCONYM_MOCK__'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]));
+  const session = storage([['sy_mock_identity', JSON.stringify({ uid: 'MOCKUID1', credential: 'cred-mock' })], ['sy_mock_uid', 'MOCKUID1']]);
+  const values = {
+    __SYNCONYM_MOCK__: true,
+    WebSocket: FakeSocket,
+    localStorage: storage(),
+    sessionStorage: session,
+    location: { protocol: 'http:', host: 'localhost', search: '?r=12345' },
+    document: {}
+  };
+  for (const [key, value] of Object.entries(values)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  t.after(() => { for (const [key, descriptor] of Object.entries(originals)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } });
+  t.mock.method(globalThis, 'setTimeout', (callback) => { scheduled.push(callback); return 1; });
+
+  const socket = new Socket({});
+  assert.match(socket.ws.url, /\/__mock\/ws$/);
+  socket.ws.open();
+  assert.equal(socket.ws.sent[0].uid, 'MOCKUID1');
+  assert.equal(socket.ws.sent[0].credential, 'cred-mock');
+  assert.equal(socket.ws.sent[0].roomCode, '12345');
+
+  socket.ws.close(4003);
+  assert.equal(socket.closed, false);
+  assert.equal(session.getItem('sy_mock_identity'), null);
+  assert.equal(session.getItem('sy_mock_uid'), null);
+  assert.equal(socket.roomCode, '');
+  assert.equal(scheduled.length, 1);
+  scheduled.shift()();
+  const next = FakeSocket.instances.at(-1);
+  next.open();
+  assert.equal(next.sent[0].uid, undefined);
+  assert.equal(next.sent[0].roomCode, undefined);
+});

@@ -93,6 +93,12 @@ test('标记 scrollbars-left 的滚动容器把竖向滚动条放到左边', () 
   assert.equal(rail.style.left, '2px');
 });
 
+test('全站主滚动容器默认在屏幕右侧显示滚动条', () => {
+  const html = readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8');
+  assert.match(html, /<div id="app" class="app"><\/div>/);
+  assert.match(source, /Math\.min\(innerWidth, rect\.right\) - 10/);
+});
+
 test('弹层开合动画结束后按最终几何重算滚动条轨道', () => {
   assert.match(source, /document\.addEventListener\('transitionend', schedule, true\);/);
 });

@@ -22,9 +22,10 @@ test('Q&A 逐条折叠，默认全部收起', () => {
   assert.match(html, /<h1>常见问题<\/h1>/);
 });
 
-test('Q&A 保留返回主页入口与反馈出口', () => {
+test('Q&A 保留返回上一页入口与反馈出口', () => {
   const html = qaMarkup();
-  assert.equal((html.match(/class="button secondary privacy-back(?: privacy-back-bottom)?" href="\/" data-action="home"/g) || []).length, 2);
+  assert.equal((html.match(/class="button secondary privacy-back(?: privacy-back-bottom)?" href="\/" data-action="back"/g) || []).length, 2);
+  assert.equal((html.match(/<span>返回<\/span>/g) || []).length, 2);
   assert.match(html, /href="https:\/\/github\.com\/Lu-Mine\/Synconym\/issues"/);
   assert.match(html, /去 GitHub 提 issue/);
 });

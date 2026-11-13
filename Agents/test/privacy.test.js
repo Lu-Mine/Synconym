@@ -21,7 +21,8 @@ test('隐私说明保留原文、目录及返回入口', () => {
   const html = privacyMarkup();
   assert.match(html, /不会删除旧身份或旧对局记录/);
   assert.match(html, /没有自助删除服务器记录/);
-  assert.equal((html.match(/class="button secondary privacy-back(?: privacy-back-bottom)?" href="\/" data-action="home"/g) || []).length, 2);
+  assert.equal((html.match(/class="button secondary privacy-back(?: privacy-back-bottom)?" href="\/" data-action="back"/g) || []).length, 2);
+  assert.equal((html.match(/<span>返回<\/span>/g) || []).length, 2);
   assert.match(html, /<nav class="privacy-nav" aria-label="隐私说明目录">/);
   for (const id of ['identity', 'records', 'deletion', 'hosting']) {
     assert.match(html, new RegExp(`href="#${id}"`));

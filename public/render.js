@@ -158,7 +158,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
   return `<header class="site-header" id="site-header" data-in-room="${inRoom}">
     ${brandMarkup()}
     <nav class="header-nav" aria-label="站点链接">
-      <a class="site-nav-link header-nav-secondary" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a>
+      <a class="site-nav-link header-nav-secondary" href="https://github.com/Lu-Mine/Synconym" rel="noopener">${icon('github', 'footer-github-icon')}<span>GitHub</span></a>
       ${inRoom ? '' : `<button class="header-start" type="button" data-action="open-start">${icon('play')}<span>开始游戏</span></button>`}
       <a class="site-nav-link header-nav-secondary" href="/?qa" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-qa"'}>${icon('circle-help')}<span>Q&amp;A</span></a>
     </nav>
@@ -258,7 +258,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       <p class="start-hint">点击空白处关闭</p>
     </section>
   </div>
-  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine/Synconym" rel="noopener"><img class="footer-github-icon" src="/github-mark.svg" alt="" aria-hidden="true"><span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私政策</span></a><a class="footer-privacy" href="/?qa" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-qa"'}>${icon('circle-help')}<span>Q&amp;A</span></a></nav></footer>`;
+  <footer class="site-footer">${brandMarkup()}<nav class="footer-links" aria-label="页脚链接"><a class="footer-privacy" href="https://github.com/Lu-Mine/Synconym" rel="noopener">${icon('github', 'footer-github-icon')}<span>GitHub</span></a><a class="footer-privacy" href="/?privacy" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-privacy"'}>${icon('shield-check')}<span>隐私政策</span></a><a class="footer-privacy" href="/?qa" ${inRoom ? 'target="_blank" rel="noopener"' : 'data-action="open-qa"'}>${icon('circle-help')}<span>Q&amp;A</span></a></nav></footer>`;
 }
 
 // 常见问题：一条问题一个折叠项，name 相同让浏览器同一时刻只展开一条。
@@ -316,7 +316,7 @@ export function qaMarkup() {
       <div class="qa-answer">${answers.map((text) => `<p>${escapeHtml(text)}</p>`).join('')}</div>
     </details>`).join('\n    ');
   return `<article class="privacy-content privacy-in-app qa-content">
-    <a class="button secondary privacy-back" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <a class="button secondary privacy-back" href="/" data-action="back">${icon('arrow-right')}<span>返回</span></a>
     <header class="privacy-title"><h1>常见问题</h1><p class="privacy-intro">玩之前想知道的事都在这。点开一条看答案。</p></header>
     <div class="qa-list">
     ${items}
@@ -325,13 +325,13 @@ export function qaMarkup() {
       <p>还是没解决？</p>
       <a class="button secondary" href="https://github.com/Lu-Mine/Synconym/issues" target="_blank" rel="noopener">${icon('circle-help')}<span>去 GitHub 提 issue</span></a>
     </div>
-    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="back">${icon('arrow-right')}<span>返回</span></a>
   </article>`;
 }
 
 export function privacyMarkup() {
   return `<article class="privacy-content privacy-in-app">
-    <a class="button secondary privacy-back" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <a class="button secondary privacy-back" href="/" data-action="back">${icon('arrow-right')}<span>返回</span></a>
     <header class="privacy-title"><h1>隐私说明</h1><p class="privacy-intro">这里说明近意词在游戏过程中使用和保存的数据。请不要在昵称或词语中填写不愿与同局玩家分享的信息。</p></header>
     <nav class="privacy-nav" aria-label="隐私说明目录">
       <span class="privacy-nav-title">页面目录</span>
@@ -359,7 +359,7 @@ export function privacyMarkup() {
           <p>游戏本身不要求注册手机号或密码。站点运营者使用的服务器、反向代理或托管平台可能另外处理网络连接信息或日志；这些做法取决于实际部署环境，请以该站点运营者提供的信息为准。</p></section>
       </div>
     </div>
-    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="home">${icon('arrow-right')}<span>返回主页</span></a>
+    <a class="button secondary privacy-back privacy-back-bottom" href="/" data-action="back">${icon('arrow-right')}<span>返回</span></a>
   </article>`;
 }
 
@@ -580,7 +580,7 @@ export function profileMarkup(state) {
     </section>
     <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
     <div class="profile-actions">
-      <button class="button secondary" type="button" data-action="home">${icon('arrow-right')}<span>回主页</span></button>
+      <button class="button secondary" type="button" data-action="back">${icon('arrow-left')}<span>返回</span></button>
       <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
     </div>
     <section class="surface-block profile-history">
@@ -615,10 +615,49 @@ export function playerItemMarkup(player, room, uid) {
   </li>`;
 }
 
+const ROOM_PLAYER_LIMITS = Object.freeze({
+  free: [2, 4],
+  theme: [2, 4],
+  livonym: [3, 8],
+  shiritori: [2, 4],
+  impostor: [3, 6],
+  blitz: [2, 2],
+  bridge: [2, 4]
+});
+
+export function roomPlayerLimits(mode) {
+  return ROOM_PLAYER_LIMITS[mode] || ROOM_PLAYER_LIMITS.free;
+}
+
+export function roomMinPlayers(mode) {
+  return roomPlayerLimits(mode)[0];
+}
+
+export function roomCapacity(mode) {
+  return roomPlayerLimits(mode)[1];
+}
+
+export function canStartRoom(room, uid) {
+  const [minPlayers, maxPlayers] = roomPlayerLimits(room?.mode);
+  const count = room?.players?.length ?? 0;
+  return Boolean(room)
+    && room.hostUid === uid
+    && count >= minPlayers
+    && count <= maxPlayers
+    && room.players
+      .filter((player) => player.uid !== room.hostUid)
+      .every((player) => player.ready && player.connected);
+}
+
 export function lobbyPlayersMarkup(room, uid) {
+  const [minPlayers, capacity] = roomPlayerLimits(room.mode);
+  const hint = minPlayers === capacity ? `${capacity} 人即可开玩` : `${minPlayers}–${capacity} 人即可开玩`;
   const players = room.players.map((player) => playerItemMarkup(player, room, uid)).join('');
-  const emptySeats = '<li class="player player-empty"><span class="player-empty-avatar" aria-hidden="true"></span><span>2–4 人即可开玩</span></li>';
-  return players + emptySeats.repeat(Math.max(0, 4 - room.players.length));
+  const emptyCount = Math.max(0, capacity - room.players.length);
+  const emptySeat = `<li class="player player-empty"><span class="player-empty-avatar" aria-hidden="true"></span><span>${hint}</span></li>`;
+  if (capacity <= 4 || emptyCount <= 1) return players + emptySeat.repeat(emptyCount);
+  const foldedCount = emptyCount - 1;
+  return `${players}${emptySeat}<li class="player player-empty-more"><span class="player-empty-more-avatar" aria-hidden="true">${icon('ellipsis', 'player-empty-more-icon')}</span><span>还有 ${foldedCount} 个空位</span></li>`;
 }
 
 export function settingsBlockMarkup(room, host) {
@@ -635,9 +674,7 @@ export function lobbyMarkup(state) {
   const { room, uid } = state;
   const me = room.players.find((player) => player.uid === uid);
   const host = room.hostUid === uid;
-  const canStart = host && room.players.length >= 2 && room.players
-    .filter((player) => player.uid !== room.hostUid)
-    .every((player) => player.ready && player.connected);
+  const canStart = canStartRoom(room, uid);
   return `<div class="page lobby-page" data-screen="lobby" data-room="${escapeHtml(room.code)}">
     <div class="lobby-info">
     <section class="room-banner">
@@ -663,7 +700,7 @@ export function lobbyMarkup(state) {
     <section class="surface-block players-block" aria-label="房间玩家">
       <div class="section-heading">
         <h2>${icon('users')}<span>玩家</span></h2>
-        <span class="player-count" id="player-count">${room.players.length} / 4</span>
+        <span class="player-count" id="player-count">${room.players.length} / ${roomCapacity(room.mode)}</span>
       </div>
       <ul class="player-list" id="player-list">
         ${lobbyPlayersMarkup(room, uid)}
@@ -775,7 +812,7 @@ export function writingMarkup(state, ui = {}) {
 }
 
 function wordCardMarkup(player, value, duplicate = false) {
-  const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 4 ? player.seat : 0;
+  const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 8 ? player.seat : 0;
   return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
 }
 

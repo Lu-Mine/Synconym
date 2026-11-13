@@ -20,6 +20,10 @@
   --player-1: #FF5A46;
   --player-2: #00A878;
   --player-3: #9B6BFF;
+  --player-4: #E8A33D;
+  --player-5: #2FA8C8;
+  --player-6: #D3728C;
+  --player-7: #6E9B4E;
   --dur-1: 180ms;
   --dur-2: 280ms;
   --dur-3: 360ms;
@@ -1525,6 +1529,28 @@ p {
   background: transparent;
 }
 
+.player-empty-more {
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 14px;
+  border: 1px dashed var(--line);
+  background: transparent;
+}
+
+.player-empty-more-avatar {
+  width: 38px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.player-empty-more-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .player-empty-avatar {
   width: 38px;
   height: 38px;
@@ -2091,7 +2117,8 @@ body[data-scene="result"], .poster[data-scene="result"] { --bg-a: #CBD6FF; --bg-
 .player .ready-state, .game-status .ready-state { color: var(--status-color); background: var(--status-bg); }
 .word-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 /* 明快的席位色专用于词卡，与白字保持足够对比。 */
-:root { --card-player-0: #5572c8; --card-player-1: #c15254; --card-player-2: #26846d; --card-player-3: #8666b9; }
+:root { --card-player-0: #5572c8; --card-player-1: #c15254; --card-player-2: #26846d; --card-player-3: #8666b9;
+  --card-player-4: #b0742a; --card-player-5: #1f7f97; --card-player-6: #a4485f; --card-player-7: #4f7233; }
 .word-card { min-width: 0; padding: 12px; border-radius: var(--radius-md); background: var(--card-color); }
 .word-card span { display: block; color: #fff; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .word-card strong { display: block; margin-top: 4px; color: #fff; font-size: 22px; font-weight: 600; overflow-wrap: anywhere; }
