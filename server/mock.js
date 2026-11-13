@@ -1,4 +1,6 @@
 import { seedMockHistory } from './mock-history.js';
+const MODE_CAPACITY = { free: 4, theme: 4, livonym: 8, shiritori: 4, impostor: 6, blitz: 2, bridge: 4 };
+const modeCapacity = (mode) => MODE_CAPACITY[mode] || 4;
 
 // 模拟控制只包装隔离的 RoomManager，不修改正式房间。
 export function createMockControls(manager) {
@@ -165,12 +167,17 @@ export function createMockControls(manager) {
       return;
     }
     if (message.action === 'add') {
-      if (room.phase !== 'lobby' || room.players.length >= 4) throw new Error('只能在未满员的大厅添加玩家');
+      if (room.phase !== 'lobby' || room.players.length >= modeCapacity(room.mode)) throw new Error('只能在未满员的大厅添加玩家');
       const bot = manager.connect();
       bot.ws = { readyState: 1, send() {}, close() {} };
       bots.set(bot.uid, bot);
       try { manager.handle(bot, { type: 'joinRoom', code: room.code }); }
       catch (error) { bots.delete(bot.uid); manager.disconnect(bot); throw error; }
+      // 模拟玩家默认已准备，加人即可开局；面板仍可逐个取消。
+      if (room.hostUid !== bot.uid) {
+        bot.lastWrite = 0;
+        manager.handle(bot, { type: 'setReady', ready: true });
+      }
       return;
     }
     if (message.action === 'start') {

@@ -79,3 +79,62 @@ test('宽度滑条实时调整预览，并随窗口更新上限', () => {
   window.innerWidth = 1400; window.handlers.resize();
   assert.equal(node('#game').style.width, '1400px');
 });
+
+test('父页面同步子页面路由，刷新时保留当前房间或二级页面', () => {
+  const html = readFileSync(new URL('../../dev/mock.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /<iframe[^>]*src="\/__mock\/play"/);
+  assert.match(html, /\/__mock\/play\$\{location\.search\}/);
+
+  const nodes = new Map();
+  function node(id) {
+    if (!nodes.has(id)) nodes.set(id, { value: '', checked: false, hidden: false, style: {}, handlers: {}, attrs: {},
+      classList: { add() {}, remove() {}, toggle(_, value) { return value; } },
+      addEventListener(type, handler) { this.handlers[type] = handler; },
+      setAttribute(key, value) { this.attrs[key] = value; },
+      replaceChildren(...options) { this.value = options[0]?.value || ''; },
+      getBoundingClientRect() { return { left: 600, top: 16, width: 336, height: 600 }; },
+      setPointerCapture() {}, hasPointerCapture() { return true; }, releasePointerCapture() {}, focus() {},
+      contentWindow: { location: { origin: 'http://test', search: '' }, postMessage() {} }
+    });
+    return nodes.get(id);
+  }
+  const replaced = [];
+  const location = { origin: 'http://test', pathname: '/__mock', search: '' };
+  const history = { replaceState(_state, _title, url) { replaced.push(url); location.search = url.includes('?') ? url.slice(url.indexOf('?')) : ''; } };
+  const window = { innerWidth: 1000, innerHeight: 800, handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; } };
+  runInNewContext(readFileSync(new URL('../../dev/mock.js', import.meta.url), 'utf8'), {
+    document: { querySelector: node }, window, location, history, Option: function(text, value) { this.value = value; }
+  });
+
+  const frame = node('#game');
+  for (const search of ['?r=12345', '?insane', '?me', '?qa', '?privacy', '']) {
+    window.handlers.message({ origin: 'http://test', source: frame.contentWindow, data: { type: 'mock-route', search } });
+    assert.equal(replaced.at(-1), `/__mock${search}`);
+  }
+  window.handlers.message({ origin: 'http://evil', source: frame.contentWindow, data: { type: 'mock-route', search: '?r=99999' } });
+  window.handlers.message({ origin: 'http://test', source: {}, data: { type: 'mock-route', search: '?r=99999' } });
+  assert.equal(location.search, '');
+
+  frame.contentWindow.location.search = '?me&page=2';
+  frame.handlers.load();
+  assert.equal(location.search, '?me&page=2');
+
+  const parentSent = [];
+  const frameWindow = {
+    __SYNCONYM_MOCK__: false,
+    location: { origin: 'http://test', search: '?insane' },
+    parent: { postMessage(message, targetOrigin) { parentSent.push({ message, targetOrigin }); } },
+    handlers: {},
+    addEventListener(type, handler) { this.handlers[type] = handler; },
+    dispatchEvent() {}
+  };
+  frameWindow.window = frameWindow;
+  runInNewContext(readFileSync(new URL('../../dev/control.js', import.meta.url), 'utf8'), {
+    window: frameWindow,
+    CustomEvent: function(type, init) { this.type = type; this.detail = init?.detail; }
+  });
+  frameWindow.handlers['synconym-mock-route']({ detail: { search: '?qa' } });
+  assert.equal(parentSent.at(-1).targetOrigin, 'http://test');
+  assert.equal(parentSent.at(-1).message.type, 'mock-route');
+  assert.equal(parentSent.at(-1).message.search, '?qa');
+});

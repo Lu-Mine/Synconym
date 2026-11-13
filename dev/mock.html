@@ -72,7 +72,8 @@
       <div class="panel-footer"><span>模拟数据独立，重启清空</span><a href="/">返回游戏</a></div>
     </div>
   </aside>
-  <div class="preview" id="preview"><iframe id="game" src="/__mock/play" title="可交互的模拟游戏"></iframe></div>
+  <div class="preview" id="preview"><iframe id="game" title="可交互的模拟游戏"></iframe></div>
+  <script>document.getElementById('game').src = `/__mock/play${location.search}`;</script>
   <script type="module" src="/__mock/mock.js"></script>
 </body>
 </html>

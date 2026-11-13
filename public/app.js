@@ -42,6 +42,10 @@ import { hydrateAvatars } from './avatar.js';
 
 const MOCK = Boolean(window.__SYNCONYM_MOCK__);
 const APP_ROOT = MOCK ? '/__mock/play' : '/';
+function syncMockLocation() {
+  if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-route', { detail: { search: location.search } }));
+}
+syncMockLocation();
 const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
 const WRITE_COOLDOWN_MS = 520;
 
@@ -421,6 +425,7 @@ window.addEventListener('popstate', async () => {
     qaOpen = new URLSearchParams(location.search).has('qa');
     insaneOpen = new URLSearchParams(location.search).has('insane');
     state.profile = null;
+    if (typeof syncMockLocation === 'function') syncMockLocation();
     if (profileOpen && socket.ready) requestProfile(historyQuery(location.search).page);
     render();
     return;
@@ -805,6 +810,7 @@ function scheduleHistorySearch(value) {
     const params = new URLSearchParams({ me: '' });
     if (raw) params.set('q', raw);
     history.replaceState(null, '', `${APP_ROOT}?${params}`);
+    syncMockLocation();
     if (socket.ready) requestProfile(1);
     else render();
   }, 240);
@@ -817,6 +823,7 @@ function requestProfile(page = 1) {
   query.page = page;
   state.historyQuery = query;
   history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
+  syncMockLocation();
   socket.send({ type: 'openProfile', page: query.page, filter: historyFilter(query) }, true);
 }
 
@@ -829,6 +836,7 @@ function resetToHome() {
   insaneOpen = false;
   state.profile = null;
   if (location.search) history.replaceState(null, '', APP_ROOT);
+  syncMockLocation();
   render();
 }
 
@@ -845,6 +853,7 @@ function openProfile() {
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
+  syncMockLocation();
   inAppNav = true;
   requestProfile(1);
   render();
@@ -1282,6 +1291,7 @@ const socket = new Socket({
     const query = historyQuery(location.search);
     query.page = profile.page;
     history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
+    syncMockLocation();
     render();
   },
   onMatchDetail(detail) {
@@ -1323,6 +1333,7 @@ const socket = new Socket({
         pendingLobbySettings = null;
         lastIdleDeadline = 0;
         history.replaceState(null, '', `${APP_ROOT}?r=${next.room.code}`);
+        syncMockLocation();
         history.pushState({ roomGuard: true }, '', location.href);
         roomHistoryGuard = true;
         previousRoomCode = next.room.code;
@@ -1340,9 +1351,11 @@ const socket = new Socket({
         profileOpen = false;
         state.profile = null;
         history.replaceState({ insane: true }, '', `${APP_ROOT}?insane`);
+        syncMockLocation();
       } else {
         if (previous?.code) insaneOpen = false;
         if (!insaneOpen && !profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
+        syncMockLocation();
       }
     }
     if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
@@ -1568,6 +1581,7 @@ app.addEventListener('click', async (event) => {
     qaOpen = false;
     state.matchDetail = null;
     history.pushState({ profile: true }, '', `${APP_ROOT}${new URL(matchLink.href).search}`);
+    syncMockLocation();
     inAppNav = true;
     requestProfile(historyQuery(location.search).page);
     render();
@@ -1610,6 +1624,7 @@ app.addEventListener('click', async (event) => {
     insaneOpen = true;
     state.profile = null;
     history.pushState({ insane: true }, '', `${APP_ROOT}?insane`);
+    syncMockLocation();
     render();
     return;
   }
@@ -1624,6 +1639,7 @@ app.addEventListener('click', async (event) => {
     insaneOpen = false;
     state.profile = null;
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
+    syncMockLocation();
     inAppNav = true;
     render();
     return;
@@ -1639,6 +1655,7 @@ app.addEventListener('click', async (event) => {
     insaneOpen = false;
     state.profile = null;
     history.pushState({ qa: true }, '', `${APP_ROOT}?qa`);
+    syncMockLocation();
     inAppNav = true;
     render();
     return;

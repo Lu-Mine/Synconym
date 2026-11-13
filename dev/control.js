@@ -22,3 +22,16 @@ window.addEventListener('synconym-mock-state', (event) => {
     uid: detail.uid ?? null
   }, window.location.origin);
 });
+
+// 同步子页面路由查询串给父窗口，刷新父页面后保持当前所在页面与房间
+function postMockRoute(search = window.location.search) {
+  if (!window.parent || window.parent === window) return;
+  window.parent.postMessage({
+    type: 'mock-route',
+    search: typeof search === 'string' ? search : ''
+  }, window.location.origin);
+}
+
+window.addEventListener('synconym-mock-route', (event) => {
+  postMockRoute(event.detail?.search ?? window.location.search);
+});

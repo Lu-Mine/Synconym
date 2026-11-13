@@ -4,6 +4,10 @@ const select = $('#player');
 let room = null;
 let pausedAt = null;
 const phaseNames = { lobby: '等待大厅', countdown: '开局倒计时', writing: '写词', voting: '投票', prepare: '准备', breakVote: '崩局投票', result: '结算', rematch: '重赛选择', interrupted: '对局中断' };
+// 人数限制与 server/rules.js、public/render.js 保持一致，面板只负责禁用提示。
+const ROOM_LIMITS = { free: [2, 4], theme: [2, 4], livonym: [3, 8], shiritori: [2, 4], impostor: [3, 6], blitz: [2, 2], bridge: [2, 4] };
+const roomLimits = (mode) => ROOM_LIMITS[mode] || ROOM_LIMITS.free;
+const TIMED_PHASES = ['countdown', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch'];
 
 function render() {
   const bots = room?.players?.filter(player => player.mockBot) || [];
@@ -12,13 +16,14 @@ function render() {
   if (bots.some(player => player.uid === selected)) select.value = selected;
   const bot = bots.find(player => player.uid === select.value);
   const phase = room?.phase;
+  const [minPlayers, maxPlayers] = roomLimits(room?.mode);
   $('#status').textContent = room ? `房间 ${room.code} · ${phaseNames[phase] || phase}` : '等待进入房间';
   select.disabled = !bot;
-  $('#add').disabled = phase !== 'lobby' || room.players.length >= 4;
+  $('#add').disabled = phase !== 'lobby' || room.players.length >= maxPlayers;
   $('#remove').disabled = !bot;
   $('#ready').disabled = !bot || !['lobby', 'prepare'].includes(phase) || (phase === 'lobby' && room.hostUid === bot.uid);
   $('#ready').checked = Boolean(bot?.ready);
-  $('#start').disabled = phase !== 'lobby' || room.players.length < 2 || !room.players.some(p => p.uid === room.hostUid && p.connected) || room.players.some(p => p.uid !== room.hostUid && (!p.ready || !p.connected));
+  $('#start').disabled = phase !== 'lobby' || room.players.length < minPlayers || room.players.length > maxPlayers || !room.players.some(p => p.uid === room.hostUid && p.connected) || room.players.some(p => p.uid !== room.hostUid && (!p.ready || !p.connected));
   $('#word').disabled = !bot || phase !== 'writing' || bot.submitted;
   $('#submitWord').disabled = $('#word').disabled;
   const canVote = bot && ((phase === 'voting' && !bot.voted) || (phase === 'breakVote' && !bot.breakVoted));
@@ -30,14 +35,25 @@ function render() {
   $('#room').disabled = !canRematch;
   $('#pause').checked = pausedAt != null;
   $('#back').disabled = !room?.mockCanBack;
-  $('#advance').disabled = !room || (!room.mockCanForward && (!['countdown', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch'].includes(phase) || room.phaseDeadline == null));
+  $('#advance').disabled = !room || (!room.mockCanForward && (!TIMED_PHASES.includes(phase) || room.phaseDeadline == null));
 }
 
 function send(action, extra = {}) {
   frame.contentWindow.postMessage({ type: 'mock-action', action, uid: select.value, ...extra }, location.origin);
 }
+function syncRoute(search) {
+  if (typeof history?.replaceState !== 'function' || typeof search !== 'string') return;
+  if ((location.search || '') !== search) history.replaceState(null, '', `${location.pathname || '/__mock'}${search}`);
+}
+frame.addEventListener?.('load', () => {
+  try {
+    if (frame.contentWindow?.location?.origin === location.origin) syncRoute(frame.contentWindow.location.search || '');
+  } catch { /* 忽略非同源或测试环境 */ }
+});
 window.addEventListener('message', event => {
-  if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== 'mock-state') return;
+  if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+  if (event.data?.type === 'mock-route') { syncRoute(event.data.search || ''); return; }
+  if (event.data?.type !== 'mock-state') return;
   room = event.data.room;
   pausedAt = event.data.mockPausedAt ?? room?.mockPausedAt ?? null;
   render();
