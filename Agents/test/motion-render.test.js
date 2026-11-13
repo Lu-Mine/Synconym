@@ -14,13 +14,14 @@ function harness() {
     motionTarget, sceneMotion, state: { room: null, profile: null },
     currentScreen: 'qa', currentMotionTarget: motionTarget('qa'),
     pendingMotionTarget: null, activeSceneTransition: null,
-    deferredSceneRender: false, deferredForceFull: false, renderGeneration: 0,
+    deferredSceneRender: false, deferredForceFull: false, renderGeneration: 0, currentInsaneScene: false,
     targetScreen: 'profile', pathOpen: false, homeSettingsOpen: false,
     location: { search: '' }, historyQuery: () => ({}),
     screenKeyFor: () => context.targetScreen,
     closeStartEntry: noop, clearStartEntry: noop, syncModalScrollLock: noop,
     clearLaunchCurtain: noop, showLaunchCurtain: noop, ensureShell: () => ({}),
     syncConnectionUI: noop, syncPathModalDOM: noop, refreshTimers: noop,
+    insaneBackground: { setActive: noop }, isInsaneScene: () => false, syncInsaneTheme: () => false,
     patchSameScene: () => { paints.push('patch'); return true; },
     replaceScene: () => paints.push('replace'),
     app: { scrollTo: () => scrolls.push('app') },
@@ -80,4 +81,42 @@ test('捕获前快速返回会丢弃过期回调，捕获后导航仍可打断',
   h.transitions[2].finish();
   await Promise.resolve();
   assert.equal(h.context.currentMotionTarget.screen, 'profile');
+});
+
+test('普通场景与狂意场景互换时才播侵蚀过场', () => {
+  const h = harness();
+  let insane = false;
+  h.context.isInsaneScene = () => insane;
+  h.context.syncInsaneTheme = () => insane;
+  h.context.targetScreen = 'home';
+  h.render();
+  h.transitions[0].apply();
+  assert.equal(h.context.document.documentElement.dataset.sceneMotion, 'depth');
+
+  insane = true;
+  h.context.targetScreen = 'insane';
+  h.render();
+  assert.equal(h.context.document.documentElement.dataset.sceneMotion, 'erosion');
+  h.transitions[1].apply();
+  h.transitions[1].finish();
+
+  // 场景没变，房间内换屏走常规阶段动效。
+  h.context.targetScreen = 'lobby';
+  h.render();
+  assert.notEqual(h.context.document.documentElement.dataset.sceneMotion, 'erosion');
+  h.transitions[2].apply();
+  h.transitions[2].finish();
+
+  // 狂意房间同样是狂意场景，离开时才回到普通场景的过场。
+  insane = true;
+  h.context.targetScreen = 'writing';
+  h.render();
+  assert.notEqual(h.context.document.documentElement.dataset.sceneMotion, 'erosion');
+  h.transitions[3].apply();
+  h.transitions[3].finish();
+
+  insane = false;
+  h.context.targetScreen = 'home';
+  h.render();
+  assert.equal(h.context.document.documentElement.dataset.sceneMotion, 'erosion');
 });

@@ -10,11 +10,15 @@ import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
+import { insaneMarkup } from './insane.js';
+import { createInsaneBackground } from './insane-background.js';
+import { createInsaneTransitionController } from './insane-transition.js';
 import {
   avatarDetails,
   homeEntryMarkup,
   homeMarkup,
   icon,
+  isInsaneMode,
   lobbyMarkup,
   lobbyPlayersMarkup,
   playerItemMarkup,
@@ -44,12 +48,84 @@ const WRITE_COOLDOWN_MS = 520;
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
 
+// 折射层脱离滚动面板，跟随可见入口，不拦截任何交互。
+const insaneDistortion = document.createElement('div');
+insaneDistortion.className = 'insane-distortion';
+insaneDistortion.hidden = true;
+insaneDistortion.setAttribute('aria-hidden', 'true');
+insaneDistortion.innerHTML = '<svg class="insane-distortion-filter" focusable="false"><filter id="insane-refraction" x="-30%" y="-50%" width="160%" height="200%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.025 0.075" numOctaves="2" seed="8" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="24" xChannelSelector="R" yChannelSelector="G"/></filter></svg><i class="insane-portal-pixels"></i>';
+document.body.append(insaneDistortion);
+const reducedInsaneMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const insaneBackground = createInsaneBackground();
+let pendingInsaneReveal = null;
+const insaneTransition = createInsaneTransitionController({
+  onReveal() {
+    if (!pendingInsaneReveal) return;
+    const { initialSync } = pendingInsaneReveal;
+    pendingInsaneReveal = null;
+    render({ forceFull: true, initialSync, skipTransition: true });
+  },
+  onDone() {
+    pendingInsaneReveal = null;
+  }
+});
+let distortedPortal = null;
+function syncInsaneDistortion() {
+  const portal = [...document.querySelectorAll('.insane-portal')].find((element) => {
+    if (element.closest('[inert]') || !element.getClientRects().length) return false;
+    const rect = element.getBoundingClientRect();
+    const clip = element.closest('.drawer-inner')?.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight
+      && (!clip || (rect.top >= clip.top && rect.bottom <= clip.bottom));
+  });
+  const visible = portal && !reducedInsaneMotion.matches;
+  insaneDistortion.hidden = !visible;
+  if (distortedPortal && (!visible || distortedPortal !== portal)) distortedPortal.classList.remove('is-distorting');
+  distortedPortal = visible ? portal : null;
+  if (visible) {
+    const phase = performance.now() % 6400;
+    const elapsed = phase - 3800;
+    const intensity = Math.max(0, Math.min(1, elapsed / 100, (1400 - elapsed) / 100));
+    const active = intensity > 0;
+    insaneDistortion.style.setProperty('--distortion-intensity', intensity);
+    portal.style.setProperty('--distortion-intensity', intensity);
+    insaneDistortion.classList.toggle('is-active', active);
+    portal.classList.toggle('is-distorting', active);
+    const rect = portal.getBoundingClientRect();
+    Object.assign(insaneDistortion.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    requestAnimationFrame(syncInsaneDistortion);
+  } else {
+    setTimeout(syncInsaneDistortion, 150);
+  }
+}
+syncInsaneDistortion();
+
 // 阻止浏览器将界面图片或导航链接作为拖拽对象，保留输入文字拖放。
 document.addEventListener('dragstart', (event) => {
   if (event.target instanceof Element && event.target.closest('img, svg, a')) event.preventDefault();
 });
 
 let state = { room: null, profile: null };
+
+// 狂意页与狂意系列玩法的房间属于同一个狂意场景：共用深色视觉与背景画布。
+function isInsaneScene(screen) {
+  return screen === 'insane' || isInsaneMode(state.room?.mode);
+}
+
+function syncInsaneTheme(nextScreen) {
+  const insane = isInsaneScene(nextScreen);
+  const mode = state.room?.mode;
+  if (insane) document.body.dataset.insane = '';
+  else delete document.body.dataset.insane;
+  if (insane && isInsaneMode(mode)) document.body.dataset.insaneMode = mode;
+  else delete document.body.dataset.insaneMode;
+  insaneBackground.setActive(insane);
+  insaneBackground.setMode?.(insane && isInsaneMode(mode) ? mode : '', {
+    immediate: insaneTransition.isActive() || !currentInsaneScene
+  });
+  insaneBackground.setGlitch?.(nextScreen === 'insane');
+  return insane;
+}
 let settings = {
   mode: 'free',
   maxRounds: 12,
@@ -62,6 +138,7 @@ let renameOpen = false;
 let profileOpen = new URLSearchParams(location.search).has('me');
 let privacyOpen = new URLSearchParams(location.search).has('privacy');
 let qaOpen = new URLSearchParams(location.search).has('qa');
+let insaneOpen = new URLSearchParams(location.search).has('insane');
 // 隐私、Q&A、档案在站内点开时压入历史，「返回」据此退回上一页；直接打开链接时退回首页。
 let inAppNav = false;
 let pathOpen = false;
@@ -79,6 +156,8 @@ let inviteTrigger = null;
 let toastTimer;
 let previousRoomCode = '';
 let currentScreen = '';
+// 上一帧的狂意场景状态：普通场景与狂意场景互换时播侵蚀过场。
+let currentInsaneScene = false;
 // 每次渲染自增：用于丢弃 view transition 里尚未执行的过期快照。
 let renderGeneration = 0;
 let activeSceneTransition;
@@ -333,9 +412,14 @@ function confirmBreakVote() { return confirmAction('break'); }
 
 window.addEventListener('popstate', async () => {
   if (!state.room) {
+    if (typeof insaneTransition !== 'undefined' && insaneTransition.isActive()) {
+      pendingInsaneReveal = null;
+      insaneTransition.cancel();
+    }
     profileOpen = new URLSearchParams(location.search).has('me');
     privacyOpen = new URLSearchParams(location.search).has('privacy');
     qaOpen = new URLSearchParams(location.search).has('qa');
+    insaneOpen = new URLSearchParams(location.search).has('insane');
     state.profile = null;
     if (profileOpen && socket.ready) requestProfile(historyQuery(location.search).page);
     render();
@@ -742,6 +826,7 @@ function resetToHome() {
   profileOpen = false;
   privacyOpen = false;
   qaOpen = false;
+  insaneOpen = false;
   state.profile = null;
   if (location.search) history.replaceState(null, '', APP_ROOT);
   render();
@@ -756,6 +841,7 @@ function openProfile() {
   if (state.room) return;
   privacyOpen = false;
   qaOpen = false;
+  insaneOpen = false;
   profileOpen = true;
   state.profile = null;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
@@ -901,7 +987,7 @@ function patchLobbyDOM(nextState) {
 }
 
 function screenKeyFor(nextState) {
-  if (!nextState.room) return privacyOpen ? 'privacy' : qaOpen ? 'qa' : profileOpen ? 'profile' : 'home';
+  if (!nextState.room) return privacyOpen ? 'privacy' : qaOpen ? 'qa' : profileOpen ? 'profile' : insaneOpen ? 'insane' : 'home';
   return nextState.room.phase || 'writing';
 }
 
@@ -910,6 +996,7 @@ function buildScreenMarkup(screen) {
   if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search)) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
   if (screen === 'privacy') return privacyMarkup();
   if (screen === 'qa') return qaMarkup();
+  if (screen === 'insane') return insaneMarkup();
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'countdown') return startCountdownMarkup(state.room);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
@@ -1023,6 +1110,7 @@ function render({ forceFull = false, initialSync = false } = {}) {
   if (!state.room || state.room.phase === 'lobby') pathOpen = false;
   const nextScreen = screenKeyFor(state);
   const previousScreen = currentScreen;
+  const nextInsaneScene = isInsaneScene(nextScreen);
   const query = historyQuery(location.search);
   const nextMotionTarget = motionTarget(nextScreen, {
     detail: query.id || '', page: state.profile?.page || 1, query: query.q || ''
@@ -1040,8 +1128,9 @@ function render({ forceFull = false, initialSync = false } = {}) {
   syncModalScrollLock();
   const launch = !initialSync && previousScreen === 'countdown' && nextScreen === 'writing';
   if (previousScreen !== nextScreen) clearLaunchCurtain();
+  const skipTransition = Boolean(arguments[0]?.skipTransition);
   const shouldTransition = Boolean(
-    !launch && !initialSync && motion && document.startViewTransition
+    !skipTransition && !launch && !initialSync && motion && document.startViewTransition
       && !document.documentElement.classList.contains('is-modal-open')
       && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
@@ -1054,6 +1143,7 @@ function render({ forceFull = false, initialSync = false } = {}) {
     syncConnectionUI();
     syncPathModalDOM();
     document.body.dataset.scene = nextScreen;
+    currentInsaneScene = syncInsaneTheme(nextScreen);
     const patched = !forceFull && patchSameScene(stage, nextScreen);
     if (patched) refreshTimers();
     else replaceScene(stage, nextScreen, generation);
@@ -1076,7 +1166,8 @@ function render({ forceFull = false, initialSync = false } = {}) {
     return;
   }
   activeSceneTransition?.skipTransition();
-  document.documentElement.dataset.sceneMotion = motion.kind;
+  const insaneSwitch = nextInsaneScene !== currentInsaneScene;
+  document.documentElement.dataset.sceneMotion = insaneSwitch ? 'erosion' : motion.kind;
   document.documentElement.dataset.sceneDirection = motion.direction > 0 ? 'forward' : 'backward';
   document.documentElement.dataset.sceneSnapshot = 'old';
   pendingMotionTarget = nextMotionTarget;
@@ -1164,6 +1255,10 @@ const socket = new Socket({
       writeQueue.length = 0;
       pendingLobbySettings = null;
       gameUi.submitted = false; gameUi.voted = false; gameUi.ready = false;
+      if (insaneTransition.isActive() && insaneTransition.phase() !== 'sweeping-out') {
+        pendingInsaneReveal = null;
+        insaneTransition.cancel();
+      }
     }
     if (['replaced', 'auth-failed'].includes(status) && awaitingRoomRestore) {
       finishRoomRestore();
@@ -1218,7 +1313,7 @@ const socket = new Socket({
     }
     const profile = state.profile;
     state = { ...next, profile, matchDetail: state.matchDetail };
-    if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; state.profile = null; }
+    if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; insaneOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -1239,11 +1334,34 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      if (!profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
+      // 狂意玩法的房间退出后回狂意模式大厅，普通房间仍回主页；初次同步保留地址里的页面。
+      if (previous?.code && isInsaneMode(previous.mode)) {
+        insaneOpen = true;
+        profileOpen = false;
+        state.profile = null;
+        history.replaceState({ insane: true }, '', `${APP_ROOT}?insane`);
+      } else {
+        if (previous?.code) insaneOpen = false;
+        if (!insaneOpen && !profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
+      }
     }
     if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
     finishRoomRestore();
-    render({ initialSync });
+    if (insaneTransition.isActive() && next.room?.mode === insaneTransition.mode()) {
+      const transitionPhase = insaneTransition.phase();
+      if (transitionPhase === 'sweeping-in' || transitionPhase === 'waiting') {
+        pendingInsaneReveal = { initialSync };
+        insaneTransition.notifyRoomReady();
+      } else {
+        render({ initialSync, skipTransition: true });
+      }
+    } else {
+      if (insaneTransition.isActive()) {
+        pendingInsaneReveal = null;
+        insaneTransition.cancel();
+      }
+      render({ initialSync });
+    }
     // 名字或身份变了：档案页跟着刷新一次
     if (profileOpen) requestProfile(state.profile?.page || historyQuery(location.search).page);
   },
@@ -1263,7 +1381,12 @@ const socket = new Socket({
     gameUi.submitted = false;
     gameUi.voted = false;
     gameUi.ready = false;
+    if (insaneTransition.isActive()) {
+      pendingInsaneReveal = null;
+      insaneTransition.cancel();
+    }
     if (state.room) render();
+    else if (insaneOpen) render();
     if (message.includes('密码')) markInvalid(app.querySelector(pendingJoin ? '#join-password' : '#room-password'));
     else if (/词|答案/.test(message)) markInvalid(app.querySelector('#word-input'));
     else if (/名字/.test(message)) markInvalid(app.querySelector('#player-name'));
@@ -1477,6 +1600,20 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  const insaneLink = event.target.closest('[data-action="open-insane"]');
+  if (insaneLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    if (state.room || insaneOpen) return;
+    profileOpen = false;
+    privacyOpen = false;
+    qaOpen = false;
+    insaneOpen = true;
+    state.profile = null;
+    history.pushState({ insane: true }, '', `${APP_ROOT}?insane`);
+    render();
+    return;
+  }
+
   const privacyLink = event.target.closest('[data-action="open-privacy"]');
   if (privacyLink && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
@@ -1484,6 +1621,7 @@ app.addEventListener('click', async (event) => {
     profileOpen = false;
     privacyOpen = true;
     qaOpen = false;
+    insaneOpen = false;
     state.profile = null;
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
     inAppNav = true;
@@ -1498,6 +1636,7 @@ app.addEventListener('click', async (event) => {
     profileOpen = false;
     privacyOpen = false;
     qaOpen = true;
+    insaneOpen = false;
     state.profile = null;
     history.pushState({ qa: true }, '', `${APP_ROOT}?qa`);
     inAppNav = true;

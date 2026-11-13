@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Insane 开局倒计时预览</title>
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    .preview-controls { position: fixed; z-index: 30; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: min(94vw, 620px); }
+    .preview-controls button { padding: 7px 12px; border: 1px solid #ffffff40; border-radius: 6px; background: #111426e8; color: #e9e6f3; font-size: 13px; }
+    .preview-controls button[aria-pressed="true"] { border-color: var(--mode-a); color: var(--mode-a); }
+    .preview-controls button:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+  </style>
+</head>
+<body data-insane data-scene="countdown">
+  <nav class="preview-controls" aria-label="选择预览模式"></nav>
+  <div id="app" class="app"></div>
+  <script type="module">
+    import { shellMarkup, startCountdownMarkup } from './render.js';
+    import { updateStartCountdown } from './countdown.js';
+    import { createInsaneBackground } from './insane-background.js';
+
+    const modes = [['livonym', '即时竞猜'], ['shiritori', '接龙'], ['impostor', '思维卧底'], ['blitz', '极速闪电'], ['bridge', '语义搭桥']];
+    const controls = document.querySelector('.preview-controls');
+    const app = document.querySelector('#app');
+    const background = createInsaneBackground();
+    app.innerHTML = shellMarkup(true);
+    const stage = app.querySelector('#stage');
+    let timer;
+
+    function show(mode) {
+      clearInterval(timer);
+      document.body.dataset.insaneMode = mode;
+      background.setMode(mode, { immediate: true });
+      background.setActive(true);
+      background.setGlitch(false);
+      stage.innerHTML = startCountdownMarkup({ mode, code: '12345' });
+      for (const button of controls.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
+      const started = performance.now();
+      const tick = () => {
+        const remaining = 5000 - (performance.now() - started);
+        if (remaining <= 0) { show(mode); return; }
+        updateStartCountdown(stage.querySelector('#countdown'), Math.ceil(remaining / 1000), remaining);
+      };
+      tick();
+      timer = setInterval(tick, 100);
+    }
+
+    for (const [mode, label] of modes) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.mode = mode;
+      button.textContent = label;
+      button.addEventListener('click', () => show(mode));
+      controls.append(button);
+    }
+    show(modes[0][0]);
+  </script>
+</body>
+</html>

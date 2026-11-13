@@ -35,12 +35,12 @@ export function brandMarkup() {
   return `<a class="brand" href="/" data-action="home" aria-label="返回近意词 Synconym 主页"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn"><span class="brand-wing-l">近</span><span class="brand-accent brand-yi">意</span><span class="brand-wing-r">词</span></span><span class="brand-en">Syn<span class="brand-accent brand-c">c</span>onym</span></a>`;
 }
 
-export function segmented(name, value, options, disabled = false) {
+export function segmented(name, value, options, disabled = false, extra = '') {
   const index = Math.max(0, options.findIndex((option) => String(option.value) === String(value)));
-  return `<div class="segmented" role="group" data-segmented="${name}" style="--selected:${index};--count:${options.length}">${options.map((option) => {
+  return `<div class="segmented" role="group" data-segmented="${name}" style="--selected:${index};--count:${options.length + (extra ? 1 : 0)}">${options.map((option) => {
     const isSelected = String(option.value) === String(value);
     return `<button class="segment ${isSelected ? 'selected' : ''}" type="button" data-setting="${name}" data-value="${option.value}" aria-pressed="${isSelected}" ${disabled ? 'disabled' : ''}>${option.label}</button>`;
-  }).join('')}</div>`;
+  }).join('')}${extra}</div>`;
 }
 
 const SETTING_VALUE_TEXT = {
@@ -78,13 +78,14 @@ export function settingValueMarkup(name, settings, control) {
     + '</span>';
 }
 
-export function settingsMarkup(settings, editable) {
+export function settingsMarkup(settings, editable, showInsane = false) {
   // 只读时用纯文本取值替换控件，data-control 记录被替换控件的类型以对齐行高
   const control = (name, type, markup) => (editable ? markup : settingValueMarkup(name, settings, type));
+  const insaneEntry = showInsane ? '<a class="insane-portal" href="?insane" data-action="open-insane" aria-label="进入狂意模式"><span>INSANE</span></a>' : '';
   return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
     <div class="setting-row">
       <span class="mode-label"><span class="setting-label">模式</span><span class="theme-setting-hint" data-theme-setting-hint ${settings.mode === 'theme' ? '' : 'hidden'}>开始后随机抽取主题。</span></span>
-      ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }]))}
+      ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], false, insaneEntry))}
     </div>
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
@@ -130,14 +131,21 @@ function headingMetaMarkup(code, room) {
 }
 
 export function startCountdownMarkup(room) {
-  return `<div class="start-countdown" data-screen="countdown" data-room="${escapeHtml(room.code || '')}" data-beat="5">
-    <div class="start-countdown-cosmos" aria-hidden="true"><div class="countdown-orbit countdown-orbit-a"><span class="countdown-planet countdown-planet-a"></span></div><div class="countdown-orbit countdown-orbit-b"><span class="countdown-planet countdown-planet-b"></span></div></div>
+  const mode = room?.mode || 'free';
+  const insane = isInsaneMode(mode);
+  const fx = insane
+    ? `<div class="start-countdown-insane-fx" aria-hidden="true"><canvas class="countdown-insane-canvas"></canvas></div>`
+    : `<div class="start-countdown-cosmos" aria-hidden="true"><div class="countdown-orbit countdown-orbit-a"><span class="countdown-planet countdown-planet-a"></span></div><div class="countdown-orbit countdown-orbit-b"><span class="countdown-planet countdown-planet-b"></span></div></div>`;
+  const wordmark = insane ? modeWordmarkMarkup(mode, 'start-countdown-wordmark') : '';
+  return `<div class="start-countdown" data-screen="countdown" data-room="${escapeHtml(room?.code || '')}" data-mode="${escapeHtml(mode)}" data-beat="5">
+    ${fx}
     <div class="start-countdown-content">
     <p class="start-countdown-label">准备开始</p>
     <div id="countdown" class="start-countdown-number" role="timer" aria-label="距离开局的秒数" aria-live="off">5</div>
     <div class="start-countdown-progress" aria-hidden="true">${[1, 2, 3, 4, 5].map((step) => `<span data-step="${step}"></span>`).join('')}</div>
-    ${room.mode === 'theme' && room.themeName ? `<p class="start-countdown-theme"><span>本局主题</span><strong>${escapeHtml(room.themeName)}</strong></p>` : ''}
+    ${mode === 'theme' && room?.themeName ? `<p class="start-countdown-theme"><span>本局主题</span><strong>${escapeHtml(room.themeName)}</strong></p>` : ''}
     </div>
+    ${wordmark}
   </div>`;
 }
 
@@ -437,7 +445,7 @@ export function homeEntryMarkup(settings, settingsOpen = false) {
         </div>
         <div class="drawer-grid ${settingsOpen ? 'is-open' : ''}" id="home-settings-panel" ${settingsOpen ? '' : 'inert'}>
           <div class="drawer-inner">
-            ${settingsMarkup(settings, true)}
+            ${settingsMarkup(settings, true, true)}
           </div>
         </div>
       </form>
@@ -613,6 +621,13 @@ export function playerItemMarkup(player, room, uid) {
     </div>
     <span class="ready-state">${icon({ host: 'user', waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${{ host: '房主', waiting: '未准备', done: '已准备', away: '连接中断' }[statusKey]}</span></span>
   </li>`;
+}
+
+// 狂意系列玩法：房间沿用狂意页的背景与深色色板，自由与主题房间保持原样。
+export const INSANE_MODES = ['livonym', 'shiritori', 'impostor', 'blitz', 'bridge'];
+
+export function isInsaneMode(mode) {
+  return INSANE_MODES.includes(mode);
 }
 
 const ROOM_PLAYER_LIMITS = Object.freeze({
@@ -996,4 +1011,26 @@ export function matchDetailMarkup(detail, query = {}) {
     <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>
     </div>
   </div>`;
+}
+
+// 各玩法英文名都是字形艺术：完整名称由外层提供，艺术字只做视觉。
+// 狂意页的模式卡与房间里的模式标签共用同一份字形。
+export const wordmarkArt = {
+  // 接龙：字组依次接续，不附加链环或挂钩。
+  shiritori: '<span class="wm-shiritori" aria-hidden="true"><span class="sh-part" style="--i:0">Shi</span><span class="sh-part" style="--i:1">ri</span><span class="sh-part" style="--i:2">tori</span></span>',
+  // 即时竞猜：i 的点发出绿光，整个单词从左至右逐字点亮。
+  livonym: `<span class="wm-livonym" aria-hidden="true">${[...'Livonym'].map((letter, i) => `<span class="live-char${letter === 'i' ? ' live-i' : ''}" style="--i:${i}">${letter === 'i' ? '<span class="live-i-stem">i</span>' : letter}</span>`).join('')}</span>`,
+  // 思维卧底：眼睛代替第一只 o。
+  impostor: '<span class="wm-impostor" aria-hidden="true"><span>Imp</span><span class="imp-eye"><span class="sus-eye"></span></span><span>stor</span></span>',
+  // 极速闪电：z 的位置由折角闪电占据，字标疾驰时留下速度线。
+  blitz: '<span class="wm-blitz" aria-hidden="true"><span class="bz-trails"></span><span class="bz-text">Blit<span class="bz-bolt">z</span></span></span>',
+  // 语义搭桥：中间字母从左到右跃出，连接两端。
+  bridge: `<span class="wm-bridge" aria-hidden="true"><span class="br-bank">B</span><span class="br-span">${[...'ridg'].map((letter, i) => `<span class="br-letter" data-letter="${letter}" style="--i:${i}"><span class="br-leap">${letter}</span></span>`).join('')}</span><span class="br-bank">e</span></span>`
+};
+
+// 模式标签里的艺术字：只有字形，语义交给旁边的中文名。
+export function modeWordmarkMarkup(mode, className = '') {
+  const art = wordmarkArt[mode];
+  if (!art) return '';
+  return `<span class="mode-wordmark${className ? ` ${className}` : ''}" aria-hidden="true">${art}</span>`;
 }
