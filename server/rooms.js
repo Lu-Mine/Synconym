@@ -4,7 +4,12 @@ import { normalizeMatchFilter } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
 import { createName } from './names.js';
-import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord } from './rules.js';
+import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord, modeCapacity } from './rules.js';
+import {
+  LIVONYM_LIMITS, LIVONYM_PHASES, LIVONYM_INTRO_SECONDS, LIVONYM_SCORE_SECONDS,
+  LIVONYM_STREAM_INTERVAL_MS, LIVONYM_GUESS_COOLDOWN_MS,
+  containsSecret, describerPoints, guessPoints, livonymDescriberUid, pickSecret
+} from './livonym.js';
 
 const ROOM_IDLE_MS = 5 * 60 * 1000;
 const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
@@ -82,7 +87,7 @@ export class RoomManager {
       uid = this.makeUid();
       player = this.db.createPlayer(uid, createName());
     }
-    const connection = { ws: null, uid, roomCode: null, lastWrite: 0, lastTyping: 0 };
+    const connection = { ws: null, uid, roomCode: null, lastWrite: 0, lastTyping: 0, lastStream: 0, lastGuess: 0 };
     this.connections.add(connection);
     if (!this.clients.has(uid)) this.clients.set(uid, connection);
     this.db.touch(uid, now);
@@ -145,6 +150,30 @@ export class RoomManager {
     return { code: recent.room.code, expiresAt: recent.expiresAt };
   }
 
+  // 即时竞猜的可见性只在服务端裁剪：秘密词只发给本轮出题人，本轮结束后全员可见。
+  livonymView(room, uid) {
+    const lv = room.livonym;
+    if (!lv) return null;
+    const describerUid = livonymDescriberUid(lv.order, lv.index);
+    const describer = room.players.find((player) => player.uid === describerUid);
+    const revealed = ['lvScore', 'result', 'rematch', 'interrupted'].includes(room.phase);
+    const guessers = room.players.filter((player) => player.uid !== describerUid && player.connected);
+    return {
+      order: lv.order,
+      index: Math.max(0, lv.index), totalRounds: lv.totalRounds,
+      describerUid, describerName: describer?.name ?? null,
+      streamText: lv.stream.text, streamRev: lv.stream.rev,
+      secret: revealed || uid === describerUid ? lv.secret : null,
+      // 每条都带上本轮得分，列表直接显示各自加了几分，不必在客户端重算规则。
+      guessed: lv.guessed.map((item) => ({ ...item, points: lv.roundPoints[item.uid] ?? 0 })),
+      // 猜中列表为每位竞猜者留一行空态，未猜中的人排在已猜中的人之后。
+      guessers: guessers.map((player) => ({ uid: player.uid, name: player.name })),
+      guesserCount: guessers.length,
+      scores: lv.scores,
+      roundPoints: revealed ? lv.roundPoints : null,
+    };
+  }
+
   sendState(connection, room = this.rooms.get(connection.roomCode)) {
     if (connection.ws?.readyState !== 1) return;
     const user = this.db.getPlayer(connection.uid);
@@ -156,6 +185,7 @@ export class RoomManager {
         code: room.code, mode: room.mode, themeId: room.themeId ?? null, themeName: room.themeName ?? null,
         maxRounds: room.maxRounds, writeSeconds: room.writeSeconds,
         prepareSeconds: room.prepareSeconds, banRepeat: room.banRepeat,
+        describeSeconds: room.describeSeconds, roundsPerPlayer: room.roundsPerPlayer,
         passwordEnabled: Boolean(room.passwordEnabled),
         ...(room.hostUid === connection.uid ? { password: room.password || '' } : {}),
         phase: room.phase, round: room.round, phaseDeadline: room.phaseDeadline,
@@ -177,7 +207,8 @@ export class RoomManager {
         outcome: room.outcome ?? null, history: room.history.map((record) => ({ ...record, wordKeys: wordKeys(record) })),
         resultPlayers: room.resultPlayers ?? null,
         rematchEligibleUids: room.rematchEligibleUids ?? [], rematchVotes: room.rematchVotes ?? {},
-        rematchDeadline: room.rematchDeadline ?? null
+        rematchDeadline: room.rematchDeadline ?? null,
+        livonym: this.livonymView(room, connection.uid)
       } : null,
       serverNow: Date.now()
     }));
@@ -196,7 +227,7 @@ export class RoomManager {
         const themeName = match.mode === 'theme' ? THEMES.find((theme) => theme.id === match.themeId)?.name ?? null : null;
         const hits = matchHits(filter, match);
         return {
-          id: match.id, roomCode: match.roomCode, outcome: match.outcome,
+          id: match.id, roomCode: match.roomCode, mode: match.mode, outcome: match.outcome,
           totalRounds: match.totalRounds, convergedRound: match.convergedRound,
           themeName, startedAt: match.startedAt,
           players: match.players.filter((player) => player.uid !== uid).map((player) => player.name),
@@ -385,11 +416,25 @@ export class RoomManager {
   }
 
   checkProgress(room) {
-    if (['countdown', 'writing', 'voting', 'prepare', 'breakVote'].includes(room.phase) && room.players.length === 1) {
+    if (['countdown', 'writing', 'voting', 'prepare', 'breakVote', ...LIVONYM_PHASES].includes(room.phase)
+      && room.players.length === 1) {
       room.history = [];
       room.currentRecord = null;
       room.outcome = 'interrupted';
       this.setPhase(room, 'interrupted', null);
+      return;
+    }
+    if (room.mode === 'livonym') {
+      // 出题人掉线即中止本轮（不暂停等待）；全员猜中则提前结算。
+      if (['lvIntro', 'lvPlay'].includes(room.phase)) {
+        const lv = room.livonym;
+        const describer = room.players.find((player) => player.uid === livonymDescriberUid(lv.order, lv.index));
+        if (!describer || !describer.connected) return this.finishLivonymRound(room, true);
+        const guessers = this.livonymGuessers(room);
+        if (room.phase === 'lvPlay' && guessers.length && lv.guessed.length >= guessers.length) {
+          this.finishLivonymRound(room);
+        }
+      }
       return;
     }
     if (room.phase === 'breakVote') {
@@ -479,7 +524,8 @@ export class RoomManager {
       delete player.submittedWord; delete player.vote; delete player.breakVote; delete player.disconnectedAt; delete player.leftReason;
     }
     for (const key of ['matchId', 'startedAt', 'endedAt', 'matchPlayers', 'resultPlayers', 'outcome',
-      'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchRosterUids', 'rematchVotes', 'rematchDeadline']) delete room[key];
+      'currentRecord', 'persisted', 'rematchEligibleUids', 'rematchRosterUids', 'rematchVotes', 'rematchDeadline',
+      'livonym']) delete room[key];
     room.history = []; room.round = 0; room.dropped = false;
     room.themeId = null; room.themeName = null;
     this.sortPlayers(room);
@@ -488,13 +534,170 @@ export class RoomManager {
       room.startedAt = Date.now();
       room.matchPlayers = room.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
       this.selectTheme(room);
+      if (room.mode === 'livonym') this.startLivonym(room);
       this.setPhase(room, 'countdown', 5);
     } else this.setPhase(room, 'lobby', null);
     this.touch(room);
   }
 
+  // ── 即时竞猜 ──
+
+  sendTo(connection, payload) {
+    if (connection?.ws?.readyState === 1) connection.ws.send(JSON.stringify(payload));
+  }
+
+  startLivonym(room) {
+    const order = room.players.map((player) => player.uid);
+    const rounds = Math.max(1, Number(room.roundsPerPlayer) || 1);
+    room.livonym = {
+      order, index: -1, totalRounds: order.length * rounds,
+      secret: null, stream: { text: '', rev: 0 }, guessed: [],
+      roundPoints: {}, roundStartAt: 0, used: [],
+      scores: Object.fromEntries(order.map((uid) => [uid, 0]))
+    };
+  }
+
+  startLivonymRound(room) {
+    const lv = room.livonym;
+    if (!lv) return;
+    for (;;) {
+      lv.index += 1;
+      if (lv.index >= lv.totalRounds) { this.finishLivonym(room); return; }
+      // 已离开房间的玩家跳过其棒次，不补位
+      if (room.players.some((player) => player.uid === livonymDescriberUid(lv.order, lv.index))) break;
+    }
+    lv.secret = pickSecret({ used: lv.used, random: this.random });
+    lv.used.push(lv.secret);
+    lv.stream = { text: '', rev: 0 };
+    lv.guessed = [];
+    lv.roundPoints = {};
+    lv.roundStartAt = Date.now();
+    room.round = lv.index + 1;
+    room.currentRecord = null;
+    for (const player of room.players) {
+      player.draft = ''; player.ready = false;
+      delete player.submittedWord; delete player.vote; delete player.breakVote;
+    }
+    this.setPhase(room, 'lvIntro', LIVONYM_INTRO_SECONDS);
+  }
+
+  beginLivonymPlay(room) {
+    const lv = room.livonym;
+    if (!lv || room.phase !== 'lvIntro') return;
+    lv.roundStartAt = Date.now();
+    this.setPhase(room, 'lvPlay', room.describeSeconds || 45);
+  }
+
+  livonymGuessers(room) {
+    const lv = room.livonym;
+    const describerUid = livonymDescriberUid(lv.order, lv.index);
+    return room.players.filter((player) => player.uid !== describerUid && player.connected);
+  }
+
+  // 本轮结算：出题人按猜中人数得分，竞猜者按名次得分；双方共用 roundPoints 与 scores。
+  finishLivonymRound(room, aborted = false) {
+    const lv = room.livonym;
+    if (!lv || !['lvIntro', 'lvPlay'].includes(room.phase)) return;
+    const describerUid = livonymDescriberUid(lv.order, lv.index);
+    const guessers = this.livonymGuessers(room);
+    const guessedCount = lv.guessed.filter((item) => guessers.some((player) => player.uid === item.uid)).length;
+    const points = { ...lv.roundPoints };
+    points[describerUid] = (points[describerUid] || 0)
+      + describerPoints({ guessedCount, guesserCount: guessers.length });
+    for (const [uid, value] of Object.entries(points)) lv.scores[uid] = (lv.scores[uid] || 0) + value;
+    lv.roundPoints = points;
+    const record = {
+      n: room.round, outcome: 'played', words: {}, marks: {}, votes: null,
+      modeDetails: {
+        secret: lv.secret, describerUid, guesserCount: guessers.length, aborted,
+        guesses: Object.fromEntries(lv.guessed.map((item) => [item.uid, { order: item.order, atMs: item.atMs }])),
+        points
+      }
+    };
+    room.currentRecord = record;
+    room.history.push(record);
+    this.setPhase(room, 'lvScore', LIVONYM_SCORE_SECONDS);
+  }
+
+  finishLivonym(room) {
+    room.outcome = 'played';
+    this.settle(room);
+  }
+
+  nextLivonymRound(room) {
+    const lv = room.livonym;
+    if (!lv) return;
+    if (lv.index + 1 >= lv.totalRounds) this.finishLivonym(room);
+    else this.startLivonymRound(room);
+  }
+
+  advanceLivonym(room) {
+    if (room.phase === 'lvIntro') this.beginLivonymPlay(room);
+    else if (room.phase === 'lvPlay') this.finishLivonymRound(room);
+    else if (room.phase === 'lvScore') this.nextLivonymRound(room);
+  }
+
+  // 描述流走独立消息，不进 state 全量广播，也不回显给出题人本人。
+  broadcastLivonymStream(room, describerUid) {
+    const lv = room.livonym;
+    const payload = JSON.stringify({
+      type: 'livonymStream', describerUid,
+      text: lv.stream.text, rev: lv.stream.rev, serverNow: Date.now()
+    });
+    for (const connection of this.clients.values()) {
+      if (connection.roomCode !== room.code || connection.uid === describerUid || connection.ws?.readyState !== 1) continue;
+      connection.ws.send(payload);
+    }
+  }
+
+  applyLivonymStream(room, connection, player, text) {
+    const lv = room.livonym;
+    if (!lv) throw new Error('当前不在即时竞猜');
+    const describerUid = livonymDescriberUid(lv.order, lv.index);
+    if (room.phase !== 'lvPlay' || player.uid !== describerUid) throw new Error('这一轮不是你出题');
+    if (typeof text !== 'string') return this.sendTo(connection, { type: 'livonymBlocked', reason: 'invalid', text: '' });
+    if ([...text].length > LIVONYM_LIMITS.describeLimit) {
+      return this.sendTo(connection, { type: 'livonymBlocked', reason: 'tooLong', text });
+    }
+    if (containsSecret(text, lv.secret)) {
+      return this.sendTo(connection, { type: 'livonymBlocked', reason: 'secret', text });
+    }
+    if (text === lv.stream.text) return;
+    lv.stream = { text, rev: lv.stream.rev + 1 };
+    this.broadcastLivonymStream(room, describerUid);
+  }
+
+  applyLivonymGuess(room, connection, player, text) {
+    const lv = room.livonym;
+    if (!lv) throw new Error('当前不在即时竞猜');
+    const reply = (payload) => this.sendTo(connection, {
+      type: 'livonymGuessResult', text: typeof text === 'string' ? text : '', ...payload
+    });
+    if (room.phase !== 'lvPlay') return reply({ ok: false, reason: 'closed' });
+    if (player.uid === livonymDescriberUid(lv.order, lv.index)) throw new Error('这一轮由你出题');
+    if (lv.guessed.some((item) => item.uid === player.uid)) return reply({ ok: false, reason: 'closed' });
+    let normalized;
+    try { normalized = validateWord(text, [], false); } catch { return reply({ ok: false, reason: 'invalid' }); }
+    if (normalized !== normalizeWord(lv.secret)) return reply({ ok: false, reason: 'wrong' });
+    const order = lv.guessed.length + 1;
+    const atMs = Math.max(0, Date.now() - lv.roundStartAt);
+    lv.guessed.push({ uid: player.uid, name: player.name, order, atMs });
+    const points = guessPoints(order);
+    lv.roundPoints[player.uid] = points;
+    reply({ ok: true, order, points });
+    for (const client of this.clients.values()) {
+      if (client.roomCode !== room.code || client.ws?.readyState !== 1) continue;
+      client.ws.send(JSON.stringify({ type: 'livonymGuessed', uid: player.uid, name: player.name, order, inMs: atMs }));
+    }
+    this.checkProgress(room);
+    this.broadcast(room);
+  }
+
   advanceDeadline(room) {
-    if (room.phase === 'countdown') this.startWriting(room);
+    if (room.phase === 'countdown') {
+      if (room.mode === 'livonym') this.startLivonymRound(room);
+      else this.startWriting(room);
+    } else if (LIVONYM_PHASES.includes(room.phase)) this.advanceLivonym(room);
     else if (room.phase === 'writing') this.reveal(room);
     else if (room.phase === 'voting') this.finishVote(room);
     else if (room.phase === 'prepare') this.startWriting(room);
@@ -551,7 +754,9 @@ export class RoomManager {
 
   addPlayer(connection, room, name) {
     const usedSeats = new Set(room.players.map((player) => player.seat));
-    const seat = [0, 1, 2, 3].find((value) => !usedSeats.has(value));
+    // 座位数按最大容量（即时竞猜 8 人）铺设，其他模式由容量校验挡住
+    const seat = Array.from({ length: modeCapacity('livonym') }, (_, index) => index)
+      .find((value) => !usedSeats.has(value));
     const uniqueName = room.players.some((player) => player.name === name)
       ? createName(room.players.map((player) => player.name)) : name;
     room.players.push({
@@ -569,11 +774,28 @@ export class RoomManager {
     if (type === 'openProfile') { this.sendProfile(connection, message.page, message.filter); return; }
     if (type === 'openMatch') { this.sendMatch(connection, message.id); return; }
     const typing = type === 'typing' || type === 'draft';
+    const streaming = type === 'livonymStream';
+    const guessing = type === 'livonymGuess';
     const now = Date.now();
-    if (typing ? now - connection.lastTyping < 300 : now - connection.lastWrite < 500) {
-      throw new Error('操作太频繁，请稍后再试');
+    if (streaming) {
+      // 流式抖动是常态：超限静默丢弃，不回错误提示
+      if (now - connection.lastStream < LIVONYM_STREAM_INTERVAL_MS) return;
+      connection.lastStream = now;
+    } else if (guessing) {
+      if (now - connection.lastGuess < LIVONYM_GUESS_COOLDOWN_MS) {
+        this.sendTo(connection, {
+          type: 'livonymGuessResult', ok: false, reason: 'cooldown',
+          text: typeof message.text === 'string' ? message.text : ''
+        });
+        return;
+      }
+      connection.lastGuess = now;
+    } else {
+      if (typing ? now - connection.lastTyping < 300 : now - connection.lastWrite < 500) {
+        throw new Error('操作太频繁，请稍后再试');
+      }
+      if (typing) connection.lastTyping = now; else connection.lastWrite = now;
     }
-    if (typing) connection.lastTyping = now; else connection.lastWrite = now;
     if (type === 'joinRecentRoom') {
       const recent = this.recentRoomFor(connection.uid);
       if (!recent || recent.code !== message.code || connection.roomCode) throw new Error('最近退出的房间已失效');
@@ -633,7 +855,7 @@ export class RoomManager {
         target = this.rooms.get(code);
         if (!target) throw new Error('没有找到这个房间');
         if (target.phase !== 'lobby') throw new Error('这局已经开始');
-        if (target.players.length >= 4) throw new Error('房间已满');
+        if (target.players.length >= modeCapacity(target.mode)) throw new Error('房间已满');
         if (target.passwordEnabled && message.password !== target.password) throw new Error('房间密码错误，请输入房主提供的 6 位数字密码');
       }
       const settings = type === 'createRoom' ? validateSettings(message) : null;
@@ -744,8 +966,10 @@ export class RoomManager {
       case 'start': {
         if (current.hostUid !== connection.uid) throw new Error('只有房主可以开始');
         if (current.phase !== 'lobby') throw new Error('这局已经开始');
-        if (current.players.length < 2 || current.players.length > 4) {
-          throw new Error('需要 2 到 4 人才能开始');
+        const capacity = modeCapacity(current.mode);
+        const minPlayers = current.mode === 'livonym' ? LIVONYM_LIMITS.minPlayers : 2;
+        if (current.players.length < minPlayers || current.players.length > capacity) {
+          throw new Error(`需要 ${minPlayers} 到 ${capacity} 人才能开始`);
         }
         if (current.players.some((item) => item.uid !== current.hostUid && (!item.ready || !item.connected))) {
           throw new Error('等所有在线玩家准备后才能开始');
@@ -754,6 +978,7 @@ export class RoomManager {
         current.startedAt = Date.now();
         current.matchPlayers = current.players.map(({ uid, name, seat }) => ({ uid, name, seat }));
         this.selectTheme(current);
+        if (current.mode === 'livonym') this.startLivonym(current);
         this.setPhase(current, 'countdown', 5);
         break;
       }
@@ -778,6 +1003,15 @@ export class RoomManager {
         this.checkRematch(current);
         if (this.rooms.get(current.code) !== current) return;
         break;
+      }
+      case 'livonymStream': {
+        this.applyLivonymStream(current, connection, player, message.text);
+        this.touch(current);
+        return;
+      }
+      case 'livonymGuess': {
+        this.applyLivonymGuess(current, connection, player, message.text);
+        return;
       }
       case 'leave': {
         this.detach(connection, true);

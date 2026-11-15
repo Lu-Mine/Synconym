@@ -1,6 +1,8 @@
 export class Socket {
-  constructor({ onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection }) {
-    this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection };
+  constructor({ onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
+    onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked }) {
+    this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
+      onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked };
     this.mock = Boolean(globalThis.__SYNCONYM_MOCK__);
     this.identityKey = this.mock ? 'sy_mock_identity' : 'sy_identity';
     this.uidKey = this.mock ? 'sy_mock_uid' : 'sy_uid';
@@ -68,6 +70,14 @@ export class Socket {
         this.handlers.onIdentity?.(message);
       } else if (message.type === 'error') {
         this.handlers.onError?.(message.message);
+      } else if (message.type === 'livonymStream') {
+        this.handlers.onLivonymStream?.(message);
+      } else if (message.type === 'livonymGuessResult') {
+        this.handlers.onLivonymGuessResult?.(message);
+      } else if (message.type === 'livonymGuessed') {
+        this.handlers.onLivonymGuessed?.(message);
+      } else if (message.type === 'livonymBlocked') {
+        this.handlers.onLivonymBlocked?.(message);
       } else if (message.type === 'toast') {
         this.handlers.onToast?.(message.message);
       }

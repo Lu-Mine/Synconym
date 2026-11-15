@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
 import { createSecurityPolicy } from './security.js';
+import { modeCapacity } from './rules.js';
 import { loadConfig } from './config.js';
 import { createMockControls } from './mock.js';
 
@@ -52,7 +53,7 @@ export function createSynconymServer({
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
         const playing = new Set();
         for (const room of selectedManager.rooms.values()) {
-          if (!['countdown', 'writing', 'voting', 'prepare', 'breakVote'].includes(room.phase)) continue;
+          if (!['countdown', 'writing', 'voting', 'prepare', 'breakVote', 'lvIntro', 'lvPlay', 'lvScore'].includes(room.phase)) continue;
           for (const player of room.players) if (player.connected) playing.add(player.uid);
         }
         response.writeHead(200);
@@ -66,7 +67,7 @@ export function createSynconymServer({
         response.setHeader('Cache-Control', 'no-store');
         const code = pathname.slice((simulated ? '/__mock/api/rooms/' : '/api/rooms/').length);
         const room = /^[0-9]{5}$/.test(code) ? selectedManager.rooms.get(code) : null;
-        const error = !room ? '没有找到这个房间' : room.phase !== 'lobby' ? '这局已经开始' : room.players.length >= 4 ? '房间已满' : '';
+        const error = !room ? '没有找到这个房间' : room.phase !== 'lobby' ? '这局已经开始' : room.players.length >= modeCapacity(room.mode) ? '房间已满' : '';
         const host = room?.players.find((player) => player.uid === room.hostUid);
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
         if (error || !host) { response.writeHead(404); response.end(JSON.stringify({ error: error || '没有找到这个房间' })); return; }

@@ -93,6 +93,7 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   `);
   const roundColumns = db.pragma('table_info(match_rounds)').map((column) => column.name);
   if (!roundColumns.includes('vote_details_json')) db.exec('ALTER TABLE match_rounds ADD COLUMN vote_details_json TEXT');
+  if (!roundColumns.includes('mode_details_json')) db.exec('ALTER TABLE match_rounds ADD COLUMN mode_details_json TEXT');
   const getPlayer = db.prepare('SELECT uid, name FROM players WHERE uid = ?');
   const createPlayer = db.prepare('INSERT INTO players (uid, name, created_at, last_seen) VALUES (?, ?, ?, ?)');
   const touchPlayer = db.prepare('UPDATE players SET last_seen = ? WHERE uid = ?');
@@ -107,14 +108,15 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     (id, room_code, mode, theme_id, max_rounds, total_rounds, converged_round, outcome, started_at, ended_at)
     VALUES (@id, @roomCode, @mode, @themeId, @maxRounds, @totalRounds, @convergedRound, @outcome, @startedAt, @endedAt)`);
   const insertParticipant = db.prepare('INSERT INTO match_players (match_id, uid, seat, name_at_time) VALUES (?, ?, ?, ?)');
-  const insertRound = db.prepare('INSERT INTO match_rounds (match_id, n, words_json, marks_json, votes_json, outcome, vote_details_json) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const insertRound = db.prepare('INSERT INTO match_rounds (match_id, n, words_json, marks_json, votes_json, outcome, vote_details_json, mode_details_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const saveMatch = db.transaction((match) => {
     if (db.prepare('SELECT 1 FROM matches WHERE id = ?').get(match.id)) return;
     insertMatch.run(match);
     for (const player of match.players) insertParticipant.run(match.id, player.uid, player.seat, player.name);
     for (const round of match.rounds) insertRound.run(match.id, round.n, JSON.stringify(round.words),
       JSON.stringify(round.marks), round.votes == null ? null : JSON.stringify(round.votes), round.outcome,
-      round.voteChoices || round.breakVote ? JSON.stringify({ voteChoices: round.voteChoices, breakVote: round.breakVote }) : null);
+      round.voteChoices || round.breakVote ? JSON.stringify({ voteChoices: round.voteChoices, breakVote: round.breakVote }) : null,
+      round.modeDetails ? JSON.stringify(round.modeDetails) : null);
   });
 
   return {
@@ -152,7 +154,8 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
         rounds: db.prepare('SELECT * FROM match_rounds WHERE match_id = ? ORDER BY n').all(id).map((r) => ({
           n: r.n, words: JSON.parse(r.words_json), marks: JSON.parse(r.marks_json), outcome: r.outcome,
           ...(r.votes_json == null ? {} : { votes: JSON.parse(r.votes_json) }),
-          ...(r.vote_details_json == null ? {} : JSON.parse(r.vote_details_json))
+          ...(r.vote_details_json == null ? {} : JSON.parse(r.vote_details_json)),
+          ...(r.mode_details_json == null ? {} : { modeDetails: JSON.parse(r.mode_details_json) })
         }))
       };
     },

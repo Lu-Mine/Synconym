@@ -2,10 +2,20 @@ import OpenCC from 'opencc-js';
 
 const toSimplified = OpenCC.Converter({ from: 'tw', to: 'cn' });
 const durations = [15, 30, 45, 60];
+const describeDurations = [30, 45, 60];
+const roundsPerPlayerOptions = [1, 2];
 
 export const DEFAULT_SETTINGS = Object.freeze({
-  mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true
+  mode: 'free', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
+  describeSeconds: 45, roundsPerPlayer: 1
 });
+
+// 各模式的最大人数：即时竞猜一人出题、其余抢猜，需要更多座位。
+export const MODE_CAPACITY = Object.freeze({ free: 4, theme: 4, livonym: 8 });
+
+export function modeCapacity(mode) {
+  return MODE_CAPACITY[mode] ?? MODE_CAPACITY.free;
+}
 
 export function normalizeWord(word) {
   return toSimplified(String(word).normalize('NFC').replace(/[！-～]/g,
@@ -27,19 +37,22 @@ export function validateWord(word, history = [], banRepeat = true) {
 
 export function validateSettings(settings) {
   const raw = { ...DEFAULT_SETTINGS, ...settings };
-  const maxRounds = typeof raw.maxRounds === 'string' && raw.maxRounds.trim() !== ''
-    ? Number(raw.maxRounds) : raw.maxRounds;
-  const writeSeconds = typeof raw.writeSeconds === 'string' && raw.writeSeconds.trim() !== ''
-    ? Number(raw.writeSeconds) : raw.writeSeconds;
-  const prepareSeconds = typeof raw.prepareSeconds === 'string' && raw.prepareSeconds.trim() !== ''
-    ? Number(raw.prepareSeconds) : raw.prepareSeconds;
-  if (!['free', 'theme'].includes(raw.mode)) throw new Error('房间模式无效');
+  const numeric = (key) => (typeof raw[key] === 'string' && raw[key].trim() !== '' ? Number(raw[key]) : raw[key]);
+  const maxRounds = numeric('maxRounds');
+  const writeSeconds = numeric('writeSeconds');
+  const prepareSeconds = numeric('prepareSeconds');
+  const describeSeconds = numeric('describeSeconds');
+  const roundsPerPlayer = numeric('roundsPerPlayer');
+  if (!['free', 'theme', 'livonym'].includes(raw.mode)) throw new Error('房间模式无效');
   if (!Number.isInteger(maxRounds) || maxRounds < 4 || maxRounds > 20) {
     throw new Error('轮次上限须为 4 到 20 的整数');
   }
   if (!durations.includes(writeSeconds) || !durations.includes(prepareSeconds)) {
     throw new Error('时限设置无效');
   }
+  // 即时竞猜用描述时限与每人轮数；其余模式只保留字段，不参与流程。
+  if (!describeDurations.includes(describeSeconds)) throw new Error('时限设置无效');
+  if (!roundsPerPlayerOptions.includes(roundsPerPlayer)) throw new Error('轮数设置无效');
   if (typeof raw.banRepeat !== 'boolean') throw new Error('重复词设置无效');
   const passwordEnabled = raw.passwordEnabled ?? false;
   if (typeof passwordEnabled !== 'boolean') throw new Error('密码设置无效');
@@ -49,6 +62,7 @@ export function validateSettings(settings) {
   return {
     mode: raw.mode, maxRounds, writeSeconds,
     prepareSeconds, banRepeat: raw.banRepeat,
+    describeSeconds, roundsPerPlayer,
     passwordEnabled, password: passwordEnabled ? raw.password : ''
   };
 }

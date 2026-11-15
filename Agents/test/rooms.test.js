@@ -256,7 +256,10 @@ test('规则校验与繁简、空格归一', () => {
 
 test('设置校验兼容字符串数值，且所有控件按钮均显式声明 type 防止页面刷新', () => {
   const parsed = validateSettings({ maxRounds: '16', writeSeconds: '30', prepareSeconds: '15', banRepeat: false });
-  assert.deepEqual(parsed, { mode: 'free', maxRounds: 16, writeSeconds: 30, prepareSeconds: 15, banRepeat: false, passwordEnabled: false, password: '' });
+  assert.deepEqual(parsed, {
+    mode: 'free', maxRounds: 16, writeSeconds: 30, prepareSeconds: 15, banRepeat: false,
+    describeSeconds: 45, roundsPerPlayer: 1, passwordEnabled: false, password: ''
+  });
 
   const sampleRoom = {
     code: '12345',
