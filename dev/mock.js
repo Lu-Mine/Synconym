@@ -56,7 +56,8 @@ let currentScene = '';
 // 人数限制与 server/rules.js、public/render.js 保持一致，面板只负责禁用提示。
 const ROOM_LIMITS = { free: [2, 4], theme: [2, 4], livonym: [3, 8], shiritori: [2, 4], impostor: [3, 6], blitz: [2, 2], bridge: [2, 4] };
 const roomLimits = (mode) => ROOM_LIMITS[mode] || ROOM_LIMITS.free;
-const TIMED_PHASES = ['countdown', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch'];
+const LIVONYM_PHASES = ['lvIntro', 'lvPlay', 'lvScore'];
+const TIMED_PHASES = ['countdown', 'writing', 'voting', 'prepare', 'breakVote', ...LIVONYM_PHASES, 'result', 'rematch'];
 
 function render() {
   const bots = room?.players?.filter(player => player.mockBot) || [];
@@ -66,6 +67,8 @@ function render() {
   const bot = bots.find(player => player.uid === select.value);
   const phase = room?.phase;
   const [minPlayers, maxPlayers] = roomLimits(room?.mode);
+  const livonym = room?.livonym;
+  const describerUid = livonym?.describerUid;
   $('#status').textContent = stageText(room);
   $('#stage-no').textContent = currentStage(room)?.no || '--';
   select.disabled = !bot;
@@ -76,6 +79,11 @@ function render() {
   $('#start').disabled = phase !== 'lobby' || room.players.length < minPlayers || room.players.length > maxPlayers || !room.players.some(p => p.uid === room.hostUid && p.connected) || room.players.some(p => p.uid !== room.hostUid && (!p.ready || !p.connected));
   $('#word').disabled = !bot || phase !== 'writing' || bot.submitted;
   $('#submitWord').disabled = $('#word').disabled;
+  const canDescribe = Boolean(bot) && phase === 'lvPlay' && describerUid === bot.uid;
+  const canGuess = Boolean(bot) && phase === 'lvPlay' && describerUid !== bot.uid && !(livonym?.guessed || []).some(item => item.uid === bot.uid);
+  $('#describe').disabled = !canDescribe;
+  $('#describeBot').disabled = !canDescribe;
+  $('#guess').disabled = !canGuess;
   const canVote = bot && ((phase === 'voting' && !bot.voted) || (phase === 'breakVote' && !bot.breakVoted));
   $('#yes').disabled = $('#no').disabled = !canVote;
   $('#yes').textContent = phase === 'breakVote' ? '玩崩了' : '同意';
@@ -131,6 +139,8 @@ $('#submitWord').addEventListener('click', () => send('submitWord', { word: $('#
 for (const [id, yes] of [['yes', true], ['no', false]]) $( `#${id}`).addEventListener('click', () => send(room.phase === 'breakVote' ? 'breakVote' : 'vote', { yes }));
 $('#rematch').addEventListener('click', () => send('rematch', { choice: 'rematch' }));
 $('#room').addEventListener('click', () => send('rematch', { choice: 'room' }));
+$('#guess').addEventListener('click', () => send('guess'));
+$('#describeBot').addEventListener('click', () => { const text = $('#describe').value.trim(); if (text) send('describe', { text }); });
 $('#pause').addEventListener('change', event => { send(event.target.checked ? 'pause' : 'resume'); render(); });
 $('#back').addEventListener('click', () => send('back'));
 const viewport = $('#viewport');

@@ -5,6 +5,8 @@ import { runInNewContext } from 'node:vm';
 import { RoomManager } from '../../server/rooms.js';
 import { createDatabase } from '../../server/db.js';
 import { createMockControls } from '../../server/mock.js';
+import { modeCapacity } from '../../server/rules.js';
+import { LIVONYM_LIMITS } from '../../server/livonym.js';
 import { roomPlayerLimits } from '../../public/render.js';
 
 const source = readFileSync(new URL('../../dev/mock.js', import.meta.url), 'utf8');
@@ -101,6 +103,43 @@ test('控制栏添加玩家按房间人数上限禁用，不写死 4 人', () =>
   assert.equal(fixture.node('#add').disabled, true);
 });
 
+test('控制栏在竞猜阶段可推进阶段并驱动模拟玩家描述与猜中', () => {
+  const fixture = panelFixture();
+  const room = lobbyRoom('livonym', 3);
+  Object.assign(room, {
+    phase: 'lvPlay', phaseDeadline: 1234, mockCanForward: false,
+    livonym: { describerUid: 'human', guessed: [] }
+  });
+  pushRoom(fixture, room);
+  const { node, sent } = fixture;
+  assert.equal(node('#advance').disabled, false, '竞猜阶段也要能手动推进');
+  assert.equal(node('#guess').disabled, false);
+  assert.equal(node('#describe').disabled, true);
+  node('#guess').handlers.click();
+  assert.equal(sent.at(-1).action, 'guess');
+
+  room.livonym = { describerUid: 'bot1', guessed: [] };
+  pushRoom(fixture, room);
+  assert.equal(node('#describe').disabled, false);
+  assert.equal(node('#guess').disabled, true);
+  node('#describe').value = '会发光的东西';
+  node('#describeBot').handlers.click();
+  assert.equal(sent.at(-1).action, 'describe');
+  assert.equal(sent.at(-1).text, '会发光的东西');
+
+  room.livonym = { describerUid: 'human', guessed: [{ uid: 'bot1' }] };
+  pushRoom(fixture, room);
+  assert.equal(node('#guess').disabled, true);
+
+  room.mockCanForward = true;
+  pushRoom(fixture, room);
+  assert.equal(node('#advance').disabled, false);
+  room.mockCanForward = false;
+  room.phaseDeadline = null;
+  pushRoom(fixture, room);
+  assert.equal(node('#advance').disabled, true);
+});
+
 for (const botHost of [false, true]) test(`控制栏开局使用实际房主（机器人房主=${botHost}），仍校验准备`, t => {
   const db = createDatabase(':memory:');
   const manager = new RoomManager({ db });
@@ -130,5 +169,8 @@ test('面板人数限制与页面和服务端规则一致', () => {
   for (const mode of ['free', 'theme', 'livonym', 'shiritori', 'impostor', 'blitz', 'bridge']) {
     assert.deepEqual(limits[mode], roomPlayerLimits(mode), mode);
   }
-
+  for (const mode of ['free', 'theme', 'livonym']) {
+    assert.equal(limits[mode][1], modeCapacity(mode), `${mode} 容量`);
+  }
+  assert.equal(limits.livonym[0], LIVONYM_LIMITS.minPlayers);
 });

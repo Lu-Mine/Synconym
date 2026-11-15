@@ -1,6 +1,6 @@
 import { seedMockHistory } from './mock-history.js';
-const MODE_CAPACITY = { free: 4, theme: 4, livonym: 8, shiritori: 4, impostor: 6, blitz: 2, bridge: 4 };
-const modeCapacity = (mode) => MODE_CAPACITY[mode] || 4;
+import { LIVONYM_LIMITS, livonymDescriberUid } from './livonym.js';
+import { modeCapacity } from './rules.js';
 
 // 模拟控制只包装隔离的 RoomManager，不修改正式房间。
 export function createMockControls(manager) {
@@ -37,6 +37,7 @@ export function createMockControls(manager) {
   function shift(room, delta) {
     for (const field of fields) if (Number.isFinite(room[field])) room[field] += delta;
     for (const player of room.players) if (Number.isFinite(player.disconnectedAt)) player.disconnectedAt += delta;
+    if (Number.isFinite(room.livonym?.roundStartAt)) room.livonym.roundStartAt += delta;
   }
   function syncPaused(room) {
     if (pausedAt == null || !room) return;
@@ -189,6 +190,24 @@ export function createMockControls(manager) {
     }
     const bot = bots.get(message.uid);
     if (!bot || bot.roomCode !== room.code || !room.players.some(player => player.uid === bot.uid)) throw new Error('请选择当前房间的模拟玩家');
+    // 即时竞猜：模拟玩家按面板输入描述，或直接用服务端持有的谜底猜中。
+    if (message.action === 'describe' || message.action === 'guess') {
+      const lv = room.livonym;
+      if (!lv || room.phase !== 'lvPlay') throw new Error('当前不在竞猜描述阶段');
+      const describerUid = livonymDescriberUid(lv.order, lv.index);
+      if (message.action === 'describe') {
+        if (describerUid !== bot.uid) throw new Error('这一轮不是这位模拟玩家出题');
+        if (typeof message.text !== 'string' || !message.text.trim()) throw new Error('请先填写描述');
+        bot.lastStream = 0;
+        manager.handle(bot, { type: 'livonymStream', text: [...message.text].slice(0, LIVONYM_LIMITS.describeLimit).join('') });
+      } else {
+        if (describerUid === bot.uid) throw new Error('这一轮由这位模拟玩家出题');
+        if (lv.guessed.some(item => item.uid === bot.uid)) throw new Error('这位模拟玩家已经猜中');
+        bot.lastGuess = 0;
+        manager.handle(bot, { type: 'livonymGuess', text: lv.secret });
+      }
+      return;
+    }
     const actions = {
       remove: { type: 'leave' }, ready: { type: 'setReady', ready: Boolean(message.ready) },
       submitWord: { type: 'submitWord', word: message.word }, vote: { type: 'vote', yes: message.yes },
