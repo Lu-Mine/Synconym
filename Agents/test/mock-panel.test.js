@@ -60,6 +60,58 @@ test('准备和冻结使用开关，服务器状态决定实际选中状态', ()
   for (const id of ['ready', 'pause']) assert.ok(html.includes(`id="${id}" type="checkbox" role="switch"`));
 });
 
+test('全站每个页面都有唯一编号，编号按域分段并留空位', () => {
+  const panel = readFileSync(new URL('../../dev/mock.js', import.meta.url), 'utf8');
+  const segments = [...panel.matchAll(/\['(\d+)-(\d+)', '[^']+', (\d+), (\d+)\]/g)]
+    .map(match => ({ low: Number(match[3]), high: Number(match[4]) }));
+  const rows = [...panel.matchAll(/\['([a-zA-Z-]+)', '(\d+)', '([^']+)'\]/g)]
+    .map(match => ({ key: match[1], no: match[2], label: match[3] }));
+  assert.equal(rows.length, 18, `编号表应覆盖 18 个页面，当前 ${rows.length}`);
+  assert.equal(new Set(rows.map(row => row.no)).size, rows.length, '页面编号必须唯一');
+  assert.equal(new Set(rows.map(row => row.key)).size, rows.length, '页面标识必须唯一');
+  assert.deepEqual(segments.map(s => [s.low, s.high]), [[1, 50], [51, 100], [101, 120], [121, 140], [141, 160], [161, 180], [181, 200], [201, 220]], '段位要首尾相接铺满 1–220');
+
+  // 每个编号恰好落在一个段内；玩法段各留 20 个号，入口与异常段各留一半
+  const perSegment = segments.map(() => []);
+  for (const row of rows) {
+    const value = Number(row.no);
+    const hits = segments.filter(s => value >= s.low && value <= s.high);
+    assert.equal(hits.length, 1, `${row.key} 的编号 ${row.no} 应只落在一个段内`);
+    perSegment[segments.indexOf(hits[0])].push(row.no);
+  }
+  for (const [index, segment] of segments.entries()) {
+    const capacity = segment.high - segment.low + 1;
+    assert.equal(capacity, index < 2 ? 50 : 20, `段 ${segment.low}-${segment.high} 的容量应为 50 或 20`);
+    assert.ok(perSegment[index].length <= capacity / 2, `段 ${segment.low}-${segment.high} 剩余空位不足`);
+  }
+  assert.deepEqual(perSegment[2].map(Number), [101, 102, 103, 104], '经典玩法的阶段落在 101–104');
+  assert.deepEqual(perSegment[3].map(Number), [121, 122, 123], '即时竞猜的阶段落在 121–123');
+  assert.deepEqual(perSegment[1], ['51'], '对局中断落在系统与异常段');
+
+  const { node, window } = panelFixture();
+  const sendScene = scene => window.handlers.message({ origin: 'http://test', source: node('#game').contentWindow, data: { type: 'mock-scene', scene } });
+  for (const row of rows) {
+    sendScene(row.key);
+    assert.equal(node('#stage-no').textContent, row.no, `${row.key} 的编号要显示在阶段控制标题右侧`);
+  }
+  // 房间内编号同样跟着当前阶段走，状态行只描述房间与阶段名
+  window.handlers.message({ origin: 'http://test', source: node('#game').contentWindow, data: { type: 'mock-state', room: { code: '12345', phase: 'lvPlay', players: [] } } });
+  sendScene('lvPlay');
+  assert.equal(node('#stage-no').textContent, '122');
+  assert.equal(node('#status').textContent, '房间 12345 · 竞猜描述');
+  // 编号是纯数字：两位数，不带前缀
+  assert.ok(rows.every(row => /^\d{2,3}$/.test(row.no)), '编号是纯数字');
+
+  // 桥接脚本监听页面 data-scene 变化，把场景名转给父窗口
+  const bridge = readFileSync(new URL('../../dev/control.js', import.meta.url), 'utf8');
+  assert.match(bridge, /new MutationObserver\(schedulePostMockScene\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-scene'\], childList: true, subtree: true \}\)/);
+  assert.match(bridge, /document\.querySelector\('\.page'\)\?\.dataset\?\.screen \|\| document\.body\?\.dataset\?\.scene/);
+  assert.match(bridge, /type: 'mock-scene', scene/);
+  // 产品代码不掺入 mock 专用逻辑
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(app, /synconym-mock-scene/);
+});
+
 test('宽度滑条实时调整预览，并随窗口更新上限', () => {
   const { node, window } = panelFixture();
   const slider = node('#viewport');

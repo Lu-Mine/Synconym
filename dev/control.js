@@ -23,6 +23,30 @@ window.addEventListener('synconym-mock-state', (event) => {
   }, window.location.origin);
 });
 
+// 页面（阶段）变化时把场景名同步给父窗口，面板据此显示阶段编号
+// 取值先看当前页面的 data-screen（能区分档案与对局详情这类子页面），再退回 body 的 data-scene
+let reportedScene = '';
+let sceneScheduled = false;
+function postMockScene() {
+  if (!window.parent || window.parent === window) return;
+  if (typeof document === 'undefined') return;
+  const scene = document.querySelector('.page')?.dataset?.screen || document.body?.dataset?.scene;
+  if (typeof scene !== 'string' || !scene || scene === reportedScene) return;
+  reportedScene = scene;
+  window.parent.postMessage({ type: 'mock-scene', scene }, window.location.origin);
+}
+// 动画与倒计时会让子树持续变动，用一帧合并后再上报
+function schedulePostMockScene() {
+  if (typeof requestAnimationFrame !== 'function') { postMockScene(); return; }
+  if (sceneScheduled) return;
+  sceneScheduled = true;
+  requestAnimationFrame(() => { sceneScheduled = false; postMockScene(); });
+}
+if (typeof MutationObserver === 'function' && document.body) {
+  new MutationObserver(schedulePostMockScene).observe(document.body, { attributes: true, attributeFilter: ['data-scene'], childList: true, subtree: true });
+}
+postMockScene();
+
 // 同步子页面路由查询串给父窗口，刷新父页面后保持当前所在页面与房间
 function postMockRoute(search = window.location.search) {
   if (!window.parent || window.parent === window) return;

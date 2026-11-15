@@ -3,7 +3,56 @@ const frame = $('#game');
 const select = $('#player');
 let room = null;
 let pausedAt = null;
-const phaseNames = { lobby: '等待大厅', countdown: '开局倒计时', writing: '写词', voting: '投票', prepare: '准备', breakVote: '崩局投票', result: '结算', rematch: '重赛选择', interrupted: '对局中断' };
+// 全站页面编号。01–50 放入口、静态与各玩法共用的页面；51–100 留给系统与异常页；
+// 之后每个玩法各占 20 个号，新增页面只在所属段内往后取号，不重排别处。
+const STAGE_SEGMENTS = [
+  ['01-50', '入口、静态与通用页', 1, 50],
+  ['51-100', '系统与异常页', 51, 100],
+  ['101-120', '经典对局（自由 / 主题）', 101, 120],
+  ['121-140', '即时竞猜', 121, 140],
+  ['141-160', '接龙', 141, 160],
+  ['161-180', '思维卧底', 161, 180],
+  ['181-200', '极速闪电', 181, 200],
+  ['201-220', '语义搭桥', 201, 220]
+];
+const STAGES = [
+  ['home', '01', '首页'],
+  ['insane', '02', '狂意大厅'],
+  ['profile', '03', '档案'],
+  ['match-detail', '04', '对局详情'],
+  ['qa', '05', '问答'],
+  ['privacy', '06', '隐私说明'],
+  ['lobby', '07', '等待大厅'],
+  ['countdown', '08', '开局倒计时'],
+  ['result', '09', '结算'],
+  ['rematch', '10', '重赛选择'],
+  ['interrupted', '51', '对局中断'],
+  ['writing', '101', '写词'],
+  ['voting', '102', '投票'],
+  ['breakVote', '103', '崩局投票'],
+  ['prepare', '104', '准备'],
+  ['lvIntro', '121', '竞猜出题'],
+  ['lvPlay', '122', '竞猜描述'],
+  ['lvScore', '123', '本轮结算']
+];
+// 段位自检：编号要么唯一落在某个段内，要么干脆没错，避免以后加页面时悄悄撞号或越界。
+function stageNumberIssues() {
+  const issues = [];
+  const seen = new Map();
+  for (const [key, no] of STAGES) {
+    const value = Number(no);
+    const owners = STAGE_SEGMENTS.filter(([, , low, high]) => value >= low && value <= high);
+    if (owners.length !== 1) issues.push(`${key} 的编号 ${no} 没有落在唯一段位内`);
+    if (seen.has(no)) issues.push(`${key} 与 ${seen.get(no)} 编号重复：${no}`);
+    else seen.set(no, key);
+  }
+  return issues;
+}
+const STAGE_NUMBER_ISSUES = stageNumberIssues();
+if (STAGE_NUMBER_ISSUES.length && typeof console !== 'undefined') console.error('[mock] 阶段编号异常：', STAGE_NUMBER_ISSUES.join('；'));
+const STAGE_BY_KEY = new Map(STAGES.map(([key, no, label]) => [key, { no, label }]));
+const phaseNames = Object.fromEntries(STAGES.map(([key, , label]) => [key, label]));
+let currentScene = '';
 // 人数限制与 server/rules.js、public/render.js 保持一致，面板只负责禁用提示。
 const ROOM_LIMITS = { free: [2, 4], theme: [2, 4], livonym: [3, 8], shiritori: [2, 4], impostor: [3, 6], blitz: [2, 2], bridge: [2, 4] };
 const roomLimits = (mode) => ROOM_LIMITS[mode] || ROOM_LIMITS.free;
@@ -17,7 +66,8 @@ function render() {
   const bot = bots.find(player => player.uid === select.value);
   const phase = room?.phase;
   const [minPlayers, maxPlayers] = roomLimits(room?.mode);
-  $('#status').textContent = room ? `房间 ${room.code} · ${phaseNames[phase] || phase}` : '等待进入房间';
+  $('#status').textContent = stageText(room);
+  $('#stage-no').textContent = currentStage(room)?.no || '--';
   select.disabled = !bot;
   $('#add').disabled = phase !== 'lobby' || room.players.length >= maxPlayers;
   $('#remove').disabled = !bot;
@@ -50,9 +100,23 @@ frame.addEventListener?.('load', () => {
     if (frame.contentWindow?.location?.origin === location.origin) syncRoute(frame.contentWindow.location.search || '');
   } catch { /* 忽略非同源或测试环境 */ }
 });
+// 当前阶段：优先用游戏页同步过来的页面，兜底用房间阶段。
+function currentStage(currentRoom) {
+  return STAGE_BY_KEY.get(currentScene) || STAGE_BY_KEY.get(currentRoom?.phase) || null;
+}
+function stageText(currentRoom) {
+  const label = currentStage(currentRoom)?.label;
+  if (currentRoom) return `房间 ${currentRoom.code} · ${label || currentRoom.phase || ''}`;
+  return label || '等待进入房间';
+}
 window.addEventListener('message', event => {
   if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
   if (event.data?.type === 'mock-route') { syncRoute(event.data.search || ''); return; }
+  if (event.data?.type === 'mock-scene') {
+    const scene = String(event.data.scene || '');
+    if (scene !== currentScene) { currentScene = scene; render(); }
+    return;
+  }
   if (event.data?.type !== 'mock-state') return;
   room = event.data.room;
   pausedAt = event.data.mockPausedAt ?? room?.mockPausedAt ?? null;

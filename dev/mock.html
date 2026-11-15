@@ -18,6 +18,9 @@
     .control-section { padding-top: 14px; }
     .control-section + .control-section { margin-top: 14px; border-top: 1px solid #e1e4ec; }
     h2 { margin: 0 0 10px; font-size: 13px; font-weight: 650; color: #505565; }
+    .control-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+    .control-heading h2 { margin: 0; }
+    .stage-no { color: #3d5afe; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
     .row { display: flex; align-items: center; gap: 8px; }
     .row + .row { margin-top: 8px; }
     .row > button, .row > select, .row > input { flex: 1; min-width: 0; }
@@ -61,7 +64,7 @@
         <div class="row"><button id="yes" type="button">同意</button><button id="no" type="button">否决</button></div>
         <div class="row"><button id="rematch" type="button">再来一局</button><button id="room" type="button">回房间</button></div>
       </section>
-      <section class="control-section"><h2>阶段控制</h2>
+      <section class="control-section"><div class="control-heading"><h2>阶段控制</h2><output id="stage-no" class="stage-no" aria-label="当前阶段编号"></output></div>
         <label class="switch-row"><span>冻结倒计时</span><input id="pause" type="checkbox" role="switch"></label>
         <div class="row"><button id="back" type="button">上一阶段</button><button id="advance" type="button">下一阶段</button></div>
       </section>
