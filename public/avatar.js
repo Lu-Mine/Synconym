@@ -8,13 +8,19 @@ const AVATAR_PALETTE = [
   { ink: '#7447B8', bg: '#F3ECFF' }
 ];
 
+// 已注销的身份：灰底灰字，字形固定是一条斜杠，和任何昵称都不重样。
+const DELETED_PALETTE = Object.freeze({ ink: '#8A8A8E', bg: '#EDEDF0' });
+const DELETED_GLYPH = '/';
+
 const avatarImageCache = new Map();
 
-export function avatarImageUrl(name) {
+export function avatarImageUrl(name, deleted = false) {
   const normalizedName = String(name || '').trim();
-  if (avatarImageCache.has(normalizedName)) return avatarImageCache.get(normalizedName);
+  const cacheKey = `${deleted ? '/' : ''}${normalizedName}`;
+  if (avatarImageCache.has(cacheKey)) return avatarImageCache.get(cacheKey);
   const { initial, tone } = avatarDetails(normalizedName);
-  const palette = AVATAR_PALETTE[tone];
+  const palette = deleted ? DELETED_PALETTE : AVATAR_PALETTE[tone];
+  const glyph = deleted ? DELETED_GLYPH : initial.toUpperCase();
   const canvas = document.createElement('canvas');
   const size = 152;
   const radius = 44;
@@ -31,7 +37,6 @@ export function avatarImageUrl(name) {
   context.font = '680 60px system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
   context.textAlign = 'left';
   context.textBaseline = 'alphabetic';
-  const glyph = initial.toUpperCase();
   const metrics = context.measureText(glyph);
   const inkLeft = metrics.actualBoundingBoxLeft;
   const inkRight = metrics.actualBoundingBoxRight;
@@ -42,15 +47,17 @@ export function avatarImageUrl(name) {
   context.fillText(glyph, x, y);
 
   const url = canvas.toDataURL('image/png');
-  avatarImageCache.set(normalizedName, url);
+  avatarImageCache.set(cacheKey, url);
   return url;
 }
 
 export function hydrateAvatars(root = document) {
   for (const avatar of root.querySelectorAll('img.avatar[data-avatar-name]')) {
     const name = avatar.dataset.avatarName || '';
-    if (avatar.dataset.renderedName === name) continue;
-    avatar.src = avatarImageUrl(name);
-    avatar.dataset.renderedName = name;
+    const deleted = avatar.dataset.avatarDeleted === 'true';
+    const key = `${deleted ? '/' : ''}${name}`;
+    if (avatar.dataset.renderedName === key) continue;
+    avatar.src = avatarImageUrl(name, deleted);
+    avatar.dataset.renderedName = key;
   }
 }

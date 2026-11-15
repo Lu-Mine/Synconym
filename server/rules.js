@@ -67,10 +67,14 @@ export function validateSettings(settings) {
   };
 }
 
+// 注销身份的展示名：由服务端写入，昵称校验里禁止普通人使用。
+export const DELETED_NAME = '[注销用户]';
+
 export function validateName(name) {
   if (typeof name !== 'string' || !name.trim()) throw new Error('名字不能为空');
   const value = name.trim();
   if ([...value].length > 12) throw new Error('名字最多 12 个字符');
+  if (value.includes(DELETED_NAME) || value.includes('注销用户')) throw new Error('这个名字不能用');
   return value;
 }
 

@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 
 export const DEFAULT_CONFIG = {
   host: '', port: 3000, publicUrl: '', dbPath: 'data/synconym.db', maxRooms: 500, wsMaxPayload: 65536,
+  identity: { adopt: 'auto', adoptMaxIdleDays: 30, deviceLinkTtlDays: 180 },
   security: { trustProxy: false, maxGlobalConnections: 1000, maxConnectionsPerSource: 50,
     maxAccountsPerSource: 20, accountWindowMs: 60000, messageBurst: 60, messageRefillPerSecond: 30,
     globalMessageBurst: 1000, globalMessageRefillPerSecond: 500, handshakeTimeoutMs: 10000 }
@@ -39,7 +40,7 @@ function merge(defaults, override, path = 'config') {
   const result = { ...defaults };
   for (const [key, value] of Object.entries(override)) {
     if (!Object.hasOwn(defaults, key)) throw new Error(`未知配置项 ${path}.${key}`);
-    result[key] = key === 'security' ? merge(defaults[key], value, `${path}.${key}`) : value;
+    result[key] = ['security', 'identity'].includes(key) ? merge(defaults[key], value, `${path}.${key}`) : value;
   }
   return result;
 }
@@ -65,6 +66,12 @@ export function loadConfig({ env = process.env, path = configPath(env) } = {}) {
     if (key === 'trustProxy') {
       if (typeof value !== 'boolean') throw new Error('security.trustProxy 必须是布尔值');
     } else if (!Number.isSafeInteger(value) || value < 1 || value > 2147483647) throw new Error(`security.${key} 必须是有效正整数`);
+  }
+  object(config.identity, 'identity');
+  if (!['auto', 'confirm'].includes(config.identity.adopt)) throw new Error('identity.adopt 只能是 auto 或 confirm');
+  for (const key of ['adoptMaxIdleDays', 'deviceLinkTtlDays']) {
+    const value = config.identity[key];
+    if (!Number.isSafeInteger(value) || value < 1 || value > 3650) throw new Error(`identity.${key} 必须是 1 到 3650 的整数`);
   }
   return config;
 }

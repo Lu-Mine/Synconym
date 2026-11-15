@@ -1,12 +1,13 @@
 import { createServer } from 'node:http';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
 import { createSecurityPolicy } from './security.js';
+import { normalizeDeviceProfile, decideAdoption, collectDeviceLinks } from './identity.js';
 import { modeCapacity } from './rules.js';
 import { loadConfig } from './config.js';
 import { createMockControls } from './mock.js';
@@ -15,18 +16,42 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
 
+// 构建号：部署脚本写下的提交号优先，没有就按 public 的内容做指纹。
+// 用内容而不是 mtime，内容没变就不会误判出新版本。
+let buildId;
+async function currentBuildId() {
+  if (buildId) return buildId;
+  try {
+    const marker = (await readFile(resolve(root, '.deployed-revision'), 'utf8')).trim();
+    if (/^[0-9a-f]{40}$/.test(marker)) return (buildId = marker);
+  } catch { /* 没有部署标记，退回内容指纹 */ }
+  const hash = createHash('sha256');
+  const walk = async (dir) => {
+    const entries = await readdir(dir, { withFileTypes: true });
+    entries.sort((left, right) => (left.name < right.name ? -1 : 1));
+    for (const entry of entries) {
+      const full = resolve(dir, entry.name);
+      if (entry.isDirectory()) { await walk(full); continue; }
+      if (!entry.isFile()) continue;
+      hash.update(full.slice(root.length).split(sep).join('/'));
+      hash.update(await readFile(full));
+    }
+  };
+  await walk(root);
+  return (buildId = hash.digest('hex').slice(0, 40));
+}
 // 部署加固：单进程默认最多 500 间房、单条 WS 消息 64 KB。都可用环境变量覆盖。
 const DEF_MAX_ROOMS = Number(process.env.MAX_ROOMS || 500);
 const DEF_MAX_PAYLOAD = Number(process.env.WS_MAX_PAYLOAD || 64 * 1024);
 
 export function createSynconymServer({
   db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD,
-  security: securityConfig = {}, publicUrl
+  security: securityConfig = {}, publicUrl, identity = {}
 } = {}) {
   const security = createSecurityPolicy(securityConfig);
-  const manager = new RoomManager({ db, maxRooms, publicUrl });
+  const manager = new RoomManager({ db, maxRooms, publicUrl, identity });
   const mockDb = mock ? createDatabase(':memory:') : null;
-  const mockManager = mock ? new RoomManager({ db: mockDb, maxRooms }) : null;
+  const mockManager = mock ? new RoomManager({ db: mockDb, maxRooms, identity }) : null;
   const mockControls = mock ? createMockControls(mockManager) : null;
   const credentialIssuer = (database) => (uid) => {
     const credential = randomBytes(32).toString('base64url');
@@ -72,7 +97,7 @@ export function createSynconymServer({
         if (request.method !== 'GET') { response.writeHead(405, { Allow: 'GET' }); response.end(JSON.stringify({ error: '请求方法不支持' })); return; }
         if (error || !host) { response.writeHead(404); response.end(JSON.stringify({ error: error || '没有找到这个房间' })); return; }
         response.writeHead(200);
-        response.end(JSON.stringify({ code, passwordEnabled: Boolean(room.passwordEnabled), host: { uid: host.uid, name: host.name, seat: host.seat, connected: host.connected } }));
+        response.end(JSON.stringify({ code, mode: room.mode, passwordEnabled: Boolean(room.passwordEnabled), host: { uid: host.uid, name: host.name, seat: host.seat, connected: host.connected } }));
         return;
       }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
@@ -90,9 +115,17 @@ export function createSynconymServer({
       if (!filename.startsWith(`${root}${sep}`) || !(await stat(filename)).isFile()) {
         response.writeHead(404); response.end('Not found'); return;
       }
+      const body = await readFile(filename);
+      if (filename === resolve(root, 'index.html')) {
+        // 构建号写进页面，客户端靠它判断手里的 HTML 是不是旧的。
+        response.writeHead(200, { 'Content-Type': mime['.html'], 'Cache-Control': 'no-store' });
+        response.end(body.toString('utf8')
+          .replace('<html lang="zh-CN">', `<html lang="zh-CN" data-build="${await currentBuildId()}">`));
+        return;
+      }
       response.writeHead(200, { 'Content-Type': mime[extname(filename)] || 'application/octet-stream',
         'Cache-Control': 'no-cache' });
-      response.end(await readFile(filename));
+      response.end(body);
     } catch {
       response.writeHead(404); response.end('Not found');
     }
@@ -136,7 +169,7 @@ export function createSynconymServer({
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
-          let credential, reborn = false;
+          let credential, reborn = false, adopted = false, deviceCandidates;
           // 库里没有这个 uid 的凭证记录，说明身份已被清理或来自别的环境。
           // 这种情况不报错，直接当新玩家重开：设备不该因为服务器清理数据而卡死。
           // 只有凭证哈希存在时才算"认领已有身份"，那时凭证对不上仍然拒绝，避免顶替他人。
@@ -161,6 +194,25 @@ export function createSynconymServer({
             authenticationFailed = true;
             return;
           }
+          // 设备线索：浏览器之间不共享存储，只能靠设备自身特征沿用同一身份。
+          // 超过 1KB 的字段直接忽略，不影响登录。
+          let device = null;
+          if (message.device && typeof message.device === 'object' && !Array.isArray(message.device)
+            && JSON.stringify(message.device).length <= 1024) {
+            device = normalizeDeviceProfile(message.device);
+          }
+          if (message.uid === undefined && device) {
+            db.insertDevice(device);
+            const decision = decideAdoption({
+              links: collectDeviceLinks(db, device),
+              playing: (uid) => Boolean(manager.clients.get(uid)?.roomCode),
+              rejected: (uid) => db.isDeviceRejected(device.deviceKey, uid),
+              adopt: manager.identity.adopt,
+              adoptMaxIdleDays: manager.identity.adoptMaxIdleDays
+            });
+            if (decision.action === 'adopt') { message.uid = decision.uid; adopted = true; }
+            else if (decision.action === 'choose') deviceCandidates = manager.deviceCandidates(decision);
+          }
           if (message.uid === undefined && !security.allowAccount(ip)) {
             ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
             ws.close(4004, 'Account rate limit');
@@ -168,10 +220,17 @@ export function createSynconymServer({
             return;
           }
           connection = manager.connect(message.uid);
-          if (message.uid === undefined) credential = manager.issueCredential(connection.uid);
+          // 沿用的身份要发给本浏览器自己的凭证，之后这个浏览器就不再依赖设备线索。
+          if (message.uid === undefined || adopted) credential = manager.issueCredential(connection.uid);
+          connection.deviceKey = device?.deviceKey ?? null;
+          if (device) db.linkDevice(device.deviceKey, connection.uid, adopted ? 'adopted' : 'created');
           handshaken = true;
           clearTimeout(handshakeTimer);
           connection.ws = ws;
+          const helloMessage = (restored) => JSON.stringify({
+            type: 'hello', uid: connection.uid, credential, restored, reborn,
+            ...(deviceCandidates ? { deviceCandidates } : {}), serverNow: Date.now()
+          });
           const roomCode = typeof message.roomCode === 'string' ? message.roomCode.toUpperCase() : null;
           if (message.leaveRoom === true) {
             if (connection.roomCode && connection.roomCode !== roomCode) manager.detach(connection, true);
@@ -180,19 +239,17 @@ export function createSynconymServer({
               connection.roomCode = roomCode;
             }
             manager.detach(connection, true);
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, reborn, serverNow: Date.now() }));
+            ws.send(helloMessage(false));
             manager.sendState(connection, null);
             return;
           }
-          const restored = manager.restore(connection, roomCode, () => {
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: true, serverNow: Date.now() }));
-          });
+          const restored = manager.restore(connection, roomCode, () => { ws.send(helloMessage(true)); });
           if (!restored) {
             if (roomCode && !manager.clients.get(connection.uid)?.roomCode) {
               const oldRoom = [...manager.rooms.values()].find((room) => room.players.some((player) => player.uid === connection.uid));
               if (oldRoom && oldRoom.code !== roomCode) manager.detach({ uid: connection.uid, roomCode: oldRoom.code }, true);
             }
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, reborn, serverNow: Date.now() }));
+            ws.send(helloMessage(false));
             manager.detach(connection, true);
             manager.sendState(connection, null);
           }
@@ -235,7 +292,8 @@ export function createSynconymServer({
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   const config = loadConfig();
   const { server } = createSynconymServer({ db: createDatabase(config.dbPath), mock: process.argv.includes('--mock'),
-    maxRooms: config.maxRooms, maxPayload: config.wsMaxPayload, security: config.security, publicUrl: config.publicUrl });
+    maxRooms: config.maxRooms, maxPayload: config.wsMaxPayload, security: config.security, publicUrl: config.publicUrl,
+    identity: config.identity });
   server.listen(config.port, config.host || undefined, () => {
     console.log(`Synconym listening on http://localhost:${config.port}`);
   });

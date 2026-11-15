@@ -44,3 +44,25 @@ test('无效配置、未知字段和非法环境变量不能静默启动', (t) =
   writeFileSync(path, '{}');
   assert.throws(() => loadConfig({ env: { PORT: 'bad' }, path }));
 });
+
+test('身份采纳配置有默认值，非法值不能静默启动', (t) => {
+  const path = join(temp(t), 'config.json');
+  const initial = loadConfig({ env: {}, path });
+  assert.equal(initial.identity.adopt, 'auto');
+  assert.equal(initial.identity.adoptMaxIdleDays, 30);
+  assert.equal(initial.identity.deviceLinkTtlDays, 180);
+  assert.equal(JSON.parse(readFileSync(path, 'utf8')).identity.adopt, 'auto');
+
+  for (const value of [
+    { identity: { adopt: 'always' } },
+    { identity: { adoptMaxIdleDays: 0 } },
+    { identity: { deviceLinkTtlDays: 4000 } },
+    { identity: { typo: 1 } }
+  ]) {
+    writeFileSync(path, JSON.stringify(value));
+    assert.throws(() => loadConfig({ env: {}, path }), JSON.stringify(value));
+  }
+
+  writeFileSync(path, JSON.stringify({ identity: { adopt: 'confirm' } }));
+  assert.equal(loadConfig({ env: {}, path }).identity.adopt, 'confirm');
+});

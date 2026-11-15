@@ -12,12 +12,17 @@ import { refreshPlayingCount } from './playing.js';
 import { insaneMarkup, INSANE_DEFAULT_MODE, insanePreviewBodyMarkup } from './insane.js';
 import { createInsaneBackground } from './insane-background.js';
 import { createInsaneTransitionController } from './insane-transition.js';
+import { createUpdateWatcher, canApplyNow, updateUrl } from './update-check.js';
+import { collectDeviceProfile } from './device.js';
 import {
   avatarDetails,
+  deviceClaimHint,
+  deviceClaimItemsMarkup,
   homeEntryMarkup,
   homeMarkup,
   icon,
   isInsaneMode,
+  joinRoomModeMarkup,
   lobbyMarkup,
   lobbyPlayersMarkup,
   playerItemMarkup,
@@ -66,8 +71,13 @@ document.body.append(insaneDistortion);
 const reducedInsaneMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const insaneBackground = createInsaneBackground();
 let pendingInsaneReveal = null;
+let pendingInsaneReturn = false;
 const insaneTransition = createInsaneTransitionController({
   onReveal() {
+    if (pendingInsaneReturn) {
+      render({ forceFull: true, skipTransition: true });
+      return;
+    }
     if (!pendingInsaneReveal) return;
     const { initialSync } = pendingInsaneReveal;
     pendingInsaneReveal = null;
@@ -75,6 +85,7 @@ const insaneTransition = createInsaneTransitionController({
   },
   onDone() {
     pendingInsaneReveal = null;
+    pendingInsaneReturn = false;
   }
 });
 let distortedPortal = null;
@@ -113,7 +124,7 @@ document.addEventListener('dragstart', (event) => {
   if (event.target instanceof Element && event.target.closest('img, svg, a')) event.preventDefault();
 });
 
-let state = { room: null, profile: null };
+let state = { room: null, profile: null, deviceCandidates: null, removed: null };
 // 狂意页的「创建房间」按钮直接开局，用它固定的房间配置。
 const INSANE_ROOM_SETTINGS = Object.freeze({
   mode: 'livonym', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
@@ -275,16 +286,31 @@ function finishRoomRestore() {
   clearTimeout(restoreStatusTimer);
 }
 let connectionStatus = 'connecting';
+let pendingRevision = '';
+
+// 发现新版本先记下来：大厅和结算直接换地址重进，对局中留到这一局结束。
+function applyPendingUpdate() {
+  if (!pendingRevision || !canApplyNow(state.room)) return;
+  location.replace(updateUrl(pendingRevision));
+}
+
+function noteUpdate(revision) {
+  if (pendingRevision) return;
+  pendingRevision = revision;
+  syncConnectionUI();
+  applyPendingUpdate();
+}
 
 function syncConnectionUI() {
+  const notice = connectionStatus === 'replaced' ? '此身份已在其他页面连接，本页已停止重连。'
+    : connectionStatus === 'auth-failed' ? '身份验证失败，已停止重连。请检查本地身份数据。'
+    : connectionStatus === 'uid-in-use' ? '此身份仍在其他页面连接，正在等待连接释放并重试。'
+    : connectionStatus === 'connected' || connectionStatus === 'connecting' ? ''
+    : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';
   const banner = document.querySelector('#connection-status');
   if (banner) {
-    banner.hidden = connectionStatus === 'connected' || connectionStatus === 'connecting';
-    banner.textContent = connectionStatus === 'replaced' ? '此身份已在其他页面连接，本页已停止重连。'
-      : connectionStatus === 'auth-failed' ? '身份验证失败，已停止重连。请检查本地身份数据。'
-      : connectionStatus === 'uid-in-use' ? '此身份仍在其他页面连接，正在等待连接释放并重试。'
-      : connectionStatus === 'connecting' ? '正在连接服务器…'
-      : '连接中断，正在重连。席位按当前阶段保留；重连前暂停操作。';
+    banner.textContent = notice || (pendingRevision ? '游戏已更新，本局结束后自动刷新' : '');
+    banner.hidden = !banner.textContent;
   }
   app.querySelector('#stage')?.toggleAttribute('inert', connectionStatus !== 'connected');
 }
@@ -430,9 +456,11 @@ async function checkJoinInput(input, version) {
     const host = app.querySelector('#join-host');
     if (!modal || !host || !data.host) return;
     app.querySelector('#join-room-number .room-code-display > span').textContent = `房号 ${code}`;
+    app.querySelector('#join-room-mode').innerHTML = joinRoomModeMarkup(data.mode);
+    modal.dataset.roomMode = data.mode || 'free';
     host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
     hydrateAvatars(host);
-    pendingJoin = { code, trigger: input, passwordEnabled: Boolean(data.passwordEnabled) };
+    pendingJoin = { code, trigger: input, passwordEnabled: Boolean(data.passwordEnabled), mode: data.mode || 'free' };
     modal.querySelector('#join-password-fields').hidden = !data.passwordEnabled;
     modal.querySelector('#join-password').value = '';
     modal.removeAttribute('inert');
@@ -457,26 +485,54 @@ function checkJoinOnInput(input, pasted = false) {
   if (pasted || parseRoomCode(value) || (/^[0-9０-９]+$/.test(value) && value.length > 5)) checkJoinInput(input, version);
 }
 
+// 档案里的危险操作：都在前台二次确认，文案直接说明后果。
+const CONFIRM_COPY = Object.freeze({
+  deleteMatch: {
+    title: '从我的记录里移除这一局？',
+    description: '只从你的档案里移除，同局其他玩家的记录不受影响。之后可以在「已移除的记录」里恢复。',
+    accept: '移除这一局'
+  },
+  clearHistory: {
+    title: '清空我的对局记录？',
+    description: '所有对局都会从你的档案里移除，同局其他玩家的记录不受影响。之后可以在「已移除的记录」里恢复。',
+    accept: '清空记录'
+  },
+  eraseIdentity: {
+    title: '抹灭我的痕迹？',
+    description: '会永久删除你的身份：名字、曾用名、身份凭证与全部对局记录。涉及你的对局里，你会显示为「注销用户」。这个操作不能撤销。',
+    accept: '永久删除'
+  },
+  resetDeviceBinding: {
+    title: '把这台设备改回新身份？',
+    description: '这台设备不再认作当前身份，会马上换成一个新的 UID 与随机名字。旧身份的记录仍留在服务器上。',
+    accept: '换成新身份'
+  }
+});
+
 function confirmAction(kind) {
   if (pendingConfirm) return Promise.resolve(false);
   const resetting = kind === 'reset';
-  if (!state.room && !resetting) return Promise.resolve(false);
+  const copy = CONFIRM_COPY[kind];
+  if (!state.room && !resetting && !copy) return Promise.resolve(false);
   const modal = app.querySelector('#confirm-modal');
   if (!modal) return Promise.resolve(false);
   const result = state.room ? ['result', 'rematch'].includes(state.room.phase) : false;
   const lobby = state.room?.phase === 'lobby';
   const breaking = kind === 'break';
-  modal.querySelector('#confirm-title').textContent = resetting ? '换一个新身份？'
-    : breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
-  modal.querySelector('#confirm-description').textContent = resetting
-    ? '会生成新的 UID 和随机名字。当前的改名记录与对局记录不会跟着新身份，也不会删除已有数据。'
-    : breaking
-      ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
-      : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
-      : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
-      : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
-  modal.querySelector('[data-action="accept-confirm"] span').textContent = resetting ? '换新身份'
-    : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
+  modal.querySelector('#confirm-title').textContent = copy ? copy.title
+    : resetting ? '换一个新身份？'
+      : breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
+  modal.querySelector('#confirm-description').textContent = copy ? copy.description
+    : resetting
+      ? '会生成新的 UID 和随机名字。当前的改名记录与对局记录不会跟着新身份，也不会删除已有数据。'
+      : breaking
+        ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
+        : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
+          : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
+            : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
+  modal.querySelector('[data-action="accept-confirm"] span').textContent = copy ? copy.accept
+    : resetting ? '换新身份'
+      : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
   const trigger = document.activeElement;
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
@@ -949,6 +1005,23 @@ function syncTransferModalDOM() {
   }
 }
 
+// 设备确认浮层：同一台设备上有别的身份、且不该静默沿用时才出现。
+function syncDeviceClaim() {
+  const modal = app.querySelector('#device-claim-modal');
+  if (!modal) return;
+  const candidates = state.deviceCandidates?.candidates || [];
+  const open = candidates.length > 0 && !state.room;
+  modal.classList.toggle('is-open', open);
+  modal.toggleAttribute('inert', !open);
+  syncModalScrollLock();
+  if (!open) return;
+  const context = modal.querySelector('#device-claim-context');
+  if (context) context.textContent = deviceClaimHint(state.deviceCandidates.reason);
+  const list = modal.querySelector('#device-claim-list');
+  if (list) { patchMarkup(list, deviceClaimItemsMarkup(candidates)); hydrateAvatars(list); }
+  requestAnimationFrame(() => modal.querySelector('[data-action="device-claim-yes"]')?.focus());
+}
+
 function syncPathModalDOM(focusClose = false) {
   syncModalScrollLock();
   const modal = app.querySelector('#path-modal');
@@ -1389,6 +1462,7 @@ function replaceScene(stage, nextScreen, generation) {
   if (storyPages) syncStoryPagination(storyPages);
   hydrateAvatars(stage);
   syncTransferModalDOM();
+  syncDeviceClaim();
   if (nextScreen === 'lvPlay') {
     const input = stage.querySelector('#describe-input');
     if (input) {
@@ -1441,6 +1515,7 @@ function render({ forceFull = false, initialSync = false } = {}) {
     const stage = ensureShell(Boolean(state.room));
     if (shouldTransition) document.documentElement.dataset.sceneSnapshot = 'new';
     syncConnectionUI();
+    applyPendingUpdate();
     syncPathModalDOM();
     document.body.dataset.scene = nextScreen;
 
@@ -1551,7 +1626,10 @@ function scheduleLobbySettingsSync(nextSettings) {
   });
 }
 
+// 先采设备特征再连接：服务端据此认出同一台设备上的其他浏览器。
+const deviceProfile = await collectDeviceProfile();
 const socket = new Socket({
+  device: deviceProfile,
   onConnection(status) {
     connectionStatus = status;
     if (status !== 'connected') {
@@ -1584,6 +1662,15 @@ const socket = new Socket({
       requestJoin(code);
     }
   },
+  onDeviceCandidates(candidates) {
+    // 同一台设备上还有别的身份：只在不该静默沿用的时候才会走到这里。
+    state.deviceCandidates = candidates;
+    syncDeviceClaim();
+  },
+  onRemovedMatches(removed) {
+    state.removed = removed;
+    if (profileOpen) render();
+  },
   onProfile(profile) {
     if (!profileOpen || historyQuery(location.search).id) return;
     state.profile = profile;
@@ -1598,8 +1685,20 @@ const socket = new Socket({
     state.matchDetail = detail;
     render({ forceFull: true });
   },
-  onIdentity() {
+  onIdentity(message) {
     state.profile = null;
+    state.removed = null;
+    state.deviceCandidates = null;
+    syncDeviceClaim();
+    if (message?.erased) {
+      // 痕迹已抹灭：这个身份不复存在，直接回到首页。
+      profileOpen = false;
+      if (location.search) history.replaceState(null, '', APP_ROOT);
+      syncMockLocation();
+      toast('痕迹已清除，你现在是一个新身份');
+      render({ forceFull: true, initialSync: true });
+      return;
+    }
     if (profileOpen) requestProfile(1);
   },
   onState(next, { initialSync = false } = {}) {
@@ -1624,7 +1723,7 @@ const socket = new Socket({
       }
     }
     const profile = state.profile;
-    state = { ...next, profile, matchDetail: state.matchDetail };
+    state = { ...next, profile, matchDetail: state.matchDetail, deviceCandidates: state.deviceCandidates, removed: state.removed };
     if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; insaneOpen = false; state.profile = null; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
@@ -1647,13 +1746,13 @@ const socket = new Socket({
       renameOpen = false;
       pendingTransfer = null;
       pendingLobbySettings = null;
-      // 狂意玩法的房间退出后回狂意模式大厅，普通房间仍回主页；初次同步保留地址里的页面。
       if (previous?.code && isInsaneMode(previous.mode)) {
         insaneOpen = true;
         profileOpen = false;
         state.profile = null;
         history.replaceState({ insane: true }, '', `${APP_ROOT}?insane`);
         syncMockLocation();
+        pendingInsaneReturn = insaneTransition.start({ mode: previous.mode, returning: true });
       } else {
         if (previous?.code) insaneOpen = false;
         if (!insaneOpen && !profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
@@ -1671,6 +1770,8 @@ const socket = new Socket({
       } else {
         render({ initialSync, skipTransition: true });
       }
+    } else if (insaneTransition.isActive() && pendingInsaneReturn && !nextRoom) {
+      // 过场覆盖旧页面后由控制器回调渲染狂意大厅。
     } else {
       if (insaneTransition.isActive()) {
         pendingInsaneReveal = null;
@@ -1699,6 +1800,7 @@ const socket = new Socket({
     gameUi.ready = false;
     if (insaneTransition.isActive()) {
       pendingInsaneReveal = null;
+      pendingInsaneReturn = false;
       insaneTransition.cancel();
     }
     if (state.room) render();
@@ -2269,6 +2371,57 @@ app.addEventListener('click', async (event) => {
     if (await confirmAction('reset')) enqueueWrite({ type: 'resetIdentity' });
     return;
   }
+  if (button.dataset.action === 'reset-device-binding') {
+    event.preventDefault();
+    if (await confirmAction('resetDeviceBinding')) socket.send({ type: 'resetDeviceBinding' }, true);
+    return;
+  }
+  if (button.dataset.action === 'device-claim-yes') {
+    event.preventDefault();
+    const uid = button.dataset.uid || '';
+    if (!uid) return;
+    socket.send({ type: 'claimDevice', uid }, true);
+    state.deviceCandidates = null;
+    syncDeviceClaim();
+    return;
+  }
+  if (button.dataset.action === 'device-claim-no') {
+    event.preventDefault();
+    for (const candidate of state.deviceCandidates?.candidates || []) {
+      socket.send({ type: 'rejectDevice', uid: candidate.uid }, true);
+    }
+    state.deviceCandidates = null;
+    syncDeviceClaim();
+    return;
+  }
+  if (button.dataset.action === 'delete-match') {
+    event.preventDefault();
+    const id = button.dataset.id || '';
+    if (!id) return;
+    if (await confirmAction('deleteMatch')) socket.send({ type: 'deleteMatch', id }, true);
+    return;
+  }
+  if (button.dataset.action === 'restore-match') {
+    event.preventDefault();
+    const id = button.dataset.id || '';
+    if (id) socket.send({ type: 'restoreMatch', id }, true);
+    return;
+  }
+  if (button.dataset.action === 'clear-history') {
+    event.preventDefault();
+    if (await confirmAction('clearHistory')) socket.send({ type: 'clearHistory' }, true);
+    return;
+  }
+  if (button.dataset.action === 'open-removed') {
+    event.preventDefault();
+    socket.send({ type: 'openRemoved', page: 1 }, true);
+    return;
+  }
+  if (button.dataset.action === 'erase-identity') {
+    event.preventDefault();
+    if (await confirmAction('eraseIdentity')) socket.send({ type: 'eraseIdentity' }, true);
+    return;
+  }
   if (button.dataset.action === 'copy-uid') {
     event.preventDefault();
     if (!state.profile?.user) return;
@@ -2420,3 +2573,5 @@ document.addEventListener('keydown', (event) => {
 setInterval(() => {
   if (!document.hidden) refreshPlayingCount(app.querySelector('#playing-count'));
 }, 30000);
+
+createUpdateWatcher({ onUpdate: noteUpdate });

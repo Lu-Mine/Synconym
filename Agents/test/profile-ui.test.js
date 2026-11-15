@@ -29,7 +29,7 @@ test('档案展示身份、曾用名、对局与隐私说明，并转义所有�
     assert.ok(html.includes(text), text);
   }
   assert.ok(html.includes('&lt;甲&gt;'));
-  assert.match(html, /本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录/);
+  assert.match(html, /这台设备上换浏览器也会认出你。服务器保存凭证的哈希值、名字和完成过的对局记录/);
   assert.ok(!html.includes('<甲>'));
   assert.ok(!html.includes('>乙、'));
   assert.ok(!html.includes('自由模式'));

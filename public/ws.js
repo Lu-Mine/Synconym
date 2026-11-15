@@ -1,8 +1,9 @@
 export class Socket {
-  constructor({ onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
-    onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked }) {
+  constructor({ device = null, onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
+    onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked }) {
     this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
-      onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked };
+      onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked };
+    this.device = device;
     this.mock = Boolean(globalThis.__SYNCONYM_MOCK__);
     this.identityKey = this.mock ? 'sy_mock_identity' : 'sy_identity';
     this.uidKey = this.mock ? 'sy_mock_uid' : 'sy_uid';
@@ -25,13 +26,19 @@ export class Socket {
     let awaitingInitialState = true;
     this.ws = ws;
     ws.addEventListener('open', () => {
-      this.send({ type: 'hello', uid: this.uid || undefined, credential: this.credential || undefined, roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave) }, true);
+      this.send({
+        type: 'hello', uid: this.uid || undefined, credential: this.credential || undefined,
+        device: this.device || undefined,
+        roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave)
+      }, true);
     });
     ws.addEventListener('message', ({ data }) => {
       if (this.ws !== ws) return;
       const message = JSON.parse(data);
       if (message.type === 'hello') {
         this.uid = message.uid;
+        // 设备上还有别的身份时服务端会下发候选，交给界面确认，这里不自动切换。
+        if (message.deviceCandidates) this.handlers.onDeviceCandidates?.(message.deviceCandidates);
         if (message.credential) {
           this.credential = message.credential;
           (this.mock ? sessionStorage : localStorage).setItem(this.identityKey, JSON.stringify({ uid: this.uid, credential: this.credential }));
@@ -68,6 +75,8 @@ export class Socket {
         (this.mock ? sessionStorage : localStorage).setItem(this.uidKey, this.uid);
         if (!this.mock) document.cookie = `sy_uid=${this.uid}; max-age=2592000; path=/; samesite=lax`;
         this.handlers.onIdentity?.(message);
+      } else if (message.type === 'removedMatches') {
+        this.handlers.onRemovedMatches?.(message.removed);
       } else if (message.type === 'error') {
         this.handlers.onError?.(message.message);
       } else if (message.type === 'livonymStream') {

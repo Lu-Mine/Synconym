@@ -17,9 +17,33 @@ export function avatarDetails(name) {
   return { initial, tone: hash >>> 0 & 3 };
 }
 
-export function avatarMarkup(name, className = '') {
+export function avatarMarkup(name, className = '', { deleted = false } = {}) {
   const { tone } = avatarDetails(name);
-  return `<img class="avatar ${className}" data-avatar-name="${escapeHtml(name)}" data-avatar-tone="${tone}" alt="" aria-hidden="true">`;
+  return `<img class="avatar ${className}" data-avatar-name="${escapeHtml(name)}" data-avatar-tone="${tone}"${deleted ? ' data-avatar-deleted="true"' : ''} alt="" aria-hidden="true">`;
+}
+// 设备确认：只有本人才认得出的上下文，用来替代不可靠的指纹。
+const DEVICE_CLAIM_HINTS = Object.freeze({
+  playing: '这个身份正在另一处游玩。接管会让那边断开。',
+  multiple: '这台设备上用过多个身份，选一个继续。',
+  confirm: '这台设备上用过这个身份，确认一下是不是你。'
+});
+
+export function deviceClaimHint(reason = '') {
+  return DEVICE_CLAIM_HINTS[reason] || DEVICE_CLAIM_HINTS.multiple;
+}
+
+export function deviceClaimItemsMarkup(candidates = []) {
+  return candidates.map((candidate) => {
+    const context = [
+      candidate.lastRoomCode ? `房号 ${candidate.lastRoomCode}` : '',
+      candidate.lastOpponentName ? `对手「${candidate.lastOpponentName}」` : ''
+    ].filter(Boolean).join(' · ');
+    return `<li class="device-claim-item">
+        <div class="device-claim-who">${avatarMarkup(candidate.name, 'device-claim-avatar')}<span>${escapeHtml(candidate.name)}</span></div>
+        <p class="device-claim-meta">${escapeHtml(context || '还没有对局记录')}</p>
+        <button class="button secondary" type="button" data-action="device-claim-yes" data-uid="${escapeHtml(candidate.uid)}"><span>是我</span>${icon('check')}</button>
+      </li>`;
+  }).join('');
 }
 
 export function icon(name, className = '') {
@@ -31,6 +55,21 @@ function roomCodeMarkup(code, className = '', hit = false) {
   const label = `房号 ${escapeHtml(code ?? '–')}`;
   return `<span class="room-code-display${className ? ` ${className}` : ''}">${icon('door-open', 'room-code-icon')}<span>${hit ? `<mark class="history-hit">${label}</mark>` : label}</span></span>`;
 }
+
+const INSANE_MODE_LABELS = Object.freeze({
+  livonym: ['即时竞猜', 'Livonym'],
+  shiritori: ['接龙', 'Shiritori'],
+  impostor: ['思维卧底', 'Impostor'],
+  blitz: ['极速闪电', 'Blitz'],
+  bridge: ['语义搭桥', 'Bridge']
+});
+
+export function joinRoomModeMarkup(mode) {
+  const details = INSANE_MODE_LABELS[mode];
+  if (!details) return `<span class="join-room-mode join-room-mode--${escapeHtml(mode || 'classic')}"><span class="join-room-mode-label">模式</span><strong>${escapeHtml(mode === 'theme' ? '主题' : mode === 'free' ? '自由' : '未知')}</strong></span>`;
+  return `<span class="join-room-mode join-room-mode--${mode}" data-mode="${mode}" aria-label="房间模式：${details[0]}"><span class="join-room-mode-label">模式</span><strong>${details[0]}</strong><span class="sr-only">${details[1]}</span><span class="join-room-mode-emblem" aria-hidden="true"><i></i><i></i><i></i></span><span class="join-room-mode-wordmark">${wordmarkArt[mode]}</span></span>`;
+}
+
 
 export function brandMarkup() {
   return `<a class="brand" href="/" data-action="home" aria-label="返回近意词 Synconym 主页"><span class="brand-mark" aria-hidden="true"><span class="orb orb-a"></span><span class="orb orb-b"></span></span><span class="brand-cn"><span class="brand-wing-l">近</span><span class="brand-accent brand-yi">意</span><span class="brand-wing-r">词</span></span><span class="brand-en">Syn<span class="brand-accent brand-c">c</span>onym</span></a>`;
@@ -238,11 +277,28 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
       </div>
     </section>
   </div>
+  <div class="rename-modal device-claim-modal" id="device-claim-modal" inert>
+    <button class="rename-modal-backdrop" type="button" data-action="device-claim-no" aria-label="不是我"></button>
+    <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="device-claim-title" aria-describedby="device-claim-context">
+      <div class="rename-dialog-heading">
+        <h2 id="device-claim-title">继续用原来的身份？</h2>
+        <button class="icon-button" type="button" data-action="device-claim-no" aria-label="不是我">${icon('x')}</button>
+      </div>
+      <p class="transfer-hint" id="device-claim-context"></p>
+      <ul class="device-claim-list" id="device-claim-list"></ul>
+      <div class="rename-dialog-actions">
+        <button class="button secondary" type="button" data-action="device-claim-no"><span>不是我</span>${icon('x')}</button>
+      </div>
+    </section>
+  </div>
   <div class="rename-modal confirm-modal" id="join-modal" inert>
     <button class="rename-modal-backdrop" type="button" data-action="cancel-join" aria-label="取消加入房间"></button>
     <section class="rename-dialog" role="dialog" aria-modal="true" aria-labelledby="join-title" aria-describedby="join-room-number">
       <div class="rename-dialog-heading"><h2 id="join-title">确认加入房间？</h2><button class="icon-button" type="button" data-action="cancel-join" aria-label="取消">${icon('x')}</button></div>
-      <div id="join-room-number">${roomCodeMarkup(null)}</div>
+      <div class="join-room-identification">
+        <div id="join-room-number">${roomCodeMarkup(null)}</div>
+        <div id="join-room-mode" aria-live="polite"></div>
+      </div>
       <ul class="player-list" id="join-host"></ul>
       <div id="join-password-fields" hidden>
         <label for="join-password">房间密码</label>
@@ -368,16 +424,18 @@ export function privacyMarkup() {
     <div class="privacy-columns">
       <div class="privacy-main">
         <section id="identity"><h2>浏览器里的身份</h2>
-          <p>首次访问时，服务端会分配随机 UID、昵称和独立身份凭证。浏览器将 UID 和凭证保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的 UID Cookie。主动退出遇到断线时，还会在会话存储中暂存退出意图。</p>
-          <p>清除浏览器数据可能让你失去原身份和档案的访问方式。UID 不是密码；身份凭证可以用于恢复你的身份，请勿分享。</p></section>
+          <p>首次访问时，服务端会分配随机 UID、昵称和独立身份凭证。浏览器把 UID 与凭证保存在本地存储中，用于识别和恢复身份；同时设置有效期为 30 天的 UID Cookie。</p>
+          <p>为了让你在同一台设备上换浏览器（例如从系统浏览器换到聊天软件里打开）也能回到同一个身份，页面会读取设备自身的特征：操作系统与版本、浏览器名称与主版本、屏幕尺寸与像素比、时区、语言、CPU 核数、设备内存、触点数、显卡型号，以及浏览器提供的机型信息。这些特征与网络无关，换 WiFi 或移动数据不会改变；服务器不会记录你的 IP 用于识别身份。</p>
+          <p>这些特征只用来判断「是不是同一台设备」，不参与身份凭证校验。清除浏览器数据可能让你失去原身份和档案的访问方式；此时可以靠设备特征重新认回，或者被提示确认后继续。</p></section>
         <section id="records"><h2>游戏中会记录什么</h2>
           <p>服务器保存 UID、身份凭证的哈希值、当前昵称、曾用名及相关时间。完成的对局会保存房号、模式、时间、结果、参与者昵称和 UID，以及每轮词语、标记和投票记录，用于游戏结算与档案展示。</p>
           <p>游玩时的房间状态和输入内容会在服务器内存中临时处理。写词阶段的内容不会提前展示给其他玩家；揭晓后，同房间玩家可以看到词语和相应的投票结果。崩局或中断的对局不会作为完成记录保存。</p></section>
       </div>
       <div class="privacy-aside">
         <section id="deletion"><h2>保存与删除</h2>
-          <p>当前版本没有设置服务器数据的自动删除期限，也没有自助删除服务器记录的功能。档案中的「我是新人」只会生成新 UID 和昵称，不会删除旧身份或旧对局记录。</p>
-          <p>你可以通过浏览器设置清除本地存储和 Cookie，但这不会删除服务器上的数据。如需了解或处理服务器上的数据，请联系你所使用的站点的运营者。</p></section>
+          <p>档案里可以自己动手：单条对局可以从你的记录里移除，移除后仍能在「已移除的记录」里恢复；「清空我的记录」会一次性移除全部对局。这些操作只影响你自己的档案，同局其他玩家的记录不受影响。</p>
+          <p>「抹灭我的痕迹」会永久删除你的身份：名字、曾用名、身份凭证与全部对局记录都会被清除，设备绑定也会一并删除，之后无法恢复。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容不再展示。</p>
+          <p>注销后可以立即获得一个全新的身份继续使用。站点没有设置其他数据的自动删除期限。</p></section>
         <section id="hosting"><h2>部署环境</h2>
           <p>游戏本身不要求注册手机号或密码。站点运营者使用的服务器、反向代理或托管平台可能另外处理网络连接信息或日志；这些做法取决于实际部署环境，请以该站点运营者提供的信息为准。</p></section>
       </div>
@@ -550,7 +608,7 @@ export function relativeDate(timestamp, now = Date.now()) {
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function profileMatchMarkup(match, query = {}) {
+export function profileMatchMarkup(match, query = {}, options = {}) {
   const livonym = match.mode === 'livonym';
   const met = match.outcome !== 'none';
   const outcome = livonym
@@ -558,19 +616,27 @@ export function profileMatchMarkup(match, query = {}) {
     : met
       ? `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`
       : `打满 ${match.totalRounds} 轮未相遇`;
-  // 服务端只下发同局的其他人，头像与名字都按这份名单渲染
-  const others = match.players || [];
+  // 服务端只下发同局的其他人；已注销的人显示为「注销用户」，头像同时变灰。
+  const others = (match.players || []).map((player) => (typeof player === 'string'
+    ? { name: player, deleted: false } : { name: player.name, deleted: Boolean(player.deleted) }));
   // hits 来自服务端：一条记录可能在多个维度上被搜到，命中的那几处分别高亮
   const hits = match.hits || {};
   const hitNames = new Map((hits.names || []).map((hit) => [hit.name, hit.whole]));
-  const names = others.map((name) => (hitNames.has(name)
-    ? highlightMatch(name, hitNames.get(name) ? '' : query.value)
-    : escapeHtml(name))).join('、');
-  const avatars = others.slice(0, 3).map((name) => avatarMarkup(name, 'profile-match-avatar')).join('');
+  const names = others.map((player) => (hitNames.has(player.name)
+    ? highlightMatch(player.name, hitNames.get(player.name) ? '' : query.value)
+    : escapeHtml(player.name))).join('、');
+  const avatars = others.slice(0, 3)
+    .map((player) => avatarMarkup(player.name, 'profile-match-avatar', { deleted: player.deleted })).join('');
   const rest = others.length > 3 ? `<span class="profile-match-avatar-rest">+${others.length - 3}</span>` : '';
   const startedAt = Number.isFinite(match.startedAt) ? new Date(match.startedAt).toISOString() : '';
   const date = relativeDate(match.startedAt);
   const theme = match.themeName ? (hits.theme ? highlightMatch(match.themeName, query.value) : escapeHtml(match.themeName)) : '';
+  const plainNames = others.map((player) => player.name).join('、') || '无对手';
+  const action = options.removable
+    ? `<button class="icon-button profile-match-remove" type="button" data-action="delete-match" data-id="${escapeHtml(match.id)}" aria-label="移除这一局（对手 ${escapeHtml(plainNames)}，${escapeHtml(date)}）" title="从我的记录里移除">${icon('trash-2')}</button>`
+    : options.restorable
+      ? `<button class="icon-button profile-match-remove" type="button" data-action="restore-match" data-id="${escapeHtml(match.id)}" aria-label="恢复这一局（对手 ${escapeHtml(plainNames)}，${escapeHtml(date)}）" title="恢复到我的记录">${icon('rotate-ccw')}</button>`
+      : '';
   return `<li class="profile-match">
         <a class="profile-match-link" href="${escapeHtml(historyHref(query, match.id))}">
         <span class="profile-match-heading">
@@ -584,6 +650,7 @@ export function profileMatchMarkup(match, query = {}) {
           ${theme ? `<span class="profile-match-theme">${icon('tag', 'profile-match-icon')}<span>${theme}</span></span>` : ''}
         </span>
         <span class="profile-match-open">查看详情 ${icon('arrow-right')}</span></a>
+        ${action}
       </li>`;
 }
 
@@ -605,6 +672,14 @@ export function profileMarkup(state) {
         <button class="button secondary" type="button" data-action="profile-next" ${page >= pages ? 'disabled' : ''}><span>下一页</span></button>
       </div>`
     : '';
+  const removedBlock = state.removed
+    ? `<div class="surface-block profile-removed">
+        <div class="section-heading"><h2>${icon('trash-2')}<span>已移除的记录</span></h2><span class="profile-total">${state.removed.total || 0} 局</span></div>
+        ${state.removed.matches?.length
+          ? `<ol class="profile-matches">${state.removed.matches.map((match) => profileMatchMarkup(match, {}, { restorable: true })).join('')}</ol>`
+          : '<p class="profile-empty">没有已移除的记录。移除后的对局会出现在这里，随时可以恢复。</p>'}
+      </div>`
+    : '';
   return `<div class="page profile-page" data-screen="profile">
     <section class="surface-block profile-identity">
       ${avatarMarkup(user.name, 'profile-avatar')}
@@ -614,19 +689,25 @@ export function profileMarkup(state) {
         <p class="profile-meta">${icon('clock')}<span>加入于 ${escapeHtml(profileDate(user.createdAt))}${former.length ? ` · 曾用名 ${escapeHtml(former.join('、'))}` : ''}</span></p>
       </div>
     </section>
-    <p class="profile-privacy">本设备保存 UID 和身份凭证；服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
+    <p class="profile-privacy">这台设备上换浏览器也会认出你。服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
     <div class="profile-actions">
       <button class="button secondary" type="button" data-action="back">${icon('arrow-left')}<span>返回</span></button>
+      <button class="button secondary" type="button" data-action="reset-device-binding">${icon('user-x')}<span>这台设备改回新身份</span></button>
       <button class="button danger" type="button" data-action="reset-identity">${icon('rotate-ccw')}<span>我是新人</span></button>
+      <div class="profile-danger">
+        <button class="button secondary" type="button" data-action="clear-history">${icon('trash-2')}<span>清空我的记录</span></button>
+        <button class="button danger" type="button" data-action="erase-identity">${icon('user-x')}<span>抹灭我的痕迹</span></button>
+      </div>
     </div>
     <section class="surface-block profile-history">
-      <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span></div>
+      <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span>${profile.removed ? `<button class="button secondary profile-removed-link" type="button" data-action="open-removed"><span>已移除 ${profile.removed} 局</span></button>` : ''}</div>
       ${historySearchMarkup(state.historyQuery)}
       ${matches.length
-        ? `<ol class="profile-matches">${matches.map((match) => profileMatchMarkup(match, state.historyQuery)).join('')}</ol>`
+        ? `<ol class="profile-matches">${matches.map((match) => profileMatchMarkup(match, state.historyQuery, { removable: true })).join('')}</ol>`
         : `<p class="profile-empty">${profile.filter?.type ? '没有符合条件的对局，请调整搜索条件。' : '还没有完成的对局。开一局，回来就能看到。'}</p>`}
       ${pager}
     </section>
+    ${removedBlock}
   </div>`;
 }
 
@@ -856,7 +937,10 @@ export function writingMarkup(state, ui = {}) {
 
 function wordCardMarkup(player, value, duplicate = false) {
   const seat = Number.isInteger(player.seat) && player.seat >= 0 && player.seat < 8 ? player.seat : 0;
-  return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar')}<span>${escapeHtml(player.name || '玩家')}</span></div><strong${duplicate ? ' class="word-duplicate"' : ''}>${escapeHtml(value)}</strong></li>`;
+  // 已注销玩家的词会被剥离，这里留一条斜杠占位，不显示任何原文。
+  const hidden = value === undefined || value === null;
+  const shown = hidden ? '/' : String(value);
+  return `<li class="word-card previous-word-card" style="--player:var(--player-${seat});--card-color:var(--card-player-${seat})"><div class="previous-word-player">${avatarMarkup(player.name || '玩家', 'previous-word-avatar', { deleted: Boolean(player.deleted) })}<span>${escapeHtml(player.name || '玩家')}</span></div><strong class="${duplicate ? 'word-duplicate' : ''}${hidden ? ' word-erased' : ''}">${escapeHtml(shown)}</strong></li>`;
 }
 
 function gameStatusItemMarkup(player, statusKey, status, mine) {
@@ -1100,7 +1184,9 @@ export function matchDetailMarkup(detail, query = {}) {
     <div class="match-detail-main">
     ${livonym ? livonymReviewBlock(room, true) : resultPathMarkup(room, { open: false })}
     </div><div class="match-detail-aside">
-    <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
+    <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => (player.deleted
+      ? `<li>${avatarMarkup(player.name, '', { deleted: true })}<div><strong>${escapeHtml(player.name)}</strong><span>已注销</span></div></li>`
+      : `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`)).join('')}</ul></section>
     ${livonym ? '' : `<details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>`}
     </div>
   </div>`;

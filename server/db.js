@@ -1,11 +1,12 @@
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import Database from 'better-sqlite3';
+import { DELETED_NAME } from './rules.js';
 
 const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
 
-// 注销身份的统一展示名，只在服务端写入，昵称校验里有同名保护。
-export const DELETED_NAME = '[注销用户]';
+// 注销身份的统一展示名由规则层定义，昵称校验里禁止普通人使用。
+export { DELETED_NAME };
 
 const likeEscape = (value) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 // 主题名或 id 命中折算成 theme_id；空查询不参与主题匹配。
@@ -277,8 +278,8 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     touchCredential(hash, now = Date.now()) { touchCredentialHash.run(now, hash); },
     dropCredential(hash) { deleteCredentialHash.run(hash); },
     countCredentials(uid) { return credentialCount.get(uid).total; },
-    insertDevice({ deviceKey, weakKey, profileJson }, now = Date.now()) {
-      upsertDevice.run({ deviceKey, weakKey, profileJson, now });
+    insertDevice({ deviceKey, weakKey, profileJson, profile }, now = Date.now()) {
+      upsertDevice.run({ deviceKey, weakKey, profileJson: profileJson ?? profile ?? '{}', now });
     },
     getDevice(deviceKey) { return deviceRow.get(deviceKey); },
     devicesByWeakKey(weakKey) { return deviceByWeakKey.all(weakKey); },
