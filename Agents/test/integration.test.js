@@ -16,7 +16,7 @@ function openClient(port, uid, roomCode, extra = {}) {
     ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', uid, credential: credentials.get(uid), roomCode, ...extra })));
     ws.on('message', (data) => {
       const message = JSON.parse(data);
-      if (message.type === 'hello') { client.uid = message.uid; client.credential = message.credential || credentials.get(message.uid); if (message.credential) credentials.set(message.uid, message.credential); client.restored = message.restored; resolve(client); }
+      if (message.type === 'hello') { client.uid = message.uid; client.credential = message.credential || credentials.get(message.uid); if (message.credential) credentials.set(message.uid, message.credential); client.restored = message.restored; client.reborn = message.reborn; resolve(client); }
       if (message.type === 'state') client.states.push(message);
       if (message.type === 'error') { client.errors.push(message.message); resolve(client); }
     });
@@ -90,6 +90,30 @@ test('resetIdentity 签发独立凭证并允许重连', async (t) => {
   const restored = await openClient(port, fresh.uid);
   assert.equal(restored.uid, fresh.uid);
   await nextState(restored, s => s.room === null);
+});
+
+test('库中不存在的身份直接重开，而不是返回身份验证失败', async (t) => {
+  const db = createDatabase(':memory:');
+  const { server, wss } = createSynconymServer({ db });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); });
+  const port = server.address().port;
+  // 客户端手上的 uid 已被清理：服务器删号后设备本地还留着旧 uid 和作废凭证。
+  const gone = 'WXYZ2345';
+  const client = await openClient(port, gone, undefined, { credential: 'z'.repeat(43) });
+  assert.deepEqual(client.errors, []);
+  assert.equal(client.reborn, true);
+  assert.notEqual(client.uid, gone);
+  assert.match(client.credential, /^[A-Za-z0-9_-]{43}$/);
+  assert.ok(db.getPlayer(client.uid));
+  assert.equal(db.getCredentialHash(gone), undefined);
+  // 新身份可以正常重连，且不会再次被判为重生
+  const again = await openClient(port, client.uid);
+  assert.equal(again.uid, client.uid);
+  assert.equal(again.reborn, false);
+  assert.deepEqual(again.errors, []);
+  client.ws.close();
+  again.ws.close();
 });
 
 test('文件数据库重启后仍可验证凭证并读取原档案', async (t) => {

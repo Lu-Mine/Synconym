@@ -1574,6 +1574,7 @@ const socket = new Socket({
     syncConnectionUI();
   },
   onHello(message) {
+    if (message.reborn) toast('原来那个身份已经不在了，给你换了个新身份');
     const code = socket.roomCode;
     if (code && !message.restored) {
       if (awaitingRoomRestore) {

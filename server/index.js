@@ -136,17 +136,30 @@ export function createSynconymServer({
         const message = JSON.parse(data.toString());
         if (message.type === 'hello') {
           if (connection) { manager.sendState(connection); return; }
-          let credential;
-          if (message.uid !== undefined || message.credential !== undefined) {
-            const hash = typeof message.uid === 'string' && db.getCredentialHash(message.uid);
+          let credential, reborn = false;
+          // 库里没有这个 uid 的凭证记录，说明身份已被清理或来自别的环境。
+          // 这种情况不报错，直接当新玩家重开：设备不该因为服务器清理数据而卡死。
+          // 只有凭证哈希存在时才算"认领已有身份"，那时凭证对不上仍然拒绝，避免顶替他人。
+          const stored = typeof message.uid === 'string' ? db.getCredentialHash(message.uid) : undefined;
+          if (stored) {
             const valid = typeof message.credential === 'string' && /^[A-Za-z0-9_-]{43}$/.test(message.credential);
             const candidate = valid ? createHash('sha256').update(message.credential).digest() : null;
-            if (!hash || !candidate || hash.length !== candidate.length || !timingSafeEqual(hash, candidate)) {
+            if (!candidate || stored.length !== candidate.length || !timingSafeEqual(stored, candidate)) {
               ws.send(JSON.stringify({ type: 'error', message: '身份验证失败' }));
               ws.close(4003, 'Authentication failed');
               authenticationFailed = true;
               return;
             }
+          } else if (message.uid !== undefined) {
+            reborn = true;
+            message.uid = undefined;
+            message.credential = undefined;
+          } else if (message.credential !== undefined) {
+            // 带了凭证却没有 uid：畸形请求，按原来的方式拒绝。
+            ws.send(JSON.stringify({ type: 'error', message: '身份验证失败' }));
+            ws.close(4003, 'Authentication failed');
+            authenticationFailed = true;
+            return;
           }
           if (message.uid === undefined && !security.allowAccount(ip)) {
             ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
@@ -167,7 +180,7 @@ export function createSynconymServer({
               connection.roomCode = roomCode;
             }
             manager.detach(connection, true);
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, serverNow: Date.now() }));
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, reborn, serverNow: Date.now() }));
             manager.sendState(connection, null);
             return;
           }
@@ -179,7 +192,7 @@ export function createSynconymServer({
               const oldRoom = [...manager.rooms.values()].find((room) => room.players.some((player) => player.uid === connection.uid));
               if (oldRoom && oldRoom.code !== roomCode) manager.detach({ uid: connection.uid, roomCode: oldRoom.code }, true);
             }
-            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, serverNow: Date.now() }));
+            ws.send(JSON.stringify({ type: 'hello', uid: connection.uid, credential, restored: false, reborn, serverNow: Date.now() }));
             manager.detach(connection, true);
             manager.sendState(connection, null);
           }
