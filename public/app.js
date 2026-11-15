@@ -10,7 +10,7 @@ import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
 import { refreshPlayingCount } from './playing.js';
-import { insaneMarkup } from './insane.js';
+import { insaneMarkup, INSANE_DEFAULT_MODE, insanePreviewBodyMarkup } from './insane.js';
 import { createInsaneBackground } from './insane-background.js';
 import { createInsaneTransitionController } from './insane-transition.js';
 import {
@@ -35,10 +35,13 @@ import {
   thoughtPathMarkup,
   themeMarkup,
   writingMarkup,
+  livonymMarkup,
+  livonymGuessedRowsMarkup,
   roomCapacity,
   canStartRoom
 } from './render.js';
 import { hydrateAvatars } from './avatar.js';
+import { DESCRIBE_LIMIT, cleanDescribe, describeContainsSecret } from './livonym.js';
 
 const MOCK = Boolean(window.__SYNCONYM_MOCK__);
 const APP_ROOT = MOCK ? '/__mock/play' : '/';
@@ -46,8 +49,10 @@ function syncMockLocation() {
   if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-route', { detail: { search: location.search } }));
 }
 syncMockLocation();
-const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds']);
+const NUMERIC_SETTINGS = new Set(['maxRounds', 'writeSeconds', 'prepareSeconds', 'describeSeconds', 'roundsPerPlayer']);
 const WRITE_COOLDOWN_MS = 520;
+// 与 server/livonym.js 的 LIVONYM_GUESS_COOLDOWN_MS 一致：猜错只锁输入框，不扣分。
+const GUESS_COOLDOWN_MS = 1500;
 
 const app = document.querySelector('#app');
 const toastElement = document.querySelector('#toast');
@@ -110,6 +115,11 @@ document.addEventListener('dragstart', (event) => {
 });
 
 let state = { room: null, profile: null };
+// 狂意页的「创建房间」按钮直接开局，用它固定的房间配置。
+const INSANE_ROOM_SETTINGS = Object.freeze({
+  mode: 'livonym', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
+  describeSeconds: 45, roundsPerPlayer: 1, passwordEnabled: false, password: ''
+});
 
 // 狂意页与狂意系列玩法的房间属于同一个狂意场景：共用深色视觉与背景画布。
 function isInsaneScene(screen) {
@@ -130,12 +140,42 @@ function syncInsaneTheme(nextScreen) {
   insaneBackground.setGlitch?.(nextScreen === 'insane');
   return insane;
 }
+
+function insaneCardMode(card) {
+  return card?.className.match(/\binsane-card--([\w-]+)/)?.[1] || '';
+}
+
+function isInsaneSplitLayout() {
+  return window.matchMedia('(min-width: 1000px)').matches;
+}
+
+function syncInsanePreviewDOM(root = app) {
+  const layout = root.querySelector('.insane-layout');
+  if (!layout) return;
+  const previewMode = insaneHoveredMode || insaneSelectedMode || INSANE_DEFAULT_MODE;
+  layout.dataset.selected = insaneSelectedMode;
+  layout.dataset.preview = previewMode;
+  for (const card of layout.querySelectorAll('.insane-card')) {
+    const mode = insaneCardMode(card);
+    const selected = mode === insaneSelectedMode;
+    card.classList.toggle('is-selected', selected);
+    card.querySelector('.insane-card-row')?.setAttribute('aria-current', selected ? 'true' : 'false');
+  }
+  const preview = layout.querySelector('.insane-preview');
+  if (!preview || preview.dataset.mode === previewMode) return;
+  preview.className = `insane-preview insane-preview--${previewMode}`;
+  preview.dataset.mode = previewMode;
+  preview.innerHTML = insanePreviewBodyMarkup(previewMode);
+}
+
 let settings = {
   mode: 'free',
   maxRounds: 12,
   writeSeconds: 45,
   prepareSeconds: 30,
-  banRepeat: true
+  banRepeat: true,
+  describeSeconds: 45,
+  roundsPerPlayer: 1
 };
 let homeSettingsOpen = false;
 let renameOpen = false;
@@ -143,6 +183,8 @@ let profileOpen = new URLSearchParams(location.search).has('me');
 let privacyOpen = new URLSearchParams(location.search).has('privacy');
 let qaOpen = new URLSearchParams(location.search).has('qa');
 let insaneOpen = new URLSearchParams(location.search).has('insane');
+let insaneSelectedMode = INSANE_DEFAULT_MODE;
+let insaneHoveredMode = null;
 // 隐私、Q&A、档案在站内点开时压入历史，「返回」据此退回上一页；直接打开链接时退回首页。
 let inAppNav = false;
 let pathOpen = false;
@@ -169,6 +211,9 @@ let currentMotionTarget;
 let pendingMotionTarget;
 let deferredSceneRender = false;
 let deferredForceFull = false;
+// 123 的排名位移每次结算只播一次：记住上一次渲染的屏幕与这次结算的分数快照。
+let lastScoreRankKey = '';
+let lastRenderedScreen = '';
 let timeOffset = 0;
 const gameNow = () => MOCK && Number.isFinite(state.mockPausedAt ?? state.room?.mockPausedAt) ? (state.mockPausedAt ?? state.room.mockPausedAt) : Date.now() + timeOffset;
 let countdownTimer;
@@ -186,6 +231,39 @@ let gameUi = { draft: '', submitted: false, voted: false, ready: false };
 let typingTimer;
 let lastTypingAt = 0;
 let finalTypingSent = false;
+
+// 即时竞猜的本地状态：描述草稿、最近被接受的文本、流式文本与抢答结果。
+function emptyLivonymUi() {
+  return {
+    describeText: '', acceptedText: '', describeBlocked: false, describeOver: false,
+    guessText: '', guessedOrder: 0, guessPoints: 0, guessCooldownUntil: 0, guessWrong: false,
+    streamText: '', streamRev: 0
+  };
+}
+let livonymUi = emptyLivonymUi();
+let describeTimer;
+let lastDescribeSentAt = 0;
+let guessCooldownTimer;
+
+function livonymPointsFor(order) {
+  return order === 1 ? 3 : order === 2 ? 2 : order ? 1 : 0;
+}
+
+// 快照比本地流式更新新时才回填，避免把刚推送的新文本覆盖成旧值。
+function syncLivonymFromState(room) {
+  const livonym = room?.livonym;
+  if (!livonym) return;
+  const rev = livonym.streamRev ?? 0;
+  if (rev > livonymUi.streamRev) {
+    livonymUi.streamRev = rev;
+    livonymUi.streamText = livonym.streamText || '';
+  }
+  const mine = (livonym.guessed || []).find((item) => item.uid === state.uid);
+  if (mine) {
+    livonymUi.guessedOrder = mine.order;
+    livonymUi.guessPoints = livonymPointsFor(mine.order);
+  }
+}
 let roomHistoryGuard = false;
 
 let stopJoinPlaceholder = () => {};
@@ -472,6 +550,121 @@ function acceptWordInput(input) {
   sendTyping();
 }
 
+// ── 即时竞猜的输入 ──
+
+function syncDescribeHeight(input) {
+  if (!input) return;
+  input.style.height = 'auto';
+  input.style.height = `${input.scrollHeight}px`;
+}
+
+// 字数计数与超限提示：写满后继续打字时整行提示与输入框一起转红。
+function syncDescribeMeter(input) {
+  if (!input) return;
+  const count = app.querySelector('#describe-count');
+  if (count) count.textContent = `${[...input.value].length}/${DESCRIBE_LIMIT}`;
+  input.closest('.livonym-describe-form')?.classList.toggle('is-over', livonymUi.describeOver);
+}
+
+// 描述流：80ms 尾随节流只发最新文本；写谜底本地先拦一次，零延迟也不占带宽。
+function sendDescribe(force = false) {
+  clearTimeout(describeTimer);
+  const room = state.room;
+  const livonym = room?.livonym;
+  if (!livonym || room.phase !== 'lvPlay') return;
+  const text = livonymUi.describeText;
+  const blocked = describeContainsSecret(text, livonym.secret);
+  livonymUi.describeBlocked = blocked;
+  app.querySelector('#describe-input')?.classList.toggle('is-blocked', blocked);
+  if (blocked) return;
+  if (text === livonymUi.acceptedText) return;
+  const wait = 80 - (Date.now() - lastDescribeSentAt);
+  if (!force && wait > 0) {
+    describeTimer = setTimeout(() => sendDescribe(), wait);
+    return;
+  }
+  lastDescribeSentAt = Date.now();
+  livonymUi.acceptedText = text;
+  socket.send({ type: 'livonymStream', text });
+}
+
+function acceptDescribeInput(input) {
+  const value = input.value;
+  const rawLength = [...cleanDescribe(value, Infinity)].length;
+  const cleaned = cleanDescribe(value);
+  if (cleaned !== value) {
+    const cursor = input.selectionStart ?? value.length;
+    const position = cleanDescribe(value.slice(0, cursor)).length;
+    input.value = cleaned;
+    input.setSelectionRange(position, position);
+  }
+  // 顶到上限后继续打字置红，删回上限以下立刻恢复。
+  if (rawLength > DESCRIBE_LIMIT) livonymUi.describeOver = true;
+  else if (rawLength < DESCRIBE_LIMIT) livonymUi.describeOver = false;
+  livonymUi.describeText = cleaned;
+  syncDescribeHeight(input);
+  syncDescribeMeter(input);
+  sendDescribe();
+}
+
+// 结束冷却：进度条与计时器一起收掉，换阶段或猜中时都必须走这里。
+function clearGuessCooldown() {
+  clearTimeout(guessCooldownTimer);
+  livonymUi.guessCooldownUntil = 0;
+  const form = app.querySelector('#guess-form');
+  if (!form) return;
+  form.classList.remove('is-cooling');
+  form.style.removeProperty('--guess-cooldown');
+}
+
+function markGuessAccepted() {
+  clearGuessCooldown();
+  const form = app.querySelector('#guess-form');
+  const input = app.querySelector('#guess-input');
+  const button = app.querySelector('#guess-form button');
+  const hint = app.querySelector('#guess-hint');
+  form?.classList.add('is-correct');
+  if (input) input.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.classList.add('is-correct');
+    const label = button.querySelector('span');
+    const glyph = button.querySelector('.icon');
+    if (label) label.textContent = '正确！';
+    // 图标排到文字前面，和站点其它确认按钮保持一致。
+    if (glyph && label) button.insertBefore(glyph, label);
+  }
+  if (hint) hint.textContent = `第 ${livonymUi.guessedOrder} 个猜中，本轮 +${livonymUi.guessPoints} 分`;
+}
+
+// 猜错只冷却 1.5 秒，不扣分也不计数：整张抢答卡变成从右往左收缩的进度条。
+function startGuessCooldown() {
+  const form = app.querySelector('#guess-form');
+  const input = app.querySelector('#guess-input');
+  const button = app.querySelector('#guess-form button');
+  if (!form || !input) return;
+  clearGuessCooldown();
+  input.disabled = true;
+  if (button) button.disabled = true;
+  livonymUi.guessCooldownUntil = Date.now() + GUESS_COOLDOWN_MS;
+  form.style.setProperty('--guess-cooldown', `${GUESS_COOLDOWN_MS}ms`);
+  // 连续猜错时重启动画，避免第二次沿用上一轮已经播完的进度。
+  void form.offsetWidth;
+  form.classList.add('is-cooling');
+  guessCooldownTimer = setTimeout(() => {
+    livonymUi.guessCooldownUntil = 0;
+    const currentForm = app.querySelector('#guess-form');
+    currentForm?.classList.remove('is-cooling');
+    currentForm?.style.removeProperty('--guess-cooldown');
+    if (state.room?.phase !== 'lvPlay' || livonymUi.guessedOrder) return;
+    const current = app.querySelector('#guess-input');
+    const currentButton = app.querySelector('#guess-form button');
+    if (currentButton) currentButton.disabled = false;
+    if (current) { current.disabled = false; current.focus(); }
+  }, GUESS_COOLDOWN_MS);
+}
+
+
 function coerceSettingValue(key, rawValue, currentTarget) {
   if (key === 'banRepeat') return !currentTarget.banRepeat;
   if (NUMERIC_SETTINGS.has(key)) return Number(rawValue);
@@ -663,7 +856,8 @@ function animateStepperValue(nextNumber, direction = 1) {
 
 function patchSettingsDOM(values, editable) {
   const section = app.querySelector('.settings');
-  if (!section || section.dataset.editable !== String(editable)) return false;
+  if (!section || section.dataset.editable !== String(editable)
+    || section.dataset.mode !== String(values.mode)) return false;
   section.dataset.editable = String(editable);
 
   for (const group of section.querySelectorAll('[data-segmented]')) {
@@ -834,6 +1028,8 @@ function resetToHome() {
   privacyOpen = false;
   qaOpen = false;
   insaneOpen = false;
+  insaneSelectedMode = INSANE_DEFAULT_MODE;
+  insaneHoveredMode = null;
   state.profile = null;
   if (location.search) history.replaceState(null, '', APP_ROOT);
   syncMockLocation();
@@ -1009,6 +1205,7 @@ function buildScreenMarkup(screen) {
   if (screen === 'lobby') return lobbyMarkup(state, renameOpen);
   if (screen === 'countdown') return startCountdownMarkup(state.room);
   if (screen === 'result' || screen === 'rematch' || screen === 'interrupted') return resultMarkup(state);
+  if (['lvIntro', 'lvPlay', 'lvScore'].includes(screen)) return livonymMarkup(state, livonymUi);
   return writingMarkup(state, gameUi);
 }
 
@@ -1055,6 +1252,53 @@ function patchSameScene(stage, nextScreen) {
     syncTransferModalDOM();
     return true;
   }
+  // lvPlay 期间保留描述框与抢答框节点：只增量更新猜中列表与流式文本。
+  if (nextScreen === 'lvPlay') {
+    const page = stage.querySelector('.livonym-page');
+    if (page?.dataset.screen === 'lvPlay' && page.dataset.room === state.room?.code
+      && page.dataset.round === String(state.room.round)) {
+      const livonym = state.room.livonym || {};
+      const list = page.querySelector('#livonym-guessed');
+      if (list) {
+        // 名次变化会换位：先量旧位置，改写快照后让每一行从原处滑到新处。
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const firstRects = new Map();
+        if (!reducedMotion) {
+          for (const item of list.querySelectorAll('.livonym-guessed-item[data-uid]')) {
+            firstRects.set(item.dataset.uid, item.getBoundingClientRect());
+          }
+        }
+        patchMarkup(list, livonymGuessedRowsMarkup(livonym, state.uid));
+        hydrateAvatars(list);
+        if (firstRects.size) {
+          for (const item of list.querySelectorAll('.livonym-guessed-item[data-uid]')) {
+            const prev = firstRects.get(item.dataset.uid);
+            if (!prev) {
+              item.animate([
+                { opacity: 0, transform: 'translateY(8px)' },
+                { opacity: 1, transform: 'translateY(0)' }
+              ], { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+              continue;
+            }
+            const dy = prev.top - item.getBoundingClientRect().top;
+            if (Math.abs(dy) > 1) {
+              item.animate(
+                [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
+                { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+              );
+            }
+          }
+        }
+      }
+      // 刷新或重连后快照里可能已经有自己的猜中名次，补上同一套答对反馈。
+      if (livonymUi.guessedOrder) markGuessAccepted();
+      const count = page.querySelector('#livonym-guessed-count');
+      if (count) count.textContent = String((livonym.guessed || []).length);
+      const stream = page.querySelector('#livonym-stream-text');
+      if (stream && stream.textContent !== livonymUi.streamText) stream.textContent = livonymUi.streamText;
+      return true;
+    }
+  }
   if (nextScreen === 'voting' || nextScreen === 'prepare') {
     const page = stage.querySelector('.writing-page');
     if (page?.dataset.room === state.room?.code && page.dataset.round === String(state.room.round)) {
@@ -1092,9 +1336,44 @@ function patchSameScene(stage, nextScreen) {
         && (!currentPage.dataset.round || currentPage.dataset.round === String(state.room.round))))) {
     patchMarkup(stage, buildScreenMarkup(nextScreen));
     hydrateAvatars(stage);
+    if (nextScreen === 'insane') syncInsanePreviewDOM(stage);
     return true;
   }
   return false;
+}
+
+// 123 出现时比较上一轮的排名：按旧名次算出每行原来的位置，让它们从那里滑到新名次。
+// 同一次结算可能因快照乱序重画一次，用分数快照做键去重；名次真的变了分数必然不同。
+function animateLivonymScoreRank(stage) {
+  const list = stage.querySelector('#livonym-scores');
+  if (!list) return;
+  // 结算页里再重画（快照乱序）不重播：屏幕没变或分数没变都算同一场结算
+  const key = `${state.room?.code ?? ''}:${JSON.stringify(state.room?.livonym?.scores || {})}`;
+  if (lastRenderedScreen === 'lvScore' || key === lastScoreRankKey) return;
+  lastScoreRankKey = key;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const rows = [...list.querySelectorAll('.livonym-score-row[data-uid]')];
+  if (rows.length < 2) return;
+  const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
+  const prevRank = (row) => Number(row.dataset.prevRank) || 0;
+  const heights = new Map(rows.map((row) => [row, row.getBoundingClientRect().height]));
+  // 上一轮的堆叠位置：同样的一批行按旧名次重新落位
+  const offsets = new Map();
+  let offset = 0;
+  for (const row of [...rows].sort((a, b) => prevRank(a) - prevRank(b))) {
+    offsets.set(row, offset);
+    offset += heights.get(row) + gap;
+  }
+  const origin = rows[0].getBoundingClientRect().top;
+  for (const row of rows) {
+    const dy = origin + offsets.get(row) - row.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) {
+      row.animate(
+        [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }],
+        { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+      );
+    }
+  }
 }
 
 function replaceScene(stage, nextScreen, generation) {
@@ -1107,8 +1386,21 @@ function replaceScene(stage, nextScreen, generation) {
   stopJoinPlaceholder = observeJoinPlaceholder(stage);
   if (nextScreen === 'home') refreshPlayingCount(stage.querySelector('#playing-count'));
   stopStoryMotion = observeStoryMotion(stage);
+  const storyPages = stage.querySelector('.home-story-pages');
+  if (storyPages) syncStoryPagination(storyPages);
   hydrateAvatars(stage);
   syncTransferModalDOM();
+  if (nextScreen === 'lvPlay') {
+    const input = stage.querySelector('#describe-input');
+    if (input) {
+      syncDescribeHeight(input);
+      syncDescribeMeter(input);
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+  if (nextScreen === 'insane') syncInsanePreviewDOM(stage);
+  else insaneHoveredMode = null;
   refreshTimers();
 }
 
@@ -1152,10 +1444,14 @@ function render({ forceFull = false, initialSync = false } = {}) {
     syncConnectionUI();
     syncPathModalDOM();
     document.body.dataset.scene = nextScreen;
+
     currentInsaneScene = syncInsaneTheme(nextScreen);
     const patched = !forceFull && patchSameScene(stage, nextScreen);
     if (patched) refreshTimers();
     else replaceScene(stage, nextScreen, generation);
+    // 123 的排名位移：函数内部去重，结算页里的重画不会重播
+    if (nextScreen === 'lvScore') animateLivonymScoreRank(stage);
+    lastRenderedScreen = nextScreen;
     if (motion) {
       window.scrollTo(0, 0);
       app.scrollTo(0, 0);
@@ -1250,6 +1546,8 @@ function scheduleLobbySettingsSync(nextSettings) {
     writeSeconds: nextSettings.writeSeconds,
     prepareSeconds: nextSettings.prepareSeconds,
     banRepeat: nextSettings.banRepeat,
+    describeSeconds: nextSettings.describeSeconds,
+    roundsPerPlayer: nextSettings.roundsPerPlayer,
     passwordEnabled: Boolean(nextSettings.passwordEnabled), password: nextSettings.password || ''
   });
 }
@@ -1260,6 +1558,7 @@ const socket = new Socket({
     if (status !== 'connected') {
       closeConfirm(false);
       clearTimeout(typingTimer);
+      clearTimeout(describeTimer);
       clearTimeout(writeDrainTimer);
       writeQueue.length = 0;
       pendingLobbySettings = null;
@@ -1312,7 +1611,10 @@ const socket = new Socket({
       closeJoin();
       closeInvite();
       clearTimeout(typingTimer);
-      writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady'].includes(item.type)));
+      clearTimeout(describeTimer);
+      clearGuessCooldown();
+      livonymUi = emptyLivonymUi();
+      writeQueue.splice(0, writeQueue.length, ...writeQueue.filter((item) => !['submitWord', 'vote', 'breakVote', 'ready', 'setReady', 'livonymGuess'].includes(item.type)));
       gameUi = { draft: '', submitted: false, voted: false, ready: false };
       finalTypingSent = false;
       if (previous?.phase === 'voting' && nextRoom && nextRoom.phase !== 'voting') {
@@ -1358,6 +1660,7 @@ const socket = new Socket({
         syncMockLocation();
       }
     }
+    syncLivonymFromState(nextRoom);
     if (MOCK) window.dispatchEvent(new CustomEvent('synconym-mock-state', { detail: { room: next.room, uid: next.uid, mockPausedAt: next.mockPausedAt } }));
     finishRoomRestore();
     if (insaneTransition.isActive() && next.room?.mode === insaneTransition.mode()) {
@@ -1404,6 +1707,50 @@ const socket = new Socket({
     else if (/词|答案/.test(message)) markInvalid(app.querySelector('#word-input'));
     else if (/名字/.test(message)) markInvalid(app.querySelector('#player-name'));
     toast(message);
+  },
+  onLivonymStream(message) {
+    if (state.room?.phase !== 'lvPlay') return;
+    livonymUi.streamText = typeof message.text === 'string' ? message.text : '';
+    livonymUi.streamRev = Math.max(livonymUi.streamRev, Number(message.rev) || 0);
+    const target = app.querySelector('#livonym-stream-text');
+    if (target && target.textContent !== livonymUi.streamText) target.textContent = livonymUi.streamText;
+  },
+  onLivonymGuessResult(message) {
+    if (!message.ok) {
+      if (message.reason === 'cooldown') { startGuessCooldown(); return; }
+      if (message.reason === 'wrong') {
+        livonymUi.guessText = '';
+        livonymUi.guessWrong = true;
+        const input = app.querySelector('#guess-input');
+        if (input) {
+          input.value = '';
+          input.classList.add('input-shake');
+          setTimeout(() => input.classList.remove('input-shake'), 400);
+        }
+        startGuessCooldown();
+      }
+      return;
+    }
+    livonymUi.guessedOrder = Number(message.order) || 0;
+    livonymUi.guessPoints = Number(message.points) || 0;
+    livonymUi.guessWrong = false;
+    markGuessAccepted();
+  },
+  onLivonymGuessed() {},
+  onLivonymBlocked(message) {
+    livonymUi.describeText = livonymUi.acceptedText;
+    const input = app.querySelector('#describe-input');
+    if (input) {
+      input.value = livonymUi.describeText;
+      input.classList.add('is-blocked');
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      syncDescribeHeight(input);
+      if ([...livonymUi.describeText].length < DESCRIBE_LIMIT) livonymUi.describeOver = false;
+      syncDescribeMeter(input);
+    }
+    if (message.reason === 'tooLong') toast(`描述超出 ${DESCRIBE_LIMIT} 字上限`);
+    else toast('写出谜底会被拦下');
   },
   onToast: toast
 });
@@ -1471,6 +1818,14 @@ app.addEventListener('submit', (event) => {
       enqueueWrite({ type: 'submitWord', word: gameUi.draft });
       render();
     }
+  } else if (event.target.id === 'guess-form' && state.room?.phase === 'lvPlay') {
+    const input = app.querySelector('#guess-input');
+    if (!input || input.disabled) return;
+    const guess = cleanWord(input.value);
+    if (!guess) { markInvalid(input); toast('输入 1–12 个汉字、字母或数字'); return; }
+    livonymUi.guessText = guess;
+    input.classList.remove('input-shake');
+    socket.send({ type: 'livonymGuess', text: guess });
   }
 });
 
@@ -1502,6 +1857,7 @@ app.addEventListener('input', (event) => {
     checkJoinOnInput(input);
   }
   if (event.target.id === 'word-input' && !event.isComposing) acceptWordInput(event.target);
+  if (event.target.id === 'describe-input' && !event.isComposing) acceptDescribeInput(event.target);
 });
 
 app.addEventListener('compositionend', (event) => {
@@ -1511,6 +1867,7 @@ app.addEventListener('compositionend', (event) => {
     checkJoinOnInput(event.target);
   }
   if (event.target.id === 'word-input') acceptWordInput(event.target);
+  if (event.target.id === 'describe-input') acceptDescribeInput(event.target);
 });
 
 app.addEventListener('keydown', (event) => {
@@ -1572,7 +1929,123 @@ app.addEventListener('toggle', (event) => {
   }
 }, true);
 
+app.addEventListener('mouseover', (event) => {
+  const card = event.target.closest?.('.insane-list .insane-card');
+  if (!card) return;
+  const mode = insaneCardMode(card);
+  if (!mode || mode === insaneHoveredMode) return;
+  insaneHoveredMode = mode;
+  syncInsanePreviewDOM();
+});
+
+app.addEventListener('mouseout', (event) => {
+  const list = event.target.closest?.('.insane-list');
+  if (!list) return;
+  if (event.relatedTarget?.closest?.('.insane-list')) return;
+  if (insaneHoveredMode !== null) {
+    insaneHoveredMode = null;
+    syncInsanePreviewDOM();
+  }
+});
+
+app.addEventListener('focusin', (event) => {
+  const card = event.target.closest?.('.insane-list .insane-card');
+  if (!card || !event.target.matches?.(':focus-visible')) return;
+  const mode = insaneCardMode(card);
+  if (!mode || mode === insaneHoveredMode) return;
+  insaneHoveredMode = mode;
+  syncInsanePreviewDOM();
+});
+
+app.addEventListener('focusout', (event) => {
+  const list = event.target.closest?.('.insane-list');
+  if (!list || event.relatedTarget?.closest?.('.insane-list')) return;
+  if (insaneHoveredMode !== null) {
+    insaneHoveredMode = null;
+    syncInsanePreviewDOM();
+  }
+});
+function syncStoryPagination(pages) {
+  const vertical = window.matchMedia('(min-width: 1200px)').matches;
+  const slides = [...pages.children].flatMap((child) => child.classList.contains('home-story-features') ? [...child.querySelectorAll('.home-feature-list article')] : [child]).filter((slide) => getComputedStyle(slide).display !== 'none');
+  const position = vertical ? pages.scrollTop : pages.scrollLeft;
+  const index = slides.reduce((nearest, slide, i) => {
+    const offset = position + (vertical ? slide.getBoundingClientRect().top - pages.getBoundingClientRect().top : slide.getBoundingClientRect().left - pages.getBoundingClientRect().left);
+    return Math.abs(offset - position) < nearest.distance ? { index: i, distance: Math.abs(offset - position) } : nearest;
+  }, { index: 0, distance: Infinity }).index;
+  const nav = pages.parentElement.querySelector('.home-story-pagination');
+  nav.querySelector('.home-story-page-count').textContent = `${index + 1} / ${slides.length}`;
+  nav.querySelector('[data-story-step="-1"]').disabled = index === 0;
+  nav.querySelector('[data-story-step="1"]').disabled = index === slides.length - 1;
+  return { slides, index, vertical };
+}
+
+// 逐棒回顾沿用主页介绍那套翻页：滚动位置就是页码，箭头按页滚动。
+function syncReviewPagination(pages) {
+  const slides = [...pages.children];
+  const index = Math.max(0, Math.min(slides.length - 1, Math.round(pages.scrollLeft / Math.max(1, pages.clientWidth))));
+  const nav = pages.parentElement.querySelector('.livonym-review-pagination');
+  if (nav) {
+    nav.querySelector('.livonym-review-page-count').textContent = `${index + 1} / ${slides.length}`;
+    nav.querySelector('[data-review-step="-1"]').disabled = index === 0;
+    nav.querySelector('[data-review-step="1"]').disabled = index === slides.length - 1;
+  }
+  return { slides, index };
+}
+
+app.addEventListener('scroll', (event) => {
+  if (event.target.matches?.('.livonym-review-pages')) syncReviewPagination(event.target);
+}, true);
+
+app.addEventListener('keydown', (event) => {
+  if (!event.target.matches('.livonym-review-pages')) return;
+  const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+  if (!step) return;
+  event.preventDefault();
+  event.target.parentElement.querySelector(`[data-review-step="${step}"]`)?.click();
+});
+
+app.addEventListener('click', (event) => {
+  const reviewStep = event.target.closest('[data-review-step]');
+  if (!reviewStep) return;
+  const pages = reviewStep.closest('.livonym-review-carousel').querySelector('.livonym-review-pages');
+  const { slides, index } = syncReviewPagination(pages);
+  const target = slides[Math.max(0, Math.min(slides.length - 1, index + Number(reviewStep.dataset.reviewStep)))];
+  if (!target) return;
+  const left = target.getBoundingClientRect().left - pages.getBoundingClientRect().left;
+  pages.scrollBy({ left, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+});
+
+app.addEventListener('scroll', (event) => {
+  if (event.target.matches?.('.home-story-pages')) syncStoryPagination(event.target);
+}, true);
+
+window.matchMedia('(min-width: 1200px)').addEventListener('change', () => {
+  const pages = app.querySelector('.home-story-pages');
+  if (!pages) return;
+  pages.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  syncStoryPagination(pages);
+});
+
+app.addEventListener('keydown', (event) => {
+  if (!event.target.matches('.home-story-pages')) return;
+  const vertical = window.matchMedia('(min-width: 1200px)').matches;
+  const step = event.key === (vertical ? 'ArrowDown' : 'ArrowRight') ? 1 : event.key === (vertical ? 'ArrowUp' : 'ArrowLeft') ? -1 : 0;
+  if (!step) return;
+  event.preventDefault();
+  event.target.parentElement.querySelector(`[data-story-step="${step}"]`).click();
+});
+
 app.addEventListener('click', async (event) => {
+  const storyStep = event.target.closest('[data-story-step]');
+  if (storyStep) {
+    const pages = storyStep.closest('.home-story').querySelector('.home-story-pages');
+    const { slides, index, vertical } = syncStoryPagination(pages);
+    const target = slides[Math.max(0, Math.min(slides.length - 1, index + Number(storyStep.dataset.storyStep)))];
+    const offset = (vertical ? pages.scrollTop : pages.scrollLeft) + (vertical ? target.getBoundingClientRect().top - pages.getBoundingClientRect().top : target.getBoundingClientRect().left - pages.getBoundingClientRect().left);
+    pages.scrollTo({ [vertical ? 'top' : 'left']: offset, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    return;
+  }
   const matchLink = event.target.closest('.profile-match-link, .match-detail-page > .privacy-back');
   if (matchLink && !state.room && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
@@ -1683,6 +2156,17 @@ app.addEventListener('click', async (event) => {
     requestTransfer(state.room?.players.find((player) => player.uid === transferRow.dataset.uid));
     return;
   }
+  const insaneRow = !event.target.closest('button') && event.target.closest('.insane-list .insane-card-row');
+  if (insaneRow) {
+    const card = insaneRow.closest('.insane-card');
+    const mode = insaneCardMode(card);
+    if (isInsaneSplitLayout()) event.preventDefault();
+    if (mode) {
+      insaneSelectedMode = mode;
+      syncInsanePreviewDOM();
+    }
+    return;
+  }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
   if (button.dataset.action === 'cancel-join') { closeJoin(); return; }
@@ -1720,6 +2204,17 @@ app.addEventListener('click', async (event) => {
     return;
   }
 
+  if (button.dataset.action === 'create-insane-room') {
+    event.preventDefault();
+    if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
+    const mode = button.dataset.mode || 'livonym';
+    button.disabled = true;
+    if (isInsaneMode(mode)) {
+      insaneTransition.start({ mode, card: button.closest('.insane-card') });
+    }
+    enqueueWrite({ type: 'createRoom', ...INSANE_ROOM_SETTINGS, mode });
+    return;
+  }
   if (button.dataset.action === 'open-start') {
     event.preventDefault();
     openStartEntry(button);
@@ -1805,6 +2300,8 @@ app.addEventListener('click', async (event) => {
         writeSeconds: base.writeSeconds,
         prepareSeconds: base.prepareSeconds,
         banRepeat: base.banRepeat,
+        describeSeconds: base.describeSeconds,
+        roundsPerPlayer: base.roundsPerPlayer,
         [key]: value
       });
     } else {
@@ -1828,7 +2325,9 @@ app.addEventListener('click', async (event) => {
         maxRounds,
         writeSeconds: base.writeSeconds,
         prepareSeconds: base.prepareSeconds,
-        banRepeat: base.banRepeat
+        banRepeat: base.banRepeat,
+        describeSeconds: base.describeSeconds,
+        roundsPerPlayer: base.roundsPerPlayer
       });
     } else {
       settings = { ...settings, maxRounds };

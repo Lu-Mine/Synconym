@@ -1,4 +1,5 @@
 import { historyHref, historySearchMarkup, highlightMatch } from './match-history.js';
+import { DESCRIBE_LIMIT } from './livonym.js';
 
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -44,10 +45,12 @@ export function segmented(name, value, options, disabled = false, extra = '') {
 }
 
 const SETTING_VALUE_TEXT = {
-  mode: (settings) => (settings.mode === 'theme' ? '主题' : '自由'),
+  mode: (settings) => (settings.mode === 'theme' ? '主题' : settings.mode === 'livonym' ? '即时竞猜' : '自由'),
   maxRounds: (settings) => `${settings.maxRounds} 轮`,
   writeSeconds: (settings) => `${settings.writeSeconds} 秒`,
   prepareSeconds: (settings) => `${settings.prepareSeconds} 秒`,
+  describeSeconds: (settings) => `${settings.describeSeconds} 秒`,
+  roundsPerPlayer: (settings) => `${settings.roundsPerPlayer} 轮`,
   banRepeat: (settings) => (settings.banRepeat ? '开启' : '关闭'),
   passwordEnabled: (settings) => (settings.passwordEnabled ? '开启' : '关闭')
 };
@@ -82,12 +85,24 @@ export function settingsMarkup(settings, editable, showInsane = false) {
   // 只读时用纯文本取值替换控件，data-control 记录被替换控件的类型以对齐行高
   const control = (name, type, markup) => (editable ? markup : settingValueMarkup(name, settings, type));
   const insaneEntry = showInsane ? '<a class="insane-portal" href="?insane" data-action="open-insane" aria-label="进入狂意模式"><span>INSANE</span></a>' : '';
-  return `<section class="settings" data-editable="${editable}" aria-label="房间设置">
+  // 即时竞猜用描述时限与每人轮数，经典写词设置不参与流程，不再展示
+  const livonym = settings.mode === 'livonym';
+  const modeControl = livonym
+    ? `<span class="livonym-mode" role="img" aria-label="即时竞猜">${modeWordmarkMarkup('livonym')}</span>`
+    : control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], false, insaneEntry));
+  return `<section class="settings" data-editable="${editable}" data-mode="${escapeHtml(settings.mode)}" aria-label="房间设置">
     <div class="setting-row">
       <span class="mode-label"><span class="setting-label">模式</span><span class="theme-setting-hint" data-theme-setting-hint ${settings.mode === 'theme' ? '' : 'hidden'}>开始后随机抽取主题。</span></span>
-      ${control('mode', 'segmented', segmented('mode', settings.mode, [{ value: 'free', label: '自由' }, { value: 'theme', label: '主题' }], false, insaneEntry))}
+      ${modeControl}
+    </div>
+    ${livonym ? `<div class="setting-row">
+      <span class="setting-label">描述时限</span>
+      ${control('describeSeconds', 'segmented', segmented('describeSeconds', settings.describeSeconds, [30, 45, 60].map((value) => ({ value, label: `${value} 秒` }))))}
     </div>
     <div class="setting-row">
+      <span class="setting-label">每人轮数</span>
+      ${control('roundsPerPlayer', 'segmented', segmented('roundsPerPlayer', settings.roundsPerPlayer, [1, 2].map((value) => ({ value, label: `${value} 轮` }))))}
+    </div>` : `<div class="setting-row">
       ${editable ? '<label class="setting-label" for="rounds">轮次上限</label>' : '<span class="setting-label">轮次上限</span>'}
       ${control('maxRounds', 'stepper', `<div class="stepper" role="group" aria-label="轮次上限">
         <button class="stepper-btn" type="button" data-step="-1" aria-label="减少轮次" ${settings.maxRounds <= 4 ? 'disabled' : ''}>${icon('minus')}</button>
@@ -106,7 +121,7 @@ export function settingsMarkup(settings, editable, showInsane = false) {
     <div class="setting-row">
       ${editable ? '<label class="setting-label" for="banRepeat">禁止重复词</label>' : '<span class="setting-label">禁止重复词</span>'}
       ${control('banRepeat', 'switch', `<button id="banRepeat" class="switch" type="button" role="switch" aria-checked="${Boolean(settings.banRepeat)}" data-setting="banRepeat" aria-label="禁止重复词"><span class="switch-thumb"></span></button>`)}
-    </div>
+    </div>`}
     <div class="setting-row password-setting-row">
       ${editable ? `<label class="setting-label" for="room-password">设置密码</label>
       <div class="password-input-wrap"><input class="input code-input password-input" id="room-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" spellcheck="false" value="${escapeHtml(settings.password || '')}" placeholder="留空无密码，或 6 位数字密码" aria-describedby="room-password-hint"><span class="join-placeholder password-placeholder" id="room-password-hint"><span class="join-placeholder-text">留空无密码，或 6 位数字密码</span></span></div>`
@@ -382,6 +397,7 @@ function storyDemo(className, scene, markup) {
 }
 
 export function stageProgressMarkup(phase) {
+  if (['lvIntro', 'lvPlay', 'lvScore'].includes(phase)) return livonymStepsMarkup(phase);
   return [['writing', '写词', 'pen-line'], ['voting', '投票', 'check'], [phase === 'breakVote' ? 'breakVote' : 'prepare', phase === 'breakVote' ? '崩局投票' : '准备', 'play']].map(([step, label, glyph]) => `<span class="stage-step${phase === step ? ' is-current' : ''}"${phase === step ? ' aria-current="step"' : ''}>${icon(glyph)}<span class="stage-step-label">${label}</span></span>`).join('<span class="stage-step-divider" aria-hidden="true">·</span>');
 }
 
@@ -467,12 +483,15 @@ export function homeMarkup(settings, settingsOpen = false) {
     ${homeEntryMarkup(settings, settingsOpen)}
     <a class="home-story-link" href="#home-story-title">了解玩法 ${icon('arrow-down')}</a>
     <section class="home-story" aria-labelledby="home-story-title">
+      <div class="home-story-pages" id="home-story-pages" tabindex="0" role="region" aria-label="玩法介绍，可滑动翻页">
+      <div class="home-story-page home-story-overview">
       <div class="home-story-heading">
         <h2 id="home-story-title">${icon('sparkles', 'story-heading-icon')}<span>从不同的想法，走到同一个答案。</span></h2>
         <p>和 2–4 位朋友一起，用词语寻找彼此的默契。</p>
       </div>
       ${storyDemo('home-story-example', 'meet', demos.example)}
-      <div class="home-story-how">
+      </div>
+      <div class="home-story-how home-story-page">
         <h3>${icon('play', 'story-heading-icon')}<span>怎么玩？</span></h3>
         ${storyDemo('round-demo', 'round', demos.round)}
         <ol>
@@ -498,6 +517,12 @@ export function homeMarkup(settings, settingsOpen = false) {
           <a class="button primary home-story-cta-button" href="#create-form" data-action="home-to-entry"><span>开始游戏</span>${icon('arrow-right', 'home-story-cta-icon')}</a>
         </div>
       </div>
+      </div>
+      <nav class="home-story-pagination" aria-label="玩法介绍翻页">
+        <button type="button" data-story-step="-1" aria-label="上一页" disabled>${icon('arrow-left')}</button>
+        <span class="home-story-page-count" aria-live="polite">1 / 9</span>
+        <button type="button" data-story-step="1" aria-label="下一页">${icon('arrow-right')}</button>
+      </nav>
     </section>
   </div>`;
 }
@@ -526,10 +551,13 @@ export function relativeDate(timestamp, now = Date.now()) {
 }
 
 export function profileMatchMarkup(match, query = {}) {
+  const livonym = match.mode === 'livonym';
   const met = match.outcome !== 'none';
-  const outcome = met
-    ? `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`
-    : `打满 ${match.totalRounds} 轮未相遇`;
+  const outcome = livonym
+    ? `共 ${match.totalRounds} 棒`
+    : met
+      ? `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`
+      : `打满 ${match.totalRounds} 轮未相遇`;
   // 服务端只下发同局的其他人，头像与名字都按这份名单渲染
   const others = match.players || [];
   // hits 来自服务端：一条记录可能在多个维度上被搜到，命中的那几处分别高亮
@@ -841,21 +869,66 @@ const RESULT_LINES = {
   none: ['这局各有各的想法', '答案不同，过程也有意思', '这次还差一点默契', '先把这些灵感留在这里']
 };
 
-export function resultTitle(room) {
-  if (room.outcome === 'break') return '本局已结束';
-  const lines = room.outcome === 'exact' && room.history?.length === 1
-    ? ['第一轮就想到一块了', '开局就有默契', '一个词，刚好想到一起']
-    : RESULT_LINES[room.outcome] || RESULT_LINES.none;
+// 'played' 只出现在有总分榜的玩法里，第一名值得一句点名祝贺。
+const RESULT_CHEERS = [
+  (name) => `${name}，这一局赢得漂亮`,
+  (name) => `恭喜 ${name} 拿下这一局`,
+  (name) => `这一局属于 ${name}`,
+  (name) => `${name} 笑到了最后`,
+  (name) => `${name} 一路领先，收下这一局`,
+  (name) => `这一局，${name} 站到了最前面`
+];
+
+// 并列第一时不挑称呼，两个人一起写进同一句。
+const RESULT_TIE_CHEERS = [
+  (names) => `恭喜 ${names} 并列第一`,
+  (names) => `${names} 并列榜首，这一局难分高下`,
+  (names) => `这一局，${names} 并排站上第一`
+];
+
+// 没有总分可排（例如全员 0 分）时不点名，只说这一局跑完了。
+const PLAYED_LINES = ['这一局跑完了', '一轮一轮，走到了最后', '这一局，答案都留在这里'];
+
+// 同一局的文案只由房号与对局记录决定：结算期间状态再更新也不会跳变。
+function resultLine(room, lines) {
   const seed = `${room.code}:${JSON.stringify(room.history || [])}`;
   let hash = 0;
   for (const ch of seed) hash = (Math.imul(hash, 31) + ch.codePointAt(0)) >>> 0;
   return lines[hash % lines.length];
 }
 
+// 有总分榜的玩法按总分取第一名；并列时并列的人共享同一句祝贺。
+export function resultWinners(room) {
+  const players = room?.resultPlayers || room?.players || [];
+  const scores = room?.livonym?.scores || {};
+  const nameOf = (uid) => players.find((player) => player.uid === uid)?.name || '';
+  const ranked = Object.entries(scores)
+    .map(([uid, score]) => ({ name: nameOf(uid), score: Number(score) || 0 }))
+    .filter((row) => row.name)
+    .sort((a, b) => b.score - a.score);
+  if (!ranked.length || ranked[0].score <= 0) return [];
+  return ranked.filter((row) => row.score === ranked[0].score);
+}
+
+export function resultTitle(room) {
+  if (room.outcome === 'break') return '本局已结束';
+  if (room.outcome === 'played') {
+    const names = resultWinners(room).map((row) => row.name);
+    if (!names.length) return resultLine(room, PLAYED_LINES);
+    if (names.length === 1) return resultLine(room, RESULT_CHEERS)(names[0]);
+    return resultLine(room, RESULT_TIE_CHEERS)(`${names.slice(0, -1).join('、')}和${names.at(-1)}`);
+  }
+  const lines = room.outcome === 'exact' && room.history?.length === 1
+    ? ['第一轮就想到一块了', '开局就有默契', '一个词，刚好想到一起']
+    : RESULT_LINES[room.outcome] || RESULT_LINES.none;
+  return resultLine(room, lines);
+}
+
 // 结算页与结算海报共用的结果说明。
 export function resultSummary(room) {
   const history = Array.isArray(room?.history) ? room.history : [];
   if (room?.outcome === 'break') return '崩局投票通过，本局记录不会保存。';
+  if (room?.outcome === 'played') return `共 ${history.length} 棒，按总分排名。`;
   if (room?.outcome === 'exact' || room?.outcome === 'voted') {
     const round = history.at(-1)?.n ?? room?.round;
     return `第 ${round} 轮${room.outcome === 'voted' ? '投票达成一致' : '写出同一个词'}`;
@@ -932,6 +1005,7 @@ export function resultMarkup(state) {
       <button class="button primary" type="button" data-action="rematch-room">${icon('users')}<span>回房间</span></button>
       <button class="button secondary" type="button" data-action="leave">${icon('arrow-right')}<span>回主页</span></button>
     </div></section></div>`;
+  if (room.mode === 'livonym') return livonymResultMarkup(state);
   const players = room.resultPlayers || room.players || [];
   const history = room.history || [];
   const voting = room.phase === 'rematch';
@@ -1001,16 +1075,311 @@ export function matchDetailMarkup(detail, query = {}) {
   if (!detail || detail.error) return `<div class="page match-detail-page" data-screen="match-detail">${back}<h1>对局详情</h1><p role="status">${escapeHtml(detail?.error || '正在读取对局…')}</p></div>`;
   const match = detail.match;
   const room = matchRoom(match);
-  const outcome = match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
+  const livonym = match.mode === 'livonym';
+  const outcome = livonym ? `共 ${match.totalRounds} 棒结束`
+    : match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
   return `<div class="page match-detail-page" data-screen="match-detail">${back}
     ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1>${matchFactsMarkup(match)}`, '')}
     <div class="match-detail-main">
-    ${resultPathMarkup(room, { poster: true, open: false })}
+    ${livonym ? livonymReviewBlock(room, true) : resultPathMarkup(room, { poster: true, open: false })}
     </div><div class="match-detail-aside">
     <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
-    <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>
+    ${livonym ? '' : `<details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>`}
     </div>
   </div>`;
+}
+
+// ── 即时竞猜 ──
+
+const LIVONYM_STEPS = [
+  ['lvIntro', '准备', 'pen-line'],
+  ['lvPlay', '描述 / 抢猜', 'play'],
+  ['lvScore', '结算', 'check']
+];
+
+function livonymStepsMarkup(phase) {
+  return LIVONYM_STEPS.map(([step, label, glyph]) => `<span class="stage-step${phase === step ? ' is-current' : ''}"${phase === step ? ' aria-current="step"' : ''}>${icon(glyph)}<span class="stage-step-label">${label}</span></span>`)
+    .join('<span class="stage-step-divider" aria-hidden="true">·</span>');
+}
+
+// 本轮得分原因，与 server/livonym.js 的计分规则一一对应。
+export function livonymRoundReason(modeDetails) {
+  if (!modeDetails) return '';
+  const guessedCount = Object.keys(modeDetails.guesses || {}).length;
+  if (!guessedCount) return '没人猜中';
+  if (guessedCount >= (modeDetails.guesserCount ?? 0)) return '全都猜中了';
+  return `${guessedCount} 人猜中`;
+}
+
+// 前三名的金银铜：122 按猜中名次，123 按总分次序，两处共用同一套类名。
+export function livonymMedalClass(rank) {
+  return rank === 1 ? ' is-first' : rank === 2 ? ' is-second' : rank === 3 ? ' is-third' : '';
+}
+
+// 本轮天花板：竞猜者第一名 3 分；出题人每有一人猜中 1 分、全员猜中归零，8 人局最高 6 分。取两者较大值。
+export function livonymRoundMax(guesserCount = 0) {
+  return Math.max(3, Math.max(0, (guesserCount || 0) - 1));
+}
+
+// 加分字样的强度只跟「本轮天花板」的比例走：拿满时最大最亮，拿一半就减半。
+export function livonymGainAttrs(points, roundMax) {
+  const value = Math.max(0, points || 0);
+  const ratio = roundMax > 0 ? Math.min(1, value / roundMax) : 0;
+  return `data-points="${value}" style="--gain:${ratio.toFixed(2)};--gain-pct:${Math.round(35 + 65 * ratio)}%;--gain-glow:${Math.round(50 * ratio)}%"`;
+}
+
+// 玩家身份块：头像 + 名字 + 大厅同款标签。122 的猜中列表、123 的排行与逐棒回顾共用一份。
+// 头像尺寸跟着名字的字号走（1em），换到结算页或历史详情时不会忽然变成另一种比例。
+function playerIdentityMarkup(name, { className = '', role = '', mine = false } = {}) {
+  const tags = `${mine ? '<span class="badge me-label">你</span>' : ''}${role ? `<span class="badge me-label">${escapeHtml(role)}</span>` : ''}`;
+  return `<span class="player-identity${className ? ` ${className}` : ''}">${avatarMarkup(name || '玩家', 'player-identity-avatar')}<span class="player-identity-name">${escapeHtml(name || '玩家')}</span>${tags}</span>`;
+}
+
+// 已猜中的按名次排在前，未猜中的按座位顺序留空态。
+// 一行的排布：名次 | 身份（头像 + 名字 + 标签）| 用时（制表位对齐）| 弹性留白 | 本轮得分。
+export function livonymGuessedRowsMarkup(livonym, uid) {
+  const guessed = livonym.guessed || [];
+  const taken = new Set(guessed.map((item) => item.uid));
+  const pending = (livonym.guessers || []).filter((player) => !taken.has(player.uid));
+  const roundMax = livonymRoundMax(livonym.guesserCount);
+  const row = ({ playerUid, name, order, atMs, points }) => `<li class="livonym-guessed-item${order ? ` is-guessed${livonymMedalClass(order)}` : ' is-pending'}" data-uid="${escapeHtml(playerUid)}"><span class="livonym-guessed-rank">${order ? escapeHtml(order) : '–'}</span>${playerIdentityMarkup(name || playerUid, { className: 'livonym-guessed-name', mine: playerUid === uid })}<span class="livonym-guessed-time">${order ? `${(Math.max(0, atMs) / 1000).toFixed(1)}s` : '–'}</span><span class="livonym-gain" ${livonymGainAttrs(order ? points : 0, roundMax)}>+${order ? points || 0 : 0}</span></li>`;
+  return [
+    ...guessed.map((item) => row({ playerUid: item.uid, name: item.name, order: item.order, atMs: item.atMs, points: item.points })),
+    ...pending.map((player) => row({ playerUid: player.uid, name: player.name, order: 0, atMs: 0, points: 0 }))
+  ].join('');
+}
+
+function livonymGuessedMarkup(livonym, uid) {
+  const guessed = livonym.guessed || [];
+  const rows = livonymGuessedRowsMarkup(livonym, uid);
+  return `<section class="surface-block livonym-guessed-block" aria-label="猜中情况">
+    <div class="section-heading"><h2>${icon('users')}<span>已猜中 <span id="livonym-guessed-count">${guessed.length}</span> / 共 ${livonym.guesserCount ?? 0} 人</span></h2></div>
+    <p class="game-hint">每有一人猜中 +1 分，全部猜中则本轮 0 分</p>
+    <ol id="livonym-guessed" class="livonym-guessed-list">${rows}</ol>
+  </section>`;
+}
+
+// 秘密词块：121 与 122 共用，只有出题人看得到词，其他人看到遮起来的占位。
+// 123 揭晓时复用同一张卡，但这时词已经公开，右上角不再挂「只有出题人看得到」。
+function livonymSecretBlock(livonym, isDescriber, { revealed = false } = {}) {
+  const heading = isDescriber && !revealed ? '你的秘密词' : '本轮秘密词';
+  const tag = revealed ? '' : isDescriber ? '只有你看得到' : '只有出题人看得到';
+  const visible = revealed || isDescriber;
+  const body = visible
+    ? `<p id="livonym-secret" class="livonym-secret">${escapeHtml(livonym.secret || '')}</p>`
+    : '<p class="livonym-secret is-locked" aria-hidden="true">••••</p>';
+  return `<section class="surface-block livonym-secret-block"${revealed ? ' data-revealed="true"' : ''}>
+    <div class="section-heading"><h2>${icon('lightbulb')}<span>${heading}</span></h2>${tag ? `<span class="readonly-tag">${tag}</span>` : ''}</div>
+    ${body}
+  </section>`;
+}
+
+function livonymDescriberPanel(livonym, ui) {
+  const describeText = ui.describeText || '';
+  return `${livonymSecretBlock(livonym, true)}
+  <form id="describe-form" class="surface-block game-form livonym-describe-form">
+    <label for="describe-input">你的描述</label>
+    <textarea id="describe-input" class="input livonym-describe-input" rows="1" autocomplete="off" spellcheck="false" placeholder="打字即直播，不用提交…" aria-describedby="describe-hint">${escapeHtml(describeText)}</textarea>
+    <div class="game-hint describe-hint" id="describe-hint"><span class="describe-hint-text">写出谜底会被拦下；可以分行。</span><output id="describe-count" class="describe-count">${[...describeText].length}/${DESCRIBE_LIMIT}</output></div>
+  </form>`;
+}
+
+function livonymGuesserPanel(livonym, ui) {
+  const text = ui.streamText ?? livonym.streamText ?? '';
+  const order = ui.guessedOrder || 0;
+  // 冷却与答对是同一张卡片的两种状态：冷却时整卡从右往左退成进度条，答对后整卡呼吸绿光。
+  const cooldownUntil = Number(ui.guessCooldownUntil) || 0;
+  const cooling = !order && cooldownUntil > Date.now();
+  const cooldownStyle = cooling ? ` style="--guess-cooldown:${Math.max(0, cooldownUntil - Date.now())}ms"` : '';
+  const formState = order ? ' is-correct' : cooling ? ' is-cooling' : '';
+  return `<section class="surface-block livonym-stream-block">
+    <div class="section-heading"><h2>${icon('pen-line')}<span class="livonym-stream-author">${playerIdentityMarkup(livonym.describerName || '出题人', { className: 'livonym-stream-author-name' })}<span> 的描述</span></span></h2></div>
+    <p id="livonym-stream" class="livonym-stream" role="status" aria-live="polite"><span class="livonym-stream-body"><span id="livonym-stream-text">${escapeHtml(text)}</span><i class="livonym-caret" aria-hidden="true"></i></span></p>
+  </section>
+  <form id="guess-form" class="surface-block game-form guess-form${formState}"${cooldownStyle}>
+    <label for="guess-input">你的答案</label>
+    <input id="guess-input" class="input" value="${escapeHtml(ui.guessText || '')}" autocomplete="off" spellcheck="false" placeholder="输入 1–12 个汉字、字母或数字"${order || cooling ? ' disabled' : ''}>
+    <p class="game-hint" id="guess-hint" role="status">${order ? `第 ${order} 个猜中，本轮 +${ui.guessPoints || 0} 分` : '猜错不扣分，1.5 秒后可以再猜'}</p>
+    <button class="button primary${order ? ' is-correct' : ''}" type="submit"${order || cooling ? ' disabled' : ''}>${order ? `${icon('check')}<span>正确！</span>` : `<span>抢答</span>${icon('check')}`}</button>
+  </form>`;
+}
+
+// 一棒的结算行：名次 | 身份（头像 + 名字 + 大厅同款标签）| 总分（右上角挂本轮加分）。
+// 122 的实时面板与逐棒回顾共用同一套行；prevRankOf 只有实时面板传，结算动画据此把每一行从旧名次滑到新名次。
+function livonymScoreRowsMarkup({ ids, totals, details, uid, nameOf, prevRankOf }) {
+  const points = details.points || {};
+  const roundMax = livonymRoundMax(details.guesserCount);
+  return ids
+    .map((id) => ({ id, total: totals[id] || 0, round: points[id] || 0 }))
+    .sort((a, b) => b.total - a.total)
+    .map((row, index) => `<li class="livonym-score-row${row.id === details.describerUid ? ' is-describer' : ''}${livonymMedalClass(index + 1)}" data-uid="${escapeHtml(row.id)}"${prevRankOf ? ` data-prev-rank="${prevRankOf.get(row.id) ?? index + 1}"` : ''}>
+      <span class="livonym-score-rank">${index + 1}</span>
+      ${playerIdentityMarkup(nameOf(row.id), { className: 'livonym-score-name', role: row.id === details.describerUid ? '出题' : '', mine: row.id === uid })}
+      <span class="livonym-score-total"><strong>${row.total}</strong><span class="livonym-gain" ${livonymGainAttrs(row.round, roundMax)}>+${row.round}</span></span>
+    </li>`).join('');
+}
+
+// 一棒的「本轮结算」卡片：得分原因、本轮满分与这张排行。秘密词改由下方共用的秘密词卡显示。
+// live 为真时补上标题行与实时更新要用的节点 id。
+function livonymScoreCardMarkup({ details, rows, live = false }) {
+  const roundMax = livonymRoundMax(details.guesserCount);
+  const heading = live
+    ? `<div class="section-heading"><h2>${icon('sparkles')}<span>本轮结算</span></h2><span class="readonly-tag">${escapeHtml(livonymRoundReason(details))}</span></div>
+    `
+    : '';
+  return `${heading}<p class="game-hint">本轮满分 ${roundMax} 分（在线竞猜者 ${details.guesserCount ?? 0} 人）${details.aborted ? ' · 本轮中止' : ''}</p>
+    <ul${live ? ' id="livonym-scores"' : ''} class="livonym-score-list">${rows}</ul>`;
+}
+
+function livonymScorePanel(room, uid) {
+  const livonym = room.livonym || {};
+  const details = room.history?.at(-1)?.modeDetails || {};
+  const points = details.points || {};
+  const scores = livonym.scores || {};
+  const players = room.players || [];
+  const ids = (livonym.order || []).filter((id) => players.some((player) => player.uid === id));
+  const nameOf = (id) => players.find((player) => player.uid === id)?.name || id;
+  // 上一轮名次：总分减掉本轮得分后重排，列表据此播位移动画。
+  const prevRankOf = new Map(ids
+    .map((id) => ({ id, total: (scores[id] || 0) - (points[id] || 0) }))
+    .sort((a, b) => b.total - a.total)
+    .map((row, index) => [row.id, index + 1]));
+  const rows = livonymScoreRowsMarkup({ ids, totals: scores, details, uid, nameOf, prevRankOf });
+  return `<section class="surface-block livonym-score-block">
+    ${livonymScoreCardMarkup({ details, rows, live: true })}
+  </section>`;
+}
+
+export function livonymMarkup(state, ui = {}) {
+  const { room, uid } = state;
+  const livonym = room.livonym || {
+    order: [], index: 0, totalRounds: 0, guessed: [], guessers: [], scores: {}, guesserCount: 0, streamText: '', secret: null
+  };
+  const phase = room.phase;
+  const isDescriber = livonym.describerUid === uid;
+  const totalRounds = livonym.totalRounds || 0;
+  const round = Math.min(Math.max(1, totalRounds), (livonym.index ?? 0) + 1);
+  const isLastRound = totalRounds > 0 && (livonym.index ?? 0) + 1 >= totalRounds;
+  const describerName = livonym.describerName || '出题人';
+  const title = phase === 'lvIntro' ? (isDescriber ? '轮到你出题' : `${describerName} 正在准备`)
+    : phase === 'lvPlay' ? (isDescriber ? '把秘密词描述给他们' : '这是谁的秘密词？')
+      : '本轮结算';
+  const copy = phase === 'lvIntro' ? (isDescriber ? '看完秘密词，倒计时结束后开始打字。' : '秘密词只发给本轮出题人，描述会实时出现在下面。')
+    : phase === 'lvPlay' ? (isDescriber ? '打字即直播，不用提交；别把谜底写出来。' : '想到就直接抢答，越早分越高。')
+      : isLastRound ? '最后一棒结算，之后进入本局总结。' : '倒计时结束后交给下一位出题人。';
+  // 123 把秘密词从结算卡片里拿出来，复用 121/122 的秘密词卡，放在舞台下方。
+  const revealedSecret = phase === 'lvScore'
+    ? livonymSecretBlock({ secret: room.history?.at(-1)?.modeDetails?.secret || livonym.secret }, false, { revealed: true })
+    : '';
+  // 122 的猜中列表属于左列，和舞台一起排在退出按钮之外。
+  const guessedBlock = phase === 'lvPlay' ? livonymGuessedMarkup(livonym, uid) : '';
+  const main = phase === 'lvScore' ? livonymScorePanel(room, uid)
+    : phase === 'lvIntro' ? livonymSecretBlock(livonym, isDescriber)
+      : isDescriber ? livonymDescriberPanel(livonym, ui)
+        : livonymGuesserPanel(livonym, ui);
+  return `<div class="page writing-page livonym-page" data-role="${isDescriber ? 'describer' : 'guesser'}" data-screen="${escapeHtml(phase)}" data-room="${escapeHtml(room.code || '')}" data-round="${escapeHtml(room.round ?? '')}">
+    <div class="game-info">
+    <section class="writing-stage">
+      <div class="stage-meta"><span class="stage-round">第 ${escapeHtml(round)} / ${escapeHtml(totalRounds)} 棒</span><nav class="stage-progress" aria-label="对局阶段">${stageProgressMarkup(phase)}</nav>${roomCodeMarkup(room.code || '–', 'stage-room')}</div>
+      <div class="stage-content">
+        <div class="stage-copy"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(copy)}</p></div>
+        <div class="writing-clock" role="timer" aria-live="off">${icon('clock')}<span id="countdown">–</span></div>
+      </div>
+    </section>
+    ${revealedSecret}
+    ${guessedBlock}
+    </div>
+    <div class="game-controls">${main}
+    <button class="button secondary game-wide game-leave" type="button" data-action="leave">${icon('log-out')}<span>退出房间</span></button>
+    </div>
+  </div>`;
+}
+
+// 结算：总分榜、称号与逐棒回顾（秘密词 + 猜中顺序 + 本轮得分）。
+export function livonymResultMarkup(state) {
+  const { room, uid } = state;
+  const livonym = room.livonym || {};
+  const scores = livonym.scores || {};
+  const players = room.resultPlayers || room.players || [];
+  const history = room.history || [];
+  const names = new Map(players.map((player) => [player.uid, player.name]));
+  const nameOf = (id) => names.get(id) || '已离开的玩家';
+  const ranked = Object.entries(scores)
+    .map(([id, score]) => ({ id, score }))
+    .sort((a, b) => b.score - a.score || String(nameOf(a.id)).localeCompare(String(nameOf(b.id))));
+  const rows = ranked.map((row, index) => `<li class="livonym-result-row"><span class="livonym-result-rank">${index + 1}</span>${playerIdentityMarkup(nameOf(row.id), { className: 'livonym-result-name', mine: row.id === uid })}<strong class="livonym-result-score">${row.score}</strong></li>`).join('');
+
+  const guessTotals = {}, describeTotals = {};
+  let fastest = null;
+  for (const record of history) {
+    const details = record.modeDetails;
+    if (!details) continue;
+    for (const [id, value] of Object.entries(details.points || {})) {
+      const bucket = id === details.describerUid ? describeTotals : guessTotals;
+      bucket[id] = (bucket[id] || 0) + value;
+    }
+    for (const [id, item] of Object.entries(details.guesses || {})) {
+      if (!fastest || item.atMs < fastest.atMs) fastest = { id, atMs: item.atMs };
+    }
+  }
+  const topOf = (bucket) => Object.entries(bucket).sort((a, b) => b[1] - a[1])[0] || null;
+  const badges = [];
+  const guessTop = topOf(guessTotals);
+  if (guessTop && guessTop[1] > 0) badges.push([{ label: '竞猜王', id: guessTop[0] }, `${guessTop[1]} 分`]);
+  const describeTop = topOf(describeTotals);
+  if (describeTop && describeTop[1] > 0) badges.push([{ label: '最佳描述', id: describeTop[0] }, `${describeTop[1]} 分`]);
+  if (fastest) badges.push([{ label: '神猜', id: fastest.id }, `${(fastest.atMs / 1000).toFixed(1)} 秒`]);
+
+  return `<div class="page result-page livonym-result-page" data-screen="${escapeHtml(room.phase === 'rematch' ? 'rematch' : 'result')}" data-room="${escapeHtml(room.code)}">
+    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
+    <div class="result-aside">
+      <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
+    </div>
+    <div class="result-main">
+      <section class="surface-block livonym-result-board"><div class="section-heading"><h2>${icon('sparkles')}<span>总分</span></h2></div><ol class="livonym-result-list">${rows}</ol>
+        ${badges.length ? `<ul class="livonym-badges">${badges.map(([badge, value]) => `<li><span class="livonym-badge-label">${badge.label} · ${playerIdentityMarkup(nameOf(badge.id), { className: 'livonym-badge-name', mine: badge.id === uid })}</span><strong>${escapeHtml(value)}</strong></li>`).join('')}</ul>` : ''}
+      </section>
+      ${livonymReviewBlock(room, true, uid)}
+    </div>
+  </div>`;
+}
+
+// 逐棒回顾：一棒一页，每页就是那一棒的「本轮结算」卡片。
+// 总分按棒累加，和实时面板在当轮拿到的快照一致。
+function livonymReviewRounds(room) {
+  const players = room.resultPlayers || room.players || [];
+  const names = new Map(players.map((player) => [player.uid, player.name]));
+  const nameOf = (id) => names.get(id) || '已离开的玩家';
+  const seated = players.map((player) => player.uid);
+  const totals = {};
+  return (room.history || []).map((record, index) => {
+    const details = record.modeDetails || {};
+    for (const [id, value] of Object.entries(details.points || {})) totals[id] = (totals[id] || 0) + value;
+    return { n: record.n ?? index + 1, details, totals: { ...totals }, ids: [...new Set([...seated, ...Object.keys(totals)])], nameOf };
+  });
+}
+
+export function livonymReviewMarkup(room, uid) {
+  const rounds = livonymReviewRounds(room);
+  if (!rounds.length) return '<p class="path-empty">这一局没有打完的棒。</p>';
+  // 一棒一页，横向 scroll-snap 翻页；翻页器在页上方，与主页介绍那一套相同。
+  const pages = rounds.map(({ n, details, totals, ids, nameOf }) => `<div class="livonym-review-page" data-round="${escapeHtml(n)}" role="group" aria-label="第 ${escapeHtml(n)} 棒">${livonymSecretBlock({ secret: details.secret }, false, { revealed: true })}${livonymScoreCardMarkup({ details, rows: livonymScoreRowsMarkup({ ids, totals, details, uid, nameOf }) })}</div>`).join('');
+  const pager = rounds.length > 1
+    ? `<nav class="livonym-review-pagination" aria-label="逐棒回顾翻页">
+        <button type="button" data-review-step="-1" aria-label="上一棒" disabled>${icon('arrow-left')}</button>
+        <span class="livonym-review-page-count" aria-live="polite">1 / ${rounds.length}</span>
+        <button type="button" data-review-step="1" aria-label="下一棒">${icon('arrow-right')}</button>
+      </nav>
+      `
+    : '';
+  return `<div class="livonym-review-carousel">
+      ${pager}<div class="livonym-review-pages scrollbars-hidden" role="region" aria-label="逐棒回顾，可滑动翻页" tabindex="0">${pages}</div>
+    </div>`;
+}
+
+// 结算与历史详情共用的折叠块。
+export function livonymReviewBlock(room, open = false, uid) {
+  return `<details class="surface-block result-votes livonym-review"${open ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>逐棒回顾</span></span>${icon('chevron-down', 'result-votes-icon')}</summary>${livonymReviewMarkup(room, uid)}</details>`;
 }
 
 // 各玩法英文名都是字形艺术：完整名称由外层提供，艺术字只做视觉。

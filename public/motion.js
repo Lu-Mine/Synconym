@@ -1,6 +1,6 @@
 // 导航语义独立于渲染：同一数据快照不重播，反向操作采用同一动效的镜像。
 const SECONDARY = ['profile', 'qa', 'privacy', 'insane'];
-const PHASES = ['lobby', 'countdown', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch', 'interrupted'];
+const PHASES = ['lobby', 'countdown', 'lvIntro', 'lvPlay', 'lvScore', 'writing', 'voting', 'prepare', 'breakVote', 'result', 'rematch', 'interrupted'];
 
 export function motionTarget(screen, { detail = '', page = 1, query = '' } = {}) {
   return { screen, detail: screen === 'profile' ? detail : '', page, query };
