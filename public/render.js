@@ -271,6 +271,7 @@ export function shellMarkup(inRoom = false, user = null, renameOpen = false) {
         <button class="icon-button" type="button" data-action="cancel-confirm" aria-label="取消操作">${icon('x')}</button>
       </div>
       <p class="transfer-hint" id="confirm-description"></p>
+      <p class="transfer-hint confirm-step" id="confirm-step" hidden></p>
       <div class="rename-dialog-actions">
         <button class="button secondary" type="button" data-action="cancel-confirm"><span>取消</span>${icon('x')}</button>
         <button class="button danger" type="button" data-action="accept-confirm"><span>退出房间</span>${icon('check')}</button>
@@ -434,7 +435,7 @@ export function privacyMarkup() {
       <div class="privacy-aside">
         <section id="deletion"><h2>保存与删除</h2>
           <p>档案里可以自己动手：单条对局可以从你的记录里移除，移除后仍能在「已移除的记录」里恢复；「清空我的记录」会一次性移除全部对局。这些操作只影响你自己的档案，同局其他玩家的记录不受影响。</p>
-          <p>「抹灭我的痕迹」会永久删除你的身份：名字、曾用名、身份凭证与全部对局记录都会被清除，设备绑定也会一并删除，之后无法恢复。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容不再展示。</p>
+          <p>「抹灭我的痕迹」会永久抹掉你的身份：名字、曾用名、全部对局记录与其中的词、标记、投票都不再展示，身份凭证与设备绑定同时失效，之后无法恢复。库里对应的行不擦除，只标记为失效，读的时候跳过。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容显示为 /。</p>
           <p>注销后可以立即获得一个全新的身份继续使用。站点没有设置其他数据的自动删除期限。</p></section>
         <section id="hosting"><h2>部署环境</h2>
           <p>游戏本身不要求注册手机号或密码。站点运营者使用的服务器、反向代理或托管平台可能另外处理网络连接信息或日志；这些做法取决于实际部署环境，请以该站点运营者提供的信息为准。</p></section>

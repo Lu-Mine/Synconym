@@ -2284,6 +2284,8 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .button.danger { background: #C83939; border-color: #C83939; color: #fff; }
 .button.danger:hover:not(:disabled) { background: #AF2929; border-color: #AF2929; }
 .confirm-modal .rename-dialog { max-width: 420px; }
+/* 多步确认的进度提示：只为不可恢复的操作出现。 */
+.confirm-step { margin-top: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 #join-modal .rename-dialog-actions { margin-top: 24px; }
 .join-room-identification {
   position: relative;

@@ -329,8 +329,9 @@ function syncRecentRoomDOM() {
 
 function closeConfirm(accepted = false) {
   if (!pendingConfirm) return;
-  const { resolve, trigger } = pendingConfirm;
+  const { resolve, trigger, cleanup } = pendingConfirm;
   pendingConfirm = null;
+  cleanup?.();
   const modal = app.querySelector('#confirm-modal');
   modal?.classList.remove('is-open');
   modal?.setAttribute('inert', '');
@@ -497,11 +498,6 @@ const CONFIRM_COPY = Object.freeze({
     description: '所有对局都会从你的档案里移除，同局其他玩家的记录不受影响。之后可以在「已移除的记录」里恢复。',
     accept: '清空记录'
   },
-  eraseIdentity: {
-    title: '抹灭我的痕迹？',
-    description: '会永久删除你的身份：名字、曾用名、身份凭证与全部对局记录。涉及你的对局里，你会显示为「注销用户」。这个操作不能撤销。',
-    accept: '永久删除'
-  },
   resetDeviceBinding: {
     title: '把这台设备改回新身份？',
     description: '这台设备不再认作当前身份，会马上换成一个新的 UID 与随机名字。旧身份的记录仍留在服务器上。',
@@ -530,7 +526,11 @@ function confirmAction(kind) {
         : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
           : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
             : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
-  modal.querySelector('[data-action="accept-confirm"] span').textContent = copy ? copy.accept
+  // 多步确认可能把按钮留在禁用态，普通确认要复位。
+  const acceptButton = modal.querySelector('[data-action="accept-confirm"]');
+  acceptButton.disabled = false;
+  modal.querySelector('#confirm-step').hidden = true;
+  acceptButton.querySelector('span').textContent = copy ? copy.accept
     : resetting ? '换新身份'
       : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
   const trigger = document.activeElement;
@@ -546,6 +546,82 @@ function confirmAction(kind) {
 
 function confirmLeave() { return confirmAction('leave'); }
 function confirmBreakVote() { return confirmAction('break'); }
+
+// 抹灭痕迹不可恢复：两次说明 + 一次最终确认，前两步各要等 3 秒才能继续。
+const ERASE_STEPS = Object.freeze([
+  {
+    title: '抹灭我的痕迹？',
+    description: '执行后会永久失去：现在的名字与全部曾用名；这个身份的全部对局记录，含你写过的词、标记与投票；身份凭证与设备绑定。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容显示为 /。',
+    accept: '我明白，继续',
+    wait: 3
+  },
+  {
+    title: '真的要这么做吗？',
+    description: '没有撤销，没有找回，也没有副本。同一台设备上的其他浏览器再也认不回这个身份，服务器上的记录也回不来。',
+    accept: '仍然继续',
+    wait: 3
+  },
+  {
+    title: '最后一次确认',
+    description: '按下按钮立即执行。你会以一个新身份重新开始，现在的名字与记录都不再属于你。',
+    accept: '永久抹灭',
+    wait: 0
+  }
+]);
+
+// 依次走完 steps；任何一步取消都算整个流程被否决。
+function confirmSequence(steps) {
+  if (pendingConfirm) return Promise.resolve(false);
+  const modal = app.querySelector('#confirm-modal');
+  if (!modal || !steps.length) return Promise.resolve(false);
+  const title = modal.querySelector('#confirm-title');
+  const description = modal.querySelector('#confirm-description');
+  const stepHint = modal.querySelector('#confirm-step');
+  const cancelButton = modal.querySelector('.button[data-action="cancel-confirm"]');
+  const acceptButton = modal.querySelector('[data-action="accept-confirm"]');
+  const acceptLabel = acceptButton.querySelector('span');
+  let index = 0;
+  let timer = null;
+  const stopWait = () => { if (timer) clearInterval(timer); timer = null; };
+  const paint = () => {
+    const step = steps[index];
+    title.textContent = step.title;
+    description.textContent = step.description;
+    stepHint.hidden = false;
+    stepHint.textContent = `第 ${index + 1} 步，共 ${steps.length} 步`;
+    stopWait();
+    let left = step.wait || 0;
+    acceptButton.disabled = left > 0;
+    acceptLabel.textContent = left > 0 ? `请等待 ${left} 秒` : step.accept;
+    if (left <= 0) return;
+    timer = setInterval(() => {
+      left -= 1;
+      if (left > 0) { acceptLabel.textContent = `请等待 ${left} 秒`; return; }
+      stopWait();
+      acceptButton.disabled = false;
+      acceptLabel.textContent = step.accept;
+    }, 1000);
+  };
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  pendingConfirm = {
+    resolve, promise, trigger: document.activeElement,
+    // 前几步只往下走，最后一步才算同意。
+    next: () => {
+      if (index < steps.length - 1) { index += 1; paint(); return; }
+      closeConfirm(true);
+    },
+    cleanup: () => { stopWait(); acceptButton.disabled = false; }
+  };
+  paint();
+  modal.removeAttribute('inert');
+  modal.classList.add('is-open');
+  syncModalScrollLock();
+  cancelButton.focus({ preventScroll: true });
+  return promise;
+}
+
+function confirmErase() { return confirmSequence(ERASE_STEPS); }
 
 window.addEventListener('popstate', async () => {
   if (!state.room) {
@@ -2330,7 +2406,8 @@ app.addEventListener('click', async (event) => {
 
   if (button.dataset.action === 'cancel-confirm' || button.dataset.action === 'accept-confirm') {
     event.preventDefault();
-    closeConfirm(button.dataset.action === 'accept-confirm');
+    if (button.dataset.action === 'accept-confirm' && pendingConfirm?.next) pendingConfirm.next();
+    else closeConfirm(button.dataset.action === 'accept-confirm');
     return;
   }
 
@@ -2419,7 +2496,7 @@ app.addEventListener('click', async (event) => {
   }
   if (button.dataset.action === 'erase-identity') {
     event.preventDefault();
-    if (await confirmAction('eraseIdentity')) socket.send({ type: 'eraseIdentity' }, true);
+    if (await confirmErase()) socket.send({ type: 'eraseIdentity' }, true);
     return;
   }
   if (button.dataset.action === 'copy-uid') {
