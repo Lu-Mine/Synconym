@@ -1,11 +1,10 @@
 import { historyQuery, historyFilter, historyHref, parseHistoryTime } from './match-history.js';
-import { matchDetailMarkup, matchRoom } from './render.js';
+import { matchDetailMarkup } from './render.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState, updateStartCountdown, showLaunchCurtain, clearLaunchCurtain, fadeFirstRound } from './countdown.js';
 import { motionTarget, sceneMotion } from './motion.js';
 import { patchMarkup } from './dom.js';
-import { downloadPoster } from './poster.js';
 import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
 import { observeJoinPlaceholder } from './join-placeholder.js';
@@ -2390,20 +2389,6 @@ app.addEventListener('click', async (event) => {
     pendingTransfer = null;
     syncTransferModalDOM();
     if (targetUid) enqueueWrite({ type: 'transferHost', uid: targetUid });
-  } else if (button.dataset.action === 'export-poster') {
-    event.preventDefault();
-    const match = profileOpen ? state.matchDetail?.match : null;
-    const room = match ? matchRoom(match) : state.room;
-    if (!room) return;
-    button.disabled = true;
-    try {
-      await downloadPoster(room);
-      toast('海报已导出');
-    } catch {
-      toast('海报导出失败，请重试');
-    } finally {
-      button.disabled = false;
-    }
   } else if (button.dataset.action === 'copy') {
     event.preventDefault();
     if (!state.room) return;

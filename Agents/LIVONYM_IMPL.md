@@ -294,10 +294,6 @@ const interval = streaming ? 60 : guessing ? 1500 : typing ? 300 : 500;
 - 逐轮回顾替代「词路径」：每轮秘密词 + 猜中顺序 + 本轮得分。`resultPathMarkup` 复用不了（它按 `words/marks` 渲染）。
 - `rematchMarkup` 原样复用；`resultSummary`（:805）与 `matchDetailMarkup`（:953）各加一条 `outcome === 'played'` 文案分支，否则会落到「走过 N 轮，留下了这些不同的想法」这种不合语义的默认句。
 
-### 5.3 结算海报
-
-现有海报（`public/poster.js`）按词路径布局。livonym 海报需要新的「描述-猜中」版式，列为可选项（M-L5），默认不做。
-
 ---
 
 ## 六、流式与广播策略
@@ -392,7 +388,7 @@ const interval = streaming ? 60 : guessing ? 1500 : typing ? 300 : 500;
 | **M-L2 服务端流程** | `rooms.js` 阶段函数、`sendState` 定制、限流三通道、容量、`index.js` 两处；`db.js` 迁移 | 内存库 + 真 ws 集成测试 |
 | **M-L3 前端阶段** | `ws.js`、`app.js`（screen/增量 patch/委托）、`render.js` 两套视图、`motion.js`、`styles.css` 8 座色 | 渲染字符串断言 + Playwright 手测三人局 |
 | **M-L4 结算与档案** | `livonymResultMarkup`、`resultSummary`/`matchDetailMarkup` 文案、落库往返 | 结算与详情页测试 |
-| **M-L5 收尾** | `insane.js` 解禁、首页 mode 透传、`DESIGN.md`/`MODES_DESIGN.md` 同步、海报（可选） | 全量 `npm test` + 首页到结算走查 |
+| **M-L5 收尾** | `insane.js` 解禁、首页 mode 透传、`DESIGN.md`/`MODES_DESIGN.md` 同步 | 全量 `npm test` + 首页到结算走查 |
 
 ---
 
@@ -450,9 +446,8 @@ const interval = streaming ? 60 : guessing ? 1500 : typing ? 300 : 500;
 4. 不做「跳过本词 / 换一个词」，避免和 45 秒硬倒计时冲突。
 5. 出题人掉线即中止本轮（不暂停等待），保证 45 秒节奏不被打断。
 6. 竞猜者猜错的内容不落库，也不做计数（计分只看猜中人数）；档案页只有猜中的先后与文本。
-7. 结算海报先不做，沿用现有结算页。
-8. 「每人猜中 +1、全员猜中归零」的系数集中在 `server/livonym.js` 的 `LIVONYM_SCORE`，方便调整松紧。
-9. 描述框是 400 字符的多行框（`textarea` + `white-space: pre-wrap` 显示）；若要收紧回单行，把 `cleanDescribe` 里的换行折叠成空格即可，其余逻辑不动。
+7. 「每人猜中 +1、全员猜中归零」的系数集中在 `server/livonym.js` 的 `LIVONYM_SCORE`，方便调整松紧。
+8. 描述框是 400 字符的多行框（`textarea` + `white-space: pre-wrap` 显示）；若要收紧回单行，把 `cleanDescribe` 里的换行折叠成空格即可，其余逻辑不动。
 
 ---
 
@@ -491,7 +486,7 @@ const interval = streaming ? 60 : guessing ? 1500 : typing ? 300 : 500;
 | 狂意页按钮直接建房、字标与狂意页逐项一致、常驻动画、reduce 下关闭 | 同上 |
 | 旧库补 `mode_details_json`、迁移幂等、`modeDetails` 往返、经典对局不带该列 | `livonym-db.test.js`（真实 SQLite） |
 
-仍未覆盖：真实中文输入法的 `isComposing` 路径（只模拟了合成事件）、8 人局的实际对局视觉（`lvPlay` 猜中列表仍是单列，§7.4 写的宽屏两列没做）、结算海报（计划内可选项）、非 Chromium 浏览器与触屏设备。
+仍未覆盖：真实中文输入法的 `isComposing` 路径（只模拟了合成事件）、8 人局的实际对局视觉（`lvPlay` 猜中列表仍是单列，§7.4 写的宽屏两列没做）、非 Chromium 浏览器与触屏设备。
 
 ## 十四、狂意房间主题
 

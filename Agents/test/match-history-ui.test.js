@@ -95,7 +95,6 @@ test('详情展示历史信息、不展示实时房间操作，处理加载与�
   const rounds = [{ n: 1, words: { ABCDEFGH: '苹果', BCDEFGHJ: '香蕉' }, marks: {}, outcome: 'voted', votes: { ABCDEFGH: true, BCDEFGHJ: true } }];
   const html = matchDetailMarkup({ match: { roomCode: '12345', players, rounds, outcome: 'voted', convergedRound: 1, totalRounds: 1, maxRounds: 12, startedAt: 1, endedAt: 1000 } });
   for (const text of ['第 1 轮投票相遇', '完整词路径', '逐轮投票记录', 'ABCDEFGH', '&lt;甲&gt;', '苹果', '同意']) assert.ok(html.includes(text), text);
-  assert.match(html, /<summary>[^]*?data-action="export-poster"[^]*?<\/summary>/);
   assert.doesNotMatch(html, /按轮次查看每位玩家已揭晓的词/);
   assert.doesNotMatch(html, /<details class="surface-block result-votes result-path" open>/);
   assert.doesNotMatch(html, /data-action="(?:leave|rematch-yes|rematch-room)"/);
