@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import WebSocket from 'ws';
 import { normalizeDeviceProfile, decideAdoption, collectDeviceLinks } from '../../server/identity.js';
+import { RoomManager } from '../../server/rooms.js';
 import { createSynconymServer } from '../../server/index.js';
 import { createDatabase } from '../../server/db.js';
 
@@ -125,7 +126,7 @@ async function startServer(t, options = {}) {
 function connect(port, hello) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-    const client = { ws, hello: null, states: [], errors: [] };
+    const client = { ws, hello: null, states: [], identities: [], profiles: [], errors: [] };
     const timer = setTimeout(() => reject(new Error('连接超时')), 4000);
     const settle = () => { clearTimeout(timer); resolve(client); };
     ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', ...hello })));
@@ -133,6 +134,8 @@ function connect(port, hello) {
       const message = JSON.parse(data);
       if (message.type === 'hello') { client.hello = message; settle(); }
       if (message.type === 'state') client.states.push(message);
+      if (message.type === 'identity') client.identities.push(message);
+      if (message.type === 'profile') client.profiles.push(message.profile);
       if (message.type === 'error') { client.errors.push(message.message); settle(); }
     });
     ws.on('close', (code) => { client.closeCode = code; settle(); });
@@ -218,4 +221,74 @@ test('confirm 档在只有一台设备时也要确认', async (t) => {
   assert.equal(second.hello.deviceCandidates?.reason, 'confirm');
   assert.equal(second.hello.deviceCandidates.candidates[0].uid, uid);
   second.ws.close();
+});
+
+test('脱离当前身份时，别的浏览器还认得的旧身份原样保留', async (t) => {
+  const { server, db } = await startServer(t);
+  const port = server.address().port;
+  // 同一台设备的两个浏览器共享身份：留下的那个就是旧身份的看守者。
+  const keeper = await connect(port, { device: SAFARI });
+  const uid = keeper.hello.uid;
+  const name = db.getPlayer(uid).name;
+  const leaver = await connect(port, { device: WECHAT });
+  assert.equal(leaver.hello.uid, uid);
+
+  leaver.ws.send(JSON.stringify({ type: 'leaveIdentity' }));
+  await waitFor(() => leaver.identities.length > 0);
+
+  assert.notEqual(leaver.identities.at(-1).uid, uid);
+  assert.equal(leaver.identities.at(-1).orphaned, false);
+  assert.ok(db.getPlayer(uid), '旧身份还有看守者，不能被注销');
+  assert.equal(db.getPlayer(uid).name, name);
+  keeper.ws.close(); leaver.ws.close();
+});
+
+test('档案给出 soleOwner 标记，说明脱离后旧身份会不会失主', async (t) => {
+  const { server } = await startServer(t);
+  const port = server.address().port;
+  const solo = await connect(port, { device: SAFARI });
+  solo.ws.send(JSON.stringify({ type: 'openProfile' }));
+  await waitFor(() => solo.profiles.length > 0);
+  assert.equal(solo.profiles.at(-1).user.soleOwner, true);
+  solo.ws.close();
+});
+
+test('启动巡检只注销早就没人认得的身份', async (t) => {
+  const db = createDatabase(':memory:');
+  t.after(() => db.close());
+  const hoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+  const orphan = db.createPlayer('ORPHAN01', '孤儿', hoursAgo);
+  const owned = db.createPlayer('OWNED001', '有主', hoursAgo);
+  db.addCredential(owned.uid, Buffer.from('owned'), hoursAgo);
+  const fresh = db.createPlayer('FRESH001', '刚建的');
+  const manager = new RoomManager({ db });
+  t.after(() => manager.close());
+
+  assert.equal(manager.sweepOwnerlessIdentities(), 1);
+  assert.equal(db.getPlayer(orphan.uid), undefined);
+  assert.ok(db.getPlayer(owned.uid));
+  assert.ok(db.getPlayer(fresh.uid));
+});
+
+test('认领设备上另一个身份时，被放弃的那个若无主也注销', (t) => {
+  const db = createDatabase(':memory:');
+  t.after(() => db.close());
+  const manager = new RoomManager({ db });
+  t.after(() => manager.close());
+  manager.issueCredential = (uid) => { db.addCredential(uid, Buffer.from(uid)); return 'c'.repeat(43); };
+  db.insertDevice({ deviceKey: 'device-w', weakKey: 'weak-w', profileJson: '{}' });
+  const connection = manager.connect();
+  connection.deviceKey = 'device-w';
+  db.linkDevice('device-w', connection.uid, 'created');
+  const abandoned = connection.uid;
+  // 同一台设备上还认得另一个老身份。
+  const target = db.createPlayer('TARGET001', '老身份');
+  db.linkDevice('device-w', target.uid, 'created');
+
+  manager.claimDevice(connection, target.uid);
+
+  assert.equal(connection.uid, target.uid);
+  assert.ok(db.getPlayer(target.uid));
+  // 刚放弃的身份已经没有任何凭证与绑定，留着就是无主数据。
+  assert.equal(db.getPlayer(abandoned), undefined);
 });

@@ -217,6 +217,15 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   const disableRejectionsFor = db.prepare('UPDATE device_rejections SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
   const pruneLinksBefore = db.prepare('DELETE FROM device_links WHERE last_seen < ?');
 
+  // 一个身份是否还有人能认回：有效凭证或有效设备绑定，二者有其一就算有主。
+  const disableCredentialHash = db.prepare('UPDATE credentials SET disabled_at = ? WHERE credential_hash = ? AND disabled_at IS NULL');
+  const linkedDevicesOf = db.prepare('SELECT COUNT(*) AS total FROM device_links WHERE uid = ? AND disabled_at IS NULL');
+  const ownedCredential = db.prepare('SELECT 1 AS hit FROM credentials WHERE uid = ? AND disabled_at IS NULL LIMIT 1');
+  const ownerlessPlayers = db.prepare(`SELECT pl.uid FROM players pl
+    WHERE pl.deleted_at IS NULL AND pl.created_at < ?
+      AND NOT EXISTS (SELECT 1 FROM credentials c WHERE c.uid = pl.uid AND c.disabled_at IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM device_links l WHERE l.uid = pl.uid AND l.disabled_at IS NULL)`);
+
   // 记录隐藏：只影响提出隐藏的人，同局其他人照旧。
   const hideMatchRow = db.prepare(`INSERT INTO match_hidden (uid, match_id, hidden_at, disabled_at) VALUES (?, ?, ?, NULL)
     ON CONFLICT(uid, match_id) DO UPDATE SET hidden_at = excluded.hidden_at, disabled_at = NULL`);
@@ -303,6 +312,10 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     unlinkDevice(deviceKey, uid) { deleteLink.run(deviceKey, uid); },
     rejectDevice(deviceKey, uid, now = Date.now()) { rejectLink.run(deviceKey, uid, now); },
     isDeviceRejected(deviceKey, uid) { return Boolean(rejectedLink.get(deviceKey, uid)); },
+    disableCredential(hash, now = Date.now()) { disableCredentialHash.run(now, hash); },
+    countLinkedDevices(uid) { return linkedDevicesOf.get(uid).total; },
+    hasOwner(uid) { return Boolean(ownedCredential.get(uid)) || linkedDevicesOf.get(uid).total > 0; },
+    listOwnerlessPlayers(before) { return ownerlessPlayers.all(before).map((row) => row.uid); },
     pruneDevices(before) {
       pruneLinksBefore.run(before);
       db.prepare(`DELETE FROM devices WHERE last_seen < ? AND NOT EXISTS

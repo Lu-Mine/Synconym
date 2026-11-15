@@ -498,41 +498,41 @@ const CONFIRM_COPY = Object.freeze({
     description: '所有对局都会从你的档案里移除，同局其他玩家的记录不受影响。之后可以在「已移除的记录」里恢复。',
     accept: '清空记录'
   },
-  resetDeviceBinding: {
-    title: '把这台设备改回新身份？',
-    description: '这台设备不再认作当前身份，会马上换成一个新的 UID 与随机名字。旧身份的记录仍留在服务器上。',
-    accept: '换成新身份'
+  leaveIdentity: {
+    title: '脱离当前身份？',
+    description: '这台设备会换成新的 UID 与随机名字。旧身份仍留在服务器上，别的浏览器还能认回它，记录原样保留。',
+    accept: '换新身份'
+  },
+  leaveIdentitySole: {
+    title: '脱离当前身份？',
+    description: '这台设备是当前身份唯一的入口。脱离后它就没有人再能认回，会一并注销：名字变成「注销用户」，记录里的词、标记、投票不再展示，且不能恢复。',
+    accept: '换新身份'
   }
 });
 
 function confirmAction(kind) {
   if (pendingConfirm) return Promise.resolve(false);
-  const resetting = kind === 'reset';
   const copy = CONFIRM_COPY[kind];
-  if (!state.room && !resetting && !copy) return Promise.resolve(false);
+  if (!state.room && !copy) return Promise.resolve(false);
   const modal = app.querySelector('#confirm-modal');
   if (!modal) return Promise.resolve(false);
   const result = state.room ? ['result', 'rematch'].includes(state.room.phase) : false;
   const lobby = state.room?.phase === 'lobby';
   const breaking = kind === 'break';
   modal.querySelector('#confirm-title').textContent = copy ? copy.title
-    : resetting ? '换一个新身份？'
-      : breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
+    : breaking ? '确定选择玩崩了？' : result ? '回到主页？' : '退出房间？';
   modal.querySelector('#confirm-description').textContent = copy ? copy.description
-    : resetting
-      ? '会生成新的 UID 和随机名字。当前的改名记录与对局记录不会跟着新身份，也不会删除已有数据。'
-      : breaking
-        ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
-        : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
-          : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
-            : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
+    : breaking
+      ? '达到半数选择玩崩了，本局将立即结束，且对局记录不会保存。选择后不能更改。'
+      : result ? '你将退出本房间，移除重赛资格和已有选择。其他玩家可以继续，不会关闭他们的房间。'
+        : lobby ? '你将离开当前房间并回到主页。其他玩家仍可继续留在房间。'
+          : '你将主动退出本局并回到主页，席位和参与资格立即移除，不能恢复到已开始的本局。';
   // 多步确认可能把按钮留在禁用态，普通确认要复位。
   const acceptButton = modal.querySelector('[data-action="accept-confirm"]');
   acceptButton.disabled = false;
   modal.querySelector('#confirm-step').hidden = true;
   acceptButton.querySelector('span').textContent = copy ? copy.accept
-    : resetting ? '换新身份'
-      : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
+    : breaking ? '确认玩崩了' : result ? '退出并回主页' : '退出房间';
   const trigger = document.activeElement;
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
@@ -1775,6 +1775,14 @@ const socket = new Socket({
       render({ forceFull: true, initialSync: true });
       return;
     }
+    if (message?.orphaned) {
+      profileOpen = false;
+      if (location.search) history.replaceState(null, '', APP_ROOT);
+      syncMockLocation();
+      toast('已脱离旧身份，它没有别的入口，已一并注销');
+      render({ forceFull: true, initialSync: true });
+      return;
+    }
     if (profileOpen) requestProfile(1);
   },
   onState(next, { initialSync = false } = {}) {
@@ -2443,14 +2451,11 @@ app.addEventListener('click', async (event) => {
     requestProfile((state.profile?.page || 1) + step);
     return;
   }
-  if (button.dataset.action === 'reset-identity') {
+  if (button.dataset.action === 'leave-identity') {
     event.preventDefault();
-    if (await confirmAction('reset')) enqueueWrite({ type: 'resetIdentity' });
-    return;
-  }
-  if (button.dataset.action === 'reset-device-binding') {
-    event.preventDefault();
-    if (await confirmAction('resetDeviceBinding')) socket.send({ type: 'resetDeviceBinding' }, true);
+    // 只剩这一个入口时，脱离就等于注销，文案要先说清楚。
+    const kind = state.profile?.user?.soleOwner ? 'leaveIdentitySole' : 'leaveIdentity';
+    if (await confirmAction(kind)) socket.send({ type: 'leaveIdentity' }, true);
     return;
   }
   if (button.dataset.action === 'device-claim-yes') {

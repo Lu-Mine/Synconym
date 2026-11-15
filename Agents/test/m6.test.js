@@ -114,13 +114,12 @@ test('房间内改名即时同步给其他玩家，uid 与历史不变', (t) => 
   assert.equal(manager.db.getNameHistory(b.uid).length, 2);
 });
 
-test('我是新人换新 uid，旧身份与旧对局留在库里', (t) => {
+test('脱离当前身份换新 uid，没人能认回的旧身份当场注销', (t) => {
   const { manager, db, client, send } = setup(t);
   const a = client();
   const previous = a.uid;
-  const name = db.getPlayer(previous).name;
   saveMatch(db, previous, 1);
-  send(a, { type: 'resetIdentity' });
+  send(a, { type: 'leaveIdentity' });
 
   const identity = a.messages.find((message) => message.type === 'identity');
   assert.ok(isValidUid(identity.uid));
@@ -128,8 +127,11 @@ test('我是新人换新 uid，旧身份与旧对局留在库里', (t) => {
   assert.equal(a.uid, identity.uid);
   assert.equal(manager.clients.get(identity.uid), a);
   assert.equal(manager.clients.has(previous), false);
-  assert.equal(db.getPlayer(previous).name, name);
-  assert.equal(db.countMatchesFor(previous), 1);
+  // 这台设备是旧身份唯一的入口，脱离后它就没有主了，直接注销。
+  assert.equal(identity.orphaned, true);
+  // 对局本身留着，别人看到的是「注销用户」。
+  const match = db.getMatch('match-1');
+  assert.equal(match.players.find((player) => player.uid === previous).deleted, true);
   assert.equal(db.countMatchesFor(identity.uid), 0);
   assert.equal(a.messages.filter((message) => message.type === 'state').at(-1).room, null);
 

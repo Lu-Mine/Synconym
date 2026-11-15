@@ -25,7 +25,7 @@ function fixture(overrides = {}) {
 test('档案展示身份、曾用名、对局与隐私说明，并转义所有文本', () => {
   const html = profileMarkup(fixture());
   for (const text of ['UID：A7K2M9QX', '加入于', '曾用名 旧名字', '第 3 轮相遇', '打满 8 轮未相遇',
-    '12 局', '对局记录', '我是新人', 'data-action="reset-identity"']) {
+    '12 局', '对局记录', '脱离当前身份', 'data-action="leave-identity"']) {
     assert.ok(html.includes(text), text);
   }
   assert.ok(html.includes('&lt;甲&gt;'));

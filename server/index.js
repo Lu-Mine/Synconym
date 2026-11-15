@@ -43,6 +43,8 @@ async function currentBuildId() {
 // 部署加固：单进程默认最多 500 间房、单条 WS 消息 64 KB。都可用环境变量覆盖。
 const DEF_MAX_ROOMS = Number(process.env.MAX_ROOMS || 500);
 const DEF_MAX_PAYLOAD = Number(process.env.WS_MAX_PAYLOAD || 64 * 1024);
+// 会凭空造出新身份的请求，按 IP 限速，避免刷身份。
+const ACCOUNT_MESSAGES = new Set(['resetIdentity', 'resetDeviceBinding', 'leaveIdentity']);
 
 export function createSynconymServer({
   db = createDatabase(), mock = false, maxRooms = DEF_MAX_ROOMS, maxPayload = DEF_MAX_PAYLOAD,
@@ -60,6 +62,9 @@ export function createSynconymServer({
   };
   manager.issueCredential = credentialIssuer(db);
   if (mockManager) mockManager.issueCredential = credentialIssuer(mockDb);
+  // 启动兜底：老数据里可能有既没有凭证也没有设备绑定的身份，注销掉再开门。
+  manager.sweepOwnerlessIdentities();
+  if (mockManager) mockManager.sweepOwnerlessIdentities();
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -222,6 +227,10 @@ export function createSynconymServer({
           connection = manager.connect(message.uid);
           // 沿用的身份要发给本浏览器自己的凭证，之后这个浏览器就不再依赖设备线索。
           if (message.uid === undefined || adopted) credential = manager.issueCredential(connection.uid);
+          // 记住本连接手里的凭证，换身份时才能精确废掉旧的那一条。
+          connection.credentialHash = typeof credential === 'string'
+            ? createHash('sha256').update(credential).digest()
+            : (typeof message.credential === 'string' ? createHash('sha256').update(message.credential).digest() : null);
           connection.deviceKey = device?.deviceKey ?? null;
           if (device) db.linkDevice(device.deviceKey, connection.uid, adopted ? 'adopted' : 'created');
           handshaken = true;
@@ -254,7 +263,7 @@ export function createSynconymServer({
             manager.sendState(connection, null);
           }
         } else if (connection) {
-          if (message.type === 'resetIdentity' && !security.allowAccount(ip)) {
+          if (ACCOUNT_MESSAGES.has(message.type) && !security.allowAccount(ip)) {
             ws.send(JSON.stringify({ type: 'error', message: '创建身份过于频繁，请稍后再试' }));
             return;
           }

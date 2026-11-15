@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { normalizeMatchFilter, DELETED_NAME } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
@@ -15,6 +15,9 @@ const ROOM_IDLE_MS = 5 * 60 * 1000;
 const THEMES = JSON.parse(readFileSync(new URL('../data/themes.json', import.meta.url), 'utf8'));
 const PROFILE_PAGE_SIZE = 10;
 const PROFILE_NAME_HISTORY = 20;
+// 凭证在库里只存哈希；连接记下自己的哈希，换身份时才能精确废掉那一条。
+const credentialDigest = (token) => (typeof token === 'string' && token
+  ? createHash('sha256').update(token).digest() : null);
 
 function wordKeys(record) {
   return Object.fromEntries(Object.entries(record?.words || {})
@@ -249,11 +252,15 @@ export class RoomManager {
     if (this.clients.get(previous) === connection) this.clients.delete(previous);
     // 放弃的那个新身份不该继续占着设备。
     this.db.unlinkDevice(key, previous);
+    if (connection.credentialHash) this.db.disableCredential(connection.credentialHash);
     connection.uid = uid;
     this.clients.set(uid, connection);
     this.db.touch(uid);
     this.db.linkDevice(key, uid, 'claimed');
     const credential = this.issueCredential?.(uid);
+    connection.credentialHash = credentialDigest(credential);
+    // 换过去之后，刚才那个身份如果没人能认回，就地注销。
+    this.dropIfOrphaned(previous);
     const user = this.db.getPlayer(uid);
     this.sendTo(connection, { type: 'identity', uid, credential, name: user?.name, serverNow: Date.now() });
     this.sendState(connection, null);
@@ -268,23 +275,48 @@ export class RoomManager {
     this.sendTo(connection, { type: 'toast', message: '这台设备不会再提示这个身份' });
   }
 
-  // 把这台设备改回新身份：解绑当前身份并标记不认领，再分配一个全新身份。
-  resetDeviceBinding(connection) {
+  // 脱离当前身份：这台设备换成新身份。旧身份如果还有别的凭证或设备能认回，
+  // 就原样留着；一旦再没人认得回来，当场注销，免得留下没有主的数据。
+  leaveIdentity(connection) {
     const key = connection.deviceKey;
     const previous = connection.uid;
     if (key) {
       this.db.unlinkDevice(key, previous);
       this.db.rejectDevice(key, previous);
     }
+    // 本浏览器手里的旧凭证从此没人再用，直接失效。
+    if (connection.credentialHash) this.db.disableCredential(connection.credentialHash);
     this.detach(connection, true);
     if (this.clients.get(previous) === connection) this.clients.delete(previous);
+    this.recentRooms.delete(previous);
     connection.uid = this.makeUid();
     const player = this.db.createPlayer(connection.uid, createName());
-    if (key) this.db.linkDevice(key, connection.uid, 'created');
     this.clients.set(connection.uid, connection);
+    if (key) this.db.linkDevice(key, connection.uid, 'created');
     const credential = this.issueCredential?.(connection.uid);
-    this.sendTo(connection, { type: 'identity', uid: connection.uid, credential, name: player.name, serverNow: Date.now() });
+    connection.credentialHash = credentialDigest(credential);
+    const orphaned = this.dropIfOrphaned(previous);
+    this.sendTo(connection, { type: 'identity', uid: connection.uid, credential, name: player.name, orphaned, serverNow: Date.now() });
     this.sendState(connection, null);
+  }
+
+  // 兜底巡检：把已经没有任何凭证与设备绑定的身份注销掉，通常只在老数据里出现。
+  sweepOwnerlessIdentities(graceMs = 60 * 60 * 1000, now = Date.now()) {
+    const orphans = this.db.listOwnerlessPlayers(now - graceMs);
+    for (const uid of orphans) {
+      if (this.clients.has(uid)) continue;
+      this.recentRooms.delete(uid);
+      this.db.eraseIdentity(uid, now);
+    }
+    return orphans.length;
+  }
+
+  // 换掉的身份如果已经没有任何有效凭证与设备绑定，就没人再认得回来：当场注销。
+  dropIfOrphaned(uid) {
+    if (!uid || this.clients.has(uid) || this.db.hasOwner(uid)) return false;
+    this.recentRooms.delete(uid);
+    this.db.eraseIdentity(uid);
+    return true;
   }
 
   // 档案：身份、改名历史与分页后的对局记录，只发给发起请求的人。
@@ -308,7 +340,9 @@ export class RoomManager {
           ...(hits ? { hits } : {})
         };
       });
-    return { user, nameHistory: this.db.getNameHistory(uid, PROFILE_NAME_HISTORY),
+    // soleOwner：脱离后这个身份就再没人能认回，前台据此改用会注销的文案。
+    const soleOwner = this.db.countCredentials(uid) <= 1 && this.db.countLinkedDevices(uid) <= 1;
+    return { user: { ...user, soleOwner }, nameHistory: this.db.getNameHistory(uid, PROFILE_NAME_HISTORY),
       matches, page: current, pageSize: PROFILE_PAGE_SIZE, total, filter,
       removed: this.db.countHiddenMatches(uid) };
   }
@@ -393,6 +427,7 @@ export class RoomManager {
     const player = this.db.createPlayer(connection.uid, createName());
     this.clients.set(connection.uid, connection);
     const credential = this.issueCredential?.(connection.uid);
+    connection.credentialHash = credentialDigest(credential);
     this.sendTo(connection, { type: 'identity', uid: connection.uid, credential, name: player.name, erased: true, serverNow: Date.now() });
     this.sendState(connection, null);
   }
@@ -911,7 +946,7 @@ export class RoomManager {
     // 设备认领与记录删除同样不占写操作限流：都是本人对自己的档案动手。
     if (type === 'claimDevice') { this.claimDevice(connection, message.uid); return; }
     if (type === 'rejectDevice') { this.rejectDevice(connection, message.uid); return; }
-    if (type === 'resetDeviceBinding') { this.resetDeviceBinding(connection); return; }
+    if (type === 'leaveIdentity' || type === 'resetDeviceBinding' || type === 'resetIdentity') { this.leaveIdentity(connection); return; }
     if (type === 'deleteMatch') { this.removeMatch(connection, message.id); return; }
     if (type === 'restoreMatch') { this.restoreMatch(connection, message.id); return; }
     if (type === 'clearHistory') { this.clearHistory(connection); return; }
@@ -965,22 +1000,7 @@ export class RoomManager {
       this.sendState(connection, null);
       return;
     }
-    // 我是新人：旧 uid 与它的对局记录留在库里，新身份从零开始。
-    if (type === 'resetIdentity') {
-      const previous = connection.uid;
-      this.detach(connection, true);
-      if (this.clients.get(previous) === connection) {
-        const other = [...this.connections].find((client) => client !== connection && client.uid === previous && !client.replaced);
-        if (other) this.clients.set(previous, other); else this.clients.delete(previous);
-      }
-      connection.uid = this.makeUid();
-      const player = this.db.createPlayer(connection.uid, createName());
-      this.clients.set(connection.uid, connection);
-      const credential = this.issueCredential?.(connection.uid);
-      connection.ws?.send(JSON.stringify({ type: 'identity', uid: connection.uid, credential, name: player.name, serverNow: Date.now() }));
-      this.sendState(connection, null);
-      return;
-    }
+    // 创建房间/加入房间由后面的分支处理。
     if (type === 'createRoom' || type === 'joinRoom') {
       // 房间数上限：防止有人反复建房把内存吃满；已在房内的人建房会先退出旧房，所以这里按上限拒绝。
       if (type === 'createRoom' && this.rooms.size >= this.maxRooms) throw new Error('服务器房间已满，请稍后再试');
@@ -1277,6 +1297,18 @@ export function createMemoryDb() {
       let total = 0;
       for (const [key, owner] of credentials) if (owner === uid && !disabled.credentials.has(key)) total += 1;
       return total;
+    },
+    disableCredential(hash) { disabled.credentials.add(credentialKey(hash)); },
+    countLinkedDevices: (uid) => [...links.entries()]
+      .filter(([key, link]) => link.uid === uid && !disabled.links.has(key)).length,
+    hasOwner(uid) {
+      for (const [key, owner] of credentials) if (owner === uid && !disabled.credentials.has(key)) return true;
+      return this.countLinkedDevices(uid) > 0;
+    },
+    listOwnerlessPlayers(before) {
+      return [...players.values()]
+        .filter((player) => !player.deletedAt && player.createdAt < before && !this.hasOwner(player.uid))
+        .map((player) => player.uid);
     },
     insertDevice({ deviceKey, weakKey, profileJson, profile }, now = Date.now()) {
       const previous = devices.get(deviceKey);
