@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Google Sans";
+  src: url("/fonts/GoogleSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Google Sans";
+  src: url("/fonts/GoogleSans-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --bg: #F4F5F9;
@@ -40,7 +56,7 @@
   --header-h: 72px;
   --radius-md: 12px;
   --radius-sm: 9px;
-  font-family: system-ui, -apple-system, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  font-family: "Google Sans", system-ui, -apple-system, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
   color: var(--ink);
   background: var(--bg);
   font-size: 16px;

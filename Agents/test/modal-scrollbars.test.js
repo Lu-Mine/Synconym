@@ -5,6 +5,16 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../../public/scrollbars.js', import.meta.url), 'utf8');
 
+test('全站字体使用本地 Google Sans 并保留中文回退', () => {
+  const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  const regular = readFileSync(new URL('../../public/fonts/GoogleSans-Regular.ttf', import.meta.url));
+  const bold = readFileSync(new URL('../../public/fonts/GoogleSans-Bold.ttf', import.meta.url));
+  assert.match(css, /font-family: "Google Sans", system-ui, -apple-system, "PingFang SC"/);
+  assert.match(css, /font-weight: 400;\s+font-display: swap/);
+  assert.ok(regular.length > 50000);
+  assert.ok(bold.length > 50000);
+});
+
 test('弹层打开时只显示弹层滚动条，关闭后恢复背景滚动条', () => {
   const attached = [];
   let open = false;
