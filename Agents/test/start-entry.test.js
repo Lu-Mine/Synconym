@@ -76,7 +76,7 @@ test('弹窗顶部留白随卡片宽度成比例，不继承首页 64px 留白',
 
 test('开始游戏弹窗不画滚动条轨道', () => {
   const scrollbars = readFileSync(new URL('../../public/scrollbars.js', import.meta.url), 'utf8');
-  assert.match(scrollbars, /if \(element\.classList\?\.contains\('scrollbars-hidden'\)\) continue;/);
+  assert.match(scrollbars, /if \(element\.classList\?\.contains\('scrollbars-hidden'\)[^\n]*continue;/);
   assert.match(shellMarkup(false), /class="start-entry scrollbars-hidden"/);
 });
 

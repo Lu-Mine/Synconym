@@ -21,7 +21,7 @@ function update() {
   for (const element of elements) {
     if (element.closest?.('.scrollbar-overlay')) continue;
     // 自带滚动的卡片（如开始游戏弹窗）可以整体不画滚动条轨道
-    if (element.classList?.contains('scrollbars-hidden')) continue;
+    if (element.classList?.contains('scrollbars-hidden') || element.closest?.('.home-story-pages')) continue;
     if (topModal && !topModal.contains(element)) continue;
     if (getComputedStyle(element).visibility !== 'visible') continue;
     const isRoot = element === root;

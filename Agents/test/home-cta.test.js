@@ -31,9 +31,9 @@ test('首页顶栏不重复开始游戏，双列时不再显示引导', () => {
   assert.match(sheet, /\.home-story-link \{ display: none; \}/);
 });
 
-test('收尾引导的按钮用渐变，底部留出不贴视口底边的空白', () => {
+test('收尾引导的按钮用渐变，且作为介绍的最后一页', () => {
   const sheet = css();
-  assert.match(sheet, /\.home-story-cta \{[^}]*padding-bottom: clamp\(88px, 12vw, 140px\)/);
+  assert.match(sheet, /\.home-story-cta \{[^}]*align-items: center/);
   assert.match(sheet, /\.home-story-cta-button \{[^}]*background: linear-gradient\(90deg, var\(--accent\), var\(--vermilion\)\)/);
   // 渐变要从边框盒起铺：否则 1px 透明边框里会重复出渐变另一端的颜色，看起来像两条描边
   assert.match(sheet, /\.home-story-cta-button \{[^}]*background-origin: border-box/);
