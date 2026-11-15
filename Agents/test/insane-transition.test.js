@@ -60,14 +60,14 @@ test('insane-background 为全部五种狂意玩法提供独立色调并支持 s
   assert.equal(signatures.size, 6, '五种玩法与默认背景应各具独立色板');
 });
 
-test('app.js 与 styles.css 接入五种玩法过场、艺术字动画与色调回退，且卡片暂未开放创建房间', async () => {
+test('app.js 与 styles.css 接入五种玩法过场、艺术字动画与色调回退，且仅开放 Livonym 创建房间', async () => {
   const app = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../../public/styles.css', import.meta.url), 'utf8');
   const transition = await readFile(new URL('../../public/insane-transition.js', import.meta.url), 'utf8');
 
   assert.match(transition, /wordmarkArt\[mode\]/);
   assert.match(transition, /sheet\.style\.maskImage = maskMetrics\.dataUri/);
-  assert.match(app, /createInsaneTransitionController\(/);
+  assert.match(app, /insaneTransition\.start\(\{ mode, card: button\.closest\('\.insane-card'\) \}\)/);
   assert.match(app, /insaneBackground\.setMode\?\.\(insane && isInsaneMode\(mode\) \? mode : ''/);
 
   for (const mode of INSANE_MODES) {
@@ -79,8 +79,9 @@ test('app.js 与 styles.css 接入五种玩法过场、艺术字动画与色调�
   assert.match(css, /\.insane-curtain\.is-ltr \.insane-curtain-waves/);
   assert.match(css, /\.insane-curtain-sheet\s*\{[\s\S]*mask-repeat:\s*no-repeat/);
 
+  // 暂时仍只开放 livonym 创建房间，其余四种保持 disabled
   const html = insaneMarkup();
-  for (const mode of INSANE_MODES) {
+  for (const mode of ['blitz', 'shiritori', 'impostor', 'bridge']) {
     const card = html.match(new RegExp(`<article class="insane-card insane-card--${mode}">[\\s\\S]*?<\\/article>`))?.[0];
     assert.ok(card, `缺少 ${mode} 卡片`);
     assert.match(card, /<button class="insane-create" type="button" disabled/);

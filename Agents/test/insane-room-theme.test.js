@@ -48,7 +48,7 @@ test('狂意场景整套换用深色色板，玩法色只跟着当前玩法走',
 test('狂意场景只把玩法色用在标记与光晕上', async () => {
   const styles = await css();
   assert.match(styles, /body\[data-insane\] \.writing-stage\s*\{[^}]*radial-gradient\(120% 88% at 50% -30%, color-mix\(in srgb, var\(--mode-a\) 16%, transparent\)[^}]*var\(--card\)/);
-  assert.match(styles, /body\[data-insane\] \.stage-step\.is-current,[\s\S]*?body\[data-insane\] \.livonym-guessed-rank\s*\{\s*color:\s*var\(--mode-a\);/);
+  assert.match(styles, /body\[data-insane\] \.stage-step\.is-current,[\s\S]*?body\[data-insane\] :is\(\.livonym-guessed-rank, \.livonym-score-rank\)\s*\{\s*color:\s*var\(--mode-a\);/);
   assert.match(styles, /body\[data-insane\] \.livonym-secret\s*\{\s*text-shadow:\s*0 0 28px color-mix\(in srgb, var\(--mode-a\) 45%, transparent\);/);
   // 白字主按钮仍用可读的紫，避免玩法色与白字对比不足
   assert.match(styles, /body\[data-insane\]\s*\{[^}]*--accent:\s*#6a56f0;/);
@@ -104,7 +104,8 @@ test('五种狂意模式的开局倒计时使用对应配色与专属像素动�
   const { INSANE_COUNTDOWN_THEMES, insaneCountdownTheme, insanePixelPose } = await import('../../public/countdown.js');
   assert.match(styles, /body\[data-insane\] \.start-countdown-content\s*\{[^}]*--countdown-ink:\s*var\(--mode-a\);/);
   assert.match(styles, /body\[data-insane\] \.start-countdown-progress span\s*\{[^}]*var\(--mode-a\), var\(--mode-b\)/);
-  assert.match(styles, /body\[data-insane\] \.start-countdown-wordmark\s*\{[^}]*margin-top:\s*auto;/);
+  assert.match(styles, /body\[data-insane\] \.start-countdown-wordmark\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*12px;/);
+  assert.doesNotMatch(styles, /body\[data-insane\] \.start-countdown-content\s*\{[^}]*margin-block:\s*auto;/);
   for (const mode of INSANE_MODES) {
     const html = startCountdownMarkup({ code: '12345', mode });
     assert.match(html, /class="start-countdown-insane-fx"/);
