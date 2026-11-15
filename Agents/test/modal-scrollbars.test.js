@@ -18,7 +18,7 @@ test('全站字体使用本地 Google Sans 并保留中文回退', () => {
 test('弹层打开时只显示弹层滚动条，关闭后恢复背景滚动条', () => {
   const attached = [];
   let open = false;
-  const rect = { left: 0, top: 0, right: 100, bottom: 100 };
+  const rect = { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
   const element = (parent = null) => ({
     parent, clientHeight: 100, scrollHeight: 200, clientWidth: 100, scrollWidth: 100,
     scrollTop: 0, getBoundingClientRect: () => rect, closest: () => null,
@@ -42,7 +42,7 @@ test('弹层打开时只显示弹层滚动条，关闭后恢复背景滚动条',
   };
   const context = {
     document, innerWidth: 100, innerHeight: 100,
-    getComputedStyle: node => ({ visibility: node === content && !open ? 'hidden' : 'visible', overflowY: 'auto', overflowX: 'auto', zIndex: '20' }),
+    getComputedStyle: node => ({ visibility: node === content && !open ? 'hidden' : 'visible', overflowY: 'auto', overflowX: 'auto', zIndex: '20', borderTopLeftRadius: '0px', borderTopRightRadius: '0px', borderBottomRightRadius: '0px', borderBottomLeftRadius: '0px' }),
     requestAnimationFrame() {}, MutationObserver: class { observe() {} }, ResizeObserver: class { observe() {} },
     window: { addEventListener() {} },
   };
@@ -68,7 +68,7 @@ test('弹层打开时阶段切换不启用整页视图过渡', () => {
 
 test('标记 scrollbars-left 的滚动容器把竖向滚动条放到左边', () => {
   const attached = [];
-  const rect = { left: 0, top: 0, right: 100, bottom: 100 };
+  const rect = { left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 };
   const element = {
     clientHeight: 100, scrollHeight: 200, clientWidth: 100, scrollWidth: 100,
     scrollTop: 0, getBoundingClientRect: () => rect, closest: () => null,
@@ -91,7 +91,7 @@ test('标记 scrollbars-left 的滚动容器把竖向滚动条放到左边', () 
   };
   const context = {
     document, innerWidth: 100, innerHeight: 100,
-    getComputedStyle: () => ({ visibility: 'visible', overflowY: 'auto', overflowX: 'visible', zIndex: '10' }),
+    getComputedStyle: node => ({ visibility: 'visible', overflowY: 'auto', overflowX: 'visible', zIndex: '10', borderTopLeftRadius: node === element ? '12px' : '0px', borderTopRightRadius: node === element ? '12px' : '0px', borderBottomRightRadius: node === element ? '12px' : '0px', borderBottomLeftRadius: node === element ? '12px' : '0px' }),
     requestAnimationFrame() {}, MutationObserver: class { observe() {} }, ResizeObserver: class { observe() {} },
     window: { addEventListener() {} },
   };
@@ -101,6 +101,14 @@ test('标记 scrollbars-left 的滚动容器把竖向滚动条放到左边', () 
   const rail = attached.find(item => item.className.includes('is-vertical'));
   assert.ok(rail.className.includes('is-left'));
   assert.equal(rail.style.left, '2px');
+  assert.equal(rail.style.top, '12px');
+  assert.equal(rail.style.height, '76px');
+});
+
+test('圆角容器的自定义滚动条轨道在圆角范围内收缩', () => {
+  assert.match(source, /cornerRadii\(style\)/);
+  assert.match(source, /Math\.min\(insetStart, extent \/ 2\)/);
+  assert.match(source, /Math\.min\(insetEnd, extent \/ 2\)/);
 });
 
 test('全站主滚动容器默认在屏幕右侧显示滚动条', () => {

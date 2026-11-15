@@ -26,15 +26,19 @@ function update() {
     if (getComputedStyle(element).visibility !== 'visible') continue;
     const isRoot = element === root;
     const style = isRoot ? null : getComputedStyle(element);
-    const rect = isRoot ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : element.getBoundingClientRect();
+    const rect = isRoot ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight, width: innerWidth, height: innerHeight } : element.getBoundingClientRect();
+    const radii = isRoot ? null : cornerRadii(style);
     for (const axis of ['vertical', 'horizontal']) {
       const vertical = axis === 'vertical';
       const client = vertical ? element.clientHeight : element.clientWidth;
       const size = vertical ? element.scrollHeight : element.scrollWidth;
       const overflow = vertical ? style?.overflowY : style?.overflowX;
       if (!client || size <= client + 1 || (!isRoot && !['auto', 'scroll', 'overlay'].includes(overflow))) continue;
-      const start = Math.max(0, vertical ? rect.top : rect.left);
-      const end = Math.min(vertical ? innerHeight : innerWidth, vertical ? rect.bottom : rect.right);
+      const insetStart = vertical ? Math.max(radii?.topLeft || 0, radii?.topRight || 0) : Math.max(radii?.topLeft || 0, radii?.bottomLeft || 0);
+      const insetEnd = vertical ? Math.max(radii?.bottomLeft || 0, radii?.bottomRight || 0) : Math.max(radii?.topRight || 0, radii?.bottomRight || 0);
+      const extent = vertical ? (rect.height ?? rect.bottom - rect.top) : (rect.width ?? rect.right - rect.left);
+      const start = Math.max(0, vertical ? rect.top : rect.left) + Math.min(insetStart, extent / 2);
+      const end = Math.min(vertical ? innerHeight : innerWidth, vertical ? rect.bottom : rect.right) - Math.min(insetEnd, extent / 2);
       if (end <= start || rect.right <= 0 || rect.left >= innerWidth || rect.bottom <= 0 || rect.top >= innerHeight) continue;
       let pair = rails.get(element);
       if (!pair) { pair = {}; rails.set(element, pair); }
@@ -92,6 +96,15 @@ function update() {
   }
 }
 
+function cornerRadii(style) {
+  const radius = value => Math.max(0, ...(value || '0').split(/\s+/).map(part => Number.parseFloat(part) || 0));
+  return {
+    topLeft: radius(style.borderTopLeftRadius),
+    topRight: radius(style.borderTopRightRadius),
+    bottomRight: radius(style.borderBottomRightRadius),
+    bottomLeft: radius(style.borderBottomLeftRadius),
+  };
+}
 function move(event) {
   if (!dragging || dragging.rail !== event.currentTarget) return;
   const { element, axis, rail, grab } = dragging;
