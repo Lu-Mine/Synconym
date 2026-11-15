@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { normalizeMatchFilter } from './db.js';
+import { normalizeMatchFilter, DELETED_NAME } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
 import { createName } from './names.js';
@@ -32,7 +32,7 @@ function matchHits(filter, match) {
     for (const player of match.players) {
       const name = String(player.name);
       if (name.toLowerCase().includes(needle)) names.push({ name, whole: false });
-      else if (player.uid.toLowerCase().startsWith(needle)) names.push({ name, whole: true });
+      else if (!player.deleted && player.uid.toLowerCase().startsWith(needle)) names.push({ name, whole: true });
     }
   }
   const time = (filter.from !== undefined || filter.to !== undefined)
@@ -1062,12 +1062,29 @@ export function createMemoryDb() {
   const players = new Map();
   const nameHistory = new Map();
   const matches = new Map();
+  const credentials = new Map();   // 凭证哈希 -> uid
+  const devices = new Map();
+  const links = new Map();
+  const rejections = new Map();
+  const hidden = new Map();
+  const linkKey = (deviceKey, uid) => `${deviceKey}|${uid}`;
+  const hiddenKey = (uid, matchId) => `${uid}|${matchId}`;
+  const credentialKey = (hash) => (Buffer.isBuffer(hash) ? hash.toString('hex') : String(hash));
+  const alive = (uid) => {
+    const player = players.get(uid);
+    return player && !player.deletedAt ? player : undefined;
+  };
+  const membersOf = (match) => (match.players || []).map((player) => ({
+    uid: player.uid, seat: player.seat, name: player.name,
+    ...(players.get(player.uid)?.deletedAt ? { deleted: true } : {})
+  }));
   // 与 SQL 同一语义：任一维度命中即算找到
   const matchesAny = (match, filter) => {
     const needle = filter.value.toLowerCase();
     if (needle) {
       if (match.roomCode.toLowerCase().startsWith(needle)) return true;
-      if (match.players.some((player) => player.uid.toLowerCase().startsWith(needle))) return true;
+      // 已注销身份不再按 UID 前缀命中
+      if (match.players.some((player) => !players.get(player.uid)?.deletedAt && player.uid.toLowerCase().startsWith(needle))) return true;
       if (match.players.some((player) => String(player.name).toLowerCase().includes(needle))) return true;
       if (filter.themeIds.includes(match.themeId)) return true;
     }
@@ -1078,16 +1095,20 @@ export function createMemoryDb() {
   const filteredMatches = (uid, input) => {
     const filter = normalizeMatchFilter(input);
     return [...matches.values()].filter((match) => match.players.some((player) => player.uid === uid)
+      && !hidden.has(hiddenKey(uid, match.id))
       && (!filter || matchesAny(match, filter)));
   };
   return {
-    getPlayer: (uid) => players.get(uid),
-    getProfile: (uid) => players.get(uid),
+    getPlayer: (uid) => alive(uid),
+    getProfile: (uid) => {
+      const player = alive(uid);
+      return player ? { uid: player.uid, name: player.name, createdAt: player.createdAt } : undefined;
+    },
     createPlayer(uid, name) {
       const player = { uid, name, createdAt: Date.now() };
       players.set(uid, player);
       nameHistory.set(uid, [{ name, changedAt: player.createdAt }]);
-      return player;
+      return { uid, name };
     },
     touch() {},
     rename(uid, name) {
@@ -1096,15 +1117,101 @@ export function createMemoryDb() {
       nameHistory.get(uid).unshift({ name, changedAt: Date.now() });
     },
     getNameHistory: (uid, limit = 20) => (nameHistory.get(uid) || []).slice(0, limit),
+    setCredentialHash: (uid, hash) => credentials.set(credentialKey(hash), uid),
+    getCredentialHash(uid) {
+      for (const [key, owner] of credentials) if (owner === uid) return Buffer.from(key, 'hex');
+      return undefined;
+    },
+    addCredential: (uid, hash) => credentials.set(credentialKey(hash), uid),
+    credentialOwner: (hash) => credentials.get(credentialKey(hash)),
+    touchCredential() {},
+    dropCredential: (hash) => credentials.delete(credentialKey(hash)),
+    countCredentials(uid) { let total = 0; for (const owner of credentials.values()) if (owner === uid) total += 1; return total; },
+    insertDevice({ deviceKey, weakKey, profileJson }, now = Date.now()) {
+      const previous = devices.get(deviceKey);
+      devices.set(deviceKey, { deviceKey, weakKey, profileJson, firstSeen: previous?.firstSeen ?? now, lastSeen: now });
+    },
+    getDevice: (deviceKey) => devices.get(deviceKey),
+    devicesByWeakKey: (weakKey) => [...devices.values()].filter((device) => device.weakKey === weakKey),
+    touchDevice(deviceKey, now = Date.now()) { const device = devices.get(deviceKey); if (device) device.lastSeen = now; },
+    dropDevice: (deviceKey) => { devices.delete(deviceKey); },
+    getDeviceLinks(deviceKey) {
+      return [...links.values()].filter((link) => link.deviceKey === deviceKey)
+        .sort((a, b) => b.lastSeen - a.lastSeen)
+        .map(({ uid, boundAt, lastSeen, source }) => ({ uid, bound_at: boundAt, last_seen: lastSeen, source }));
+    },
+    countDeviceLinks: (deviceKey) => [...links.values()].filter((link) => link.deviceKey === deviceKey).length,
+    linkDevice(deviceKey, uid, source, now = Date.now()) {
+      const previous = links.get(linkKey(deviceKey, uid));
+      links.set(linkKey(deviceKey, uid), { deviceKey, uid, boundAt: previous?.boundAt ?? now, lastSeen: now, source });
+    },
+    touchDeviceLink(deviceKey, uid, now = Date.now()) {
+      const link = links.get(linkKey(deviceKey, uid));
+      if (link) link.lastSeen = now;
+    },
+    unlinkDevice: (deviceKey, uid) => links.delete(linkKey(deviceKey, uid)),
+    rejectDevice: (deviceKey, uid, now = Date.now()) => rejections.set(linkKey(deviceKey, uid), now),
+    isDeviceRejected: (deviceKey, uid) => rejections.has(linkKey(deviceKey, uid)),
+    pruneDevices() {},
+    hideMatch: (uid, matchId, now = Date.now()) => hidden.set(hiddenKey(uid, matchId), now),
+    unhideMatch: (uid, matchId) => hidden.delete(hiddenKey(uid, matchId)),
+    isHidden: (uid, matchId) => hidden.has(hiddenKey(uid, matchId)),
+    hideAllMatches(uid, now = Date.now()) {
+      for (const match of matches.values()) {
+        if (match.players.some((player) => player.uid === uid)) hidden.set(hiddenKey(uid, match.id), now);
+      }
+      return this.countHiddenMatches(uid);
+    },
+    unhideAllMatches(uid) {
+      for (const key of [...hidden.keys()]) if (key.startsWith(`${uid}|`)) hidden.delete(key);
+    },
+    countHiddenMatches: (uid) => [...hidden.keys()].filter((key) => key.startsWith(`${uid}|`)).length,
+    listHiddenMatches(uid, { limit = 10, offset = 0 } = {}) {
+      return [...matches.values()]
+        .filter((match) => hidden.has(hiddenKey(uid, match.id)) && match.players.some((player) => player.uid === uid))
+        .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .slice(offset, offset + limit)
+        .map((match) => ({ ...structuredClone(match), players: membersOf(match) }));
+    },
+    eraseIdentity(uid, now = Date.now()) {
+      const player = players.get(uid);
+      if (!player) return false;
+      player.deletedAt = now;
+      player.name = DELETED_NAME;
+      nameHistory.delete(uid);
+      for (const [key, owner] of [...credentials]) if (owner === uid) credentials.delete(key);
+      const deviceKeys = new Set();
+      for (const [key, link] of [...links]) if (link.uid === uid) { deviceKeys.add(link.deviceKey); links.delete(key); }
+      for (const key of [...rejections.keys()]) if (key.endsWith(`|${uid}`)) rejections.delete(key);
+      this.unhideAllMatches(uid);
+      for (const deviceKey of deviceKeys) if (!this.countDeviceLinks(deviceKey)) devices.delete(deviceKey);
+      for (const match of matches.values()) {
+        const seat = match.players.find((entry) => entry.uid === uid);
+        if (!seat) continue;
+        seat.name = DELETED_NAME;
+        for (const round of match.rounds || []) {
+          delete round.words?.[uid];
+          delete round.marks?.[uid];
+          delete round.votes?.[uid];
+          if (round.voteChoices) delete round.voteChoices[uid];
+          if (round.breakVote && typeof round.breakVote === 'object') delete round.breakVote[uid];
+          if (round.modeDetails?.guesses) delete round.modeDetails.guesses[uid];
+        }
+      }
+      return true;
+    },
     saveMatch(match) { if (!matches.has(match.id)) matches.set(match.id, structuredClone(match)); },
-    getMatch: (id) => structuredClone(matches.get(id)),
+    getMatch(id) {
+      const match = matches.get(id);
+      return match ? { ...structuredClone(match), players: membersOf(match) } : undefined;
+    },
     listMatches: () => structuredClone([...matches.values()]),
     countMatchesFor: (uid, filter) => filteredMatches(uid, filter).length,
     listMatchesFor(uid, { limit = 10, offset = 0, filter } = {}) {
       return filteredMatches(uid, filter)
         .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
         .slice(offset, offset + limit)
-        .map(({ rounds, ...match }) => structuredClone(match));
+        .map((match) => ({ ...structuredClone(match), players: membersOf(match) }));
     },
     close() {}
   };
