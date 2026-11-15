@@ -8,7 +8,7 @@ const modes = [
     description: '每轮输入 8 秒，揭晓 3 秒，随后自动开始下一轮。不用提交、准备或投票，只管打字，以尽可能短的时间写出完全一致的答案。'
   },
   {
-    id: 'livonym', name: '即时竞猜', english: 'Livonym', players: '3–8 人',
+    id: 'livonym', name: '即时竞猜', english: 'Livonym', players: '3–8 人', ready: true,
     lead: '看着想法出现，抢先猜中答案。',
     description: '一人实时打字描述秘密词，其他人限时竞猜。文字输入即刻展现，无需提交；按猜中先后得分，轮流出题，最后以总分排名。'
   },
@@ -28,8 +28,35 @@ const modes = [
     description: '每个人从系统给出的不同起点出发，观察所有人的词，逐轮联想、搭桥、靠近，直到大家相遇。'
   }
 ];
+export const INSANE_DEFAULT_MODE = modes[0].id;
 
-export function insaneMarkup() {
+function resolveMode(modeId) {
+  return modes.find((mode) => mode.id === modeId) || modes.find((mode) => mode.id === INSANE_DEFAULT_MODE) || modes[0];
+}
+
+export function insanePreviewBodyMarkup(modeId = INSANE_DEFAULT_MODE) {
+  const mode = resolveMode(modeId);
+  return `<div class="insane-preview-head">
+      <span class="insane-mark insane-mark--${mode.id}" aria-hidden="true"><i></i><i></i><i></i></span>
+      <div class="insane-preview-title">
+        <span class="insane-wordmark insane-wordmark--${mode.id}" lang="en"><span class="sr-only">${mode.english}</span><span class="wordmark-art" aria-hidden="true">${wordmarkArt[mode.id]}</span></span>
+        <strong>${mode.name}</strong>
+      </div>
+      <span class="insane-players">${icon('users')}<span>${mode.players}</span></span>
+    </div>
+    <div class="insane-preview-body">
+      <h3 class="insane-preview-lead">${mode.lead}</h3>
+      <p class="insane-preview-desc">${mode.description}</p>
+    </div>`;
+}
+
+export function insanePreviewMarkup(modeId = INSANE_DEFAULT_MODE) {
+  const mode = resolveMode(modeId);
+  return `<aside class="insane-preview insane-preview--${mode.id}" data-mode="${mode.id}" aria-label="玩法介绍" aria-live="polite">${insanePreviewBodyMarkup(mode.id)}</aside>`;
+}
+
+export function insaneMarkup(selectedMode = INSANE_DEFAULT_MODE) {
+  const active = resolveMode(selectedMode);
   const cards = modes.map((mode) => `<article class="insane-card insane-card--${mode.id}">
     <details class="insane-details">
       <summary class="insane-card-row">
@@ -51,6 +78,9 @@ export function insaneMarkup() {
       <span class="insane-heading-mark" aria-hidden="true"><i></i><i></i></span>
     </header>
     <div class="insane-list-heading"><h2>选择一种玩法</h2>${modes.some((mode) => !mode.ready) ? '<p>其余玩法仍在筹备中</p>' : ''}</div>
-    <section class="insane-list" aria-label="狂意玩法列表">${cards}</section>
+    <div class="insane-layout" data-selected="${active.id}" data-preview="${active.id}">
+      <section class="insane-list" aria-label="狂意玩法列表">${cards}</section>
+      ${insanePreviewMarkup(active.id)}
+    </div>
   </div>`;
 }

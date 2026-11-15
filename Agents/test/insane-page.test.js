@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { homeEntryMarkup, settingsMarkup } from '../../public/render.js';
-import { insaneMarkup } from '../../public/insane.js';
+import { insaneMarkup, insanePreviewMarkup, INSANE_DEFAULT_MODE } from '../../public/insane.js';
 import { motionTarget, sceneMotion } from '../../public/motion.js';
 import { createSynconymServer } from '../../server/index.js';
 import { createDatabase } from '../../server/db.js';
@@ -101,7 +101,8 @@ test('五种玩法默认收起，人数准确且未开放创建', () => {
   for (const [id, name, english, players] of modes) {
     const card = html.match(new RegExp(`<article class="insane-card insane-card--${id}">[\\s\\S]*?<\\/article>`))?.[0];
     assert.ok(card, `缺少 ${name}`);
-    const open = false;
+    // 即时竞猜已接入，其余玩法仍在筹备
+    const open = id === 'livonym';
     const texts = [name, english, players, '创建房间', ...(open ? [] : ['暂未开放'])];
     for (const text of texts) assert.ok(card.includes(text));
     assert.match(card, /<details class="insane-details">/);
@@ -259,4 +260,61 @@ test('五种狂意玩法的创建房间按钮具备各自独立样式特效与�
   assert.match(css, /\.insane-create:disabled::before\s*\{[^}]*repeating-linear-gradient\(\s*-45deg/);
   assert.match(css, /\.insane-create:disabled > span::after\s*\{\s*display:\s*none;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-create,\s*\.insane-create::before,\s*\.insane-create::after,\s*\.insane-create > span,\s*\.insane-create > span::after\s*\{[^}]*transition:\s*none !important;[^}]*animation:\s*none !important;/);
+});
+
+test('狂意大厅宽屏双列：左侧列表与右侧介绍面板同步悬停与选中状态，窄屏保持原折叠列表', async () => {
+  const html = insaneMarkup();
+  const css = await readFile(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  const app = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
+
+  assert.equal(INSANE_DEFAULT_MODE, 'blitz');
+  assert.match(html, /<div class="insane-layout" data-selected="blitz" data-preview="blitz">/);
+  assert.ok(html.indexOf('class="insane-list"') < html.indexOf('class="insane-preview insane-preview--blitz"'));
+
+  for (const [id, lead] of [
+    ['blitz', '不要停，凭直觉想到一起。'],
+    ['livonym', '看着想法出现，抢先猜中答案。'],
+    ['shiritori', '沿着词尾，继续靠近。'],
+    ['impostor', '有人在靠近，也有人在带偏。'],
+    ['bridge', '从不同的起点，走向同一个词。']
+  ]) {
+    const preview = insanePreviewMarkup(id);
+    assert.match(preview, new RegExp(`class="insane-preview insane-preview--${id}" data-mode="${id}"`));
+    assert.ok(preview.includes(lead), `右侧面板缺少 ${id} 引语`);
+    assert.doesNotMatch(preview, /<button|创建房间/);
+    assert.match(css, new RegExp(`\\.insane-preview--${id}\\s*\\{`));
+  }
+
+  assert.match(css, /\.insane-preview\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(css, /@media \(min-width: 1000px\)\s*\{[\s\S]*?\.app:has\(\.insane-page\)\s*\{\s*--app-w:\s*min\(100% - 64px, 1120px\);/);
+  assert.match(css, /\.insane-layout\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1\.08fr\) minmax\(0, 1fr\)/);
+  assert.match(css, /\.insane-card \.insane-disclosure,\s*\.insane-card \.insane-description\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(css, /\.insane-preview\s*\{[^}]*position:\s*sticky;[^}]*top:\s*20px;/);
+
+  // 介绍面板的像素雨：方格细到 12px，斜带被方格切出锯齿台阶，整格朝右下错落滑动。
+  assert.match(css, /@property --preview-rain-a\s*\{\s*syntax:\s*'<length>';/);
+  assert.match(css, /@property --preview-rain-b\s*\{\s*syntax:\s*'<length>';/);
+  assert.match(css, /\.insane-preview::after\s*\{[^}]*--pixel-size:\s*12px;[^}]*--pixel-columns:\s*linear-gradient\(90deg,\s*#000 0 9px,\s*transparent 9px 12px\);/);
+  // 只用方格行列两道蒙版：去掉明暗马赛克，格子内保持纯色而不是被切成三角。
+  const previewBlock = css.slice(css.indexOf('.insane-preview::after'), css.indexOf('@keyframes insane-preview-rain'));
+  assert.match(previewBlock, /mask-image:\s*var\(--pixel-columns\), var\(--pixel-rows\);/);
+  assert.match(previewBlock, /mask-size:\s*var\(--pixel-size\) 100%, 100% var\(--pixel-size\);/);
+  assert.doesNotMatch(previewBlock, /--pixel-values|conic-gradient/);
+  // 两层 135° 斜带周期不同，蒙版把斜带切成参差的方块台阶。
+  assert.match(css, /\.insane-preview::after\s*\{[\s\S]*?repeating-linear-gradient\(135deg, transparent 0 26px, color-mix\(in srgb, var\(--mode-a\) 10%, transparent\) 34px 62px, transparent 70px 118\.8px\)/);
+  assert.match(css, /\.insane-preview::after\s*\{[\s\S]*?repeating-linear-gradient\(135deg, transparent 0 50px, color-mix\(in srgb, var\(--mode-b\) 6%, transparent\) 58px 110px, transparent 118px 237\.6px\)/);
+  // 横向与纵向位移取同一个值并按 12px 整格吸附，整体朝右下走。
+  assert.match(css, /background-position:\s*round\(down, var\(--preview-rain-a\), 12px\) round\(down, var\(--preview-rain-a\), 12px\),\s*round\(down, var\(--preview-rain-b\), 12px\) round\(down, var\(--preview-rain-b\), 12px\);/);
+  assert.match(css, /animation:\s*insane-preview-rain 6\.4s linear infinite;/);
+  // 每次位移恰好是各自斜带周期的整数倍，循环回位时画面与原位重合。
+  assert.match(css, /@keyframes insane-preview-rain\s*\{\s*from \{ --preview-rain-a: -336px; --preview-rain-b: -168px; \}\s*to \{ --preview-rain-a: 0px; --preview-rain-b: 0px; \}/);
+  assert.match(css, /@supports not \(background-position: 0 round\(down, 0px, 12px\)\) \{\s*\.insane-preview::after \{ display: none; \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-preview \{ transition: none; \}\s*\.insane-preview::after \{ display: none; \}/);
+  // 正文始终压在扫描层之上，动画只做底纹。
+  assert.match(css, /\.insane-preview > \* \{ position: relative; z-index: 1; \}/);
+  assert.match(app, /app\.addEventListener\('mouseover'/);
+  assert.match(app, /app\.addEventListener\('mouseout'/);
+  assert.match(app, /app\.addEventListener\('focusin'/);
+  assert.match(app, /app\.addEventListener\('focusout'/);
+  assert.match(app, /if \(isInsaneSplitLayout\(\)\) event\.preventDefault\(\)/);
 });
