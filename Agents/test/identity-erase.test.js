@@ -61,13 +61,14 @@ test('注销清掉自己写下的词、标记与投票，同局其他人的内�
   manager.handle(a, { type: 'eraseIdentity' });
 
   const round = db.getMatch('m1').rounds[0];
-  assert.equal(round.words[uid], undefined);
+  // 槽位留着，内容被抹成 null，所以渲染出来是空的。
+  assert.equal(round.words[uid], null);
   assert.equal(round.words.PARTNER, '天');
-  assert.equal(round.marks[uid], undefined);
+  assert.equal(round.marks[uid], null);
   assert.equal(round.marks.PARTNER, 'none');
-  assert.equal(round.votes[uid], undefined);
+  assert.equal(round.votes[uid], null);
   assert.equal(round.votes.PARTNER, false);
-  assert.equal(round.voteChoices[uid], undefined);
+  assert.equal(round.voteChoices[uid], null);
 });
 
 test('注销移除凭证、设备绑定与已移除记录，旧凭证不再能认领', (t) => {
@@ -86,7 +87,8 @@ test('注销移除凭证、设备绑定与已移除记录，旧凭证不再能�
   assert.equal(db.getCredentialHash(uid), undefined);
   assert.equal(db.credentialOwner(hash), undefined);
   assert.equal(db.getDeviceLinks('device-x').length, 0);
-  assert.equal(db.getDevice('device-x'), undefined);
+  // 设备行与绑定行都还在，只是绑定被标记失效。
+  assert.ok(db.getDevice('device-x'));
   assert.equal(db.countHiddenMatches(uid), 0);
   // 连接拿到的是全新身份
   assert.notEqual(a.uid, uid);
@@ -123,4 +125,40 @@ test('在房间里注销按主动退出处理，其他人收到提示', (t) => {
   assert.ok(room.players.every((player) => player.uid !== a.uid));
   assert.match(b.messages.filter((m) => m.type === 'toast').at(-1).message, /已主动退出房间/);
   assert.ok(db.getPlayer(b.uid));
+});
+
+test('注销只把数据标记成失效，行本身留在库里', async (t) => {
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { randomUUID } = await import('node:crypto');
+  const { rmSync } = await import('node:fs');
+  const { default: Database } = await import('better-sqlite3');
+  const file = join(tmpdir(), `synconym-erase-${randomUUID()}.db`);
+  const cleanup = () => { for (const suffix of ['', '-wal', '-shm']) rmSync(`${file}${suffix}`, { force: true }); };
+  const db = createDatabase(file);
+  const uid = 'UIDERASE';
+  db.createPlayer(uid, '甲', 1000);
+  db.addCredential(uid, Buffer.from(uid), 1000);
+  db.insertDevice({ deviceKey: 'device-x', weakKey: 'weak-x', profileJson: '{}' }, 1000);
+  db.linkDevice('device-x', uid, 'created', 1000);
+  db.hideMatch(uid, 'm1', 1000);
+
+  assert.equal(db.eraseIdentity(uid, 2000), true);
+  db.close();
+
+  const raw = new Database(file, { readonly: true });
+  t.after(() => { raw.close(); cleanup(); });
+  const player = raw.prepare('SELECT uid, name, deleted_at FROM players WHERE uid = ?').get(uid);
+  assert.equal(player.name, DELETED_NAME);
+  assert.equal(player.deleted_at, 2000);
+  const names = raw.prepare('SELECT name, disabled_at FROM name_history WHERE uid = ?').all(uid);
+  assert.equal(names.length, 1);
+  assert.equal(names[0].disabled_at, 2000);
+  const credential = raw.prepare('SELECT uid, disabled_at FROM credentials WHERE uid = ?').get(uid);
+  assert.equal(credential.disabled_at, 2000);
+  const link = raw.prepare('SELECT uid, disabled_at FROM device_links WHERE device_key = ?').get('device-x');
+  assert.equal(link.disabled_at, 2000);
+  const hidden = raw.prepare('SELECT uid, disabled_at FROM match_hidden WHERE uid = ?').get(uid);
+  assert.equal(hidden.disabled_at, 2000);
+  assert.ok(raw.prepare('SELECT 1 FROM devices WHERE device_key = ?').get('device-x'));
 });

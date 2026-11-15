@@ -38,7 +38,7 @@ function matchWhere(uid, input) {
   const filter = normalizeMatchFilter(input);
   let sql = 'p.uid = ?';
   const params = [uid];
-  sql += ' AND NOT EXISTS (SELECT 1 FROM match_hidden h WHERE h.uid = ? AND h.match_id = m.id)';
+  sql += ' AND NOT EXISTS (SELECT 1 FROM match_hidden h WHERE h.uid = ? AND h.match_id = m.id AND h.disabled_at IS NULL)';
   params.push(uid);
   if (filter?.type === 'any') {
     const matched = [];
@@ -80,7 +80,7 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
       created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS name_history (
-      uid TEXT NOT NULL, name TEXT NOT NULL, changed_at INTEGER NOT NULL
+      uid TEXT NOT NULL, name TEXT NOT NULL, changed_at INTEGER NOT NULL, disabled_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS matches (
       id TEXT PRIMARY KEY, room_code TEXT NOT NULL,
@@ -110,7 +110,7 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   db.exec(`
     CREATE TABLE IF NOT EXISTS credentials (
       credential_hash BLOB PRIMARY KEY, uid TEXT NOT NULL,
-      created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL
+      created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, disabled_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_credentials_uid ON credentials(uid);
     CREATE TABLE IF NOT EXISTS devices (
@@ -121,18 +121,24 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     CREATE TABLE IF NOT EXISTS device_links (
       device_key TEXT NOT NULL, uid TEXT NOT NULL,
       bound_at INTEGER NOT NULL, last_seen INTEGER NOT NULL, source TEXT NOT NULL,
+      disabled_at INTEGER,
       PRIMARY KEY (device_key, uid)
     );
     CREATE INDEX IF NOT EXISTS idx_device_links_uid ON device_links(uid);
     CREATE TABLE IF NOT EXISTS device_rejections (
-      device_key TEXT NOT NULL, uid TEXT NOT NULL, rejected_at INTEGER NOT NULL,
+      device_key TEXT NOT NULL, uid TEXT NOT NULL, rejected_at INTEGER NOT NULL, disabled_at INTEGER,
       PRIMARY KEY (device_key, uid)
     );
     CREATE TABLE IF NOT EXISTS match_hidden (
-      uid TEXT NOT NULL, match_id TEXT NOT NULL, hidden_at INTEGER NOT NULL,
+      uid TEXT NOT NULL, match_id TEXT NOT NULL, hidden_at INTEGER NOT NULL, disabled_at INTEGER,
       PRIMARY KEY (uid, match_id)
     );
   `);
+  // 注销只禁用数据，不物理删除行；旧库补上标记列。
+  for (const table of ['name_history', 'credentials', 'device_links', 'device_rejections', 'match_hidden']) {
+    const columns = db.pragma(`table_info(${table})`).map((column) => column.name);
+    if (!columns.includes('disabled_at')) db.exec(`ALTER TABLE ${table} ADD COLUMN disabled_at INTEGER`);
+  }
   // 早期版本一个 uid 只存一条凭证。搬到多凭证表后旧数据仍然可以登录。
   const legacy = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'player_credentials'").get();
   if (legacy) {
@@ -150,8 +156,9 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   const updateName = db.prepare('UPDATE players SET name = ?, last_seen = ? WHERE uid = ?');
   const recordName = db.prepare('INSERT INTO name_history (uid, name, changed_at) VALUES (?, ?, ?)');
   const profileRow = db.prepare('SELECT uid, name, created_at FROM players WHERE uid = ? AND deleted_at IS NULL');
-  const nameHistoryRows = db.prepare('SELECT name, changed_at FROM name_history WHERE uid = ? ORDER BY changed_at DESC, rowid DESC LIMIT ?');
-  const playerExists = db.prepare('SELECT 1 AS hit FROM players WHERE uid = ?');
+  const nameHistoryRows = db.prepare('SELECT name, changed_at FROM name_history WHERE uid = ? AND disabled_at IS NULL ORDER BY changed_at DESC, rowid DESC LIMIT ?');
+  // 已注销的身份留着行，但不再算「存在」，避免重复注销同一个人。
+  const playerActive = db.prepare('SELECT 1 AS hit FROM players WHERE uid = ? AND deleted_at IS NULL');
   const matchSource = 'FROM matches m JOIN match_players p ON p.match_id = m.id';
   const hiddenSource = 'FROM matches m JOIN match_hidden h ON h.match_id = m.id JOIN match_players p ON p.match_id = m.id';
   const matchMembers = db.prepare(`SELECT p.uid, p.seat, p.name_at_time AS name, pl.deleted_at AS deleted_at
@@ -176,15 +183,15 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   });
 
   // 凭证：一个身份可以有多个，分别对应不同浏览器。
-  const credentialOwner = db.prepare('SELECT uid FROM credentials WHERE credential_hash = ?');
-  const credentialForUid = db.prepare('SELECT credential_hash FROM credentials WHERE uid = ? LIMIT 1');
-  const insertCredential = db.prepare(`INSERT INTO credentials (credential_hash, uid, created_at, last_seen)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(credential_hash) DO UPDATE SET uid = excluded.uid, last_seen = excluded.last_seen`);
-  const touchCredentialHash = db.prepare('UPDATE credentials SET last_seen = ? WHERE credential_hash = ?');
+  const credentialOwner = db.prepare('SELECT uid FROM credentials WHERE credential_hash = ? AND disabled_at IS NULL');
+  const credentialForUid = db.prepare('SELECT credential_hash FROM credentials WHERE uid = ? AND disabled_at IS NULL LIMIT 1');
+  const insertCredential = db.prepare(`INSERT INTO credentials (credential_hash, uid, created_at, last_seen, disabled_at)
+    VALUES (?, ?, ?, ?, NULL)
+    ON CONFLICT(credential_hash) DO UPDATE SET uid = excluded.uid, last_seen = excluded.last_seen, disabled_at = NULL`);
+  const touchCredentialHash = db.prepare('UPDATE credentials SET last_seen = ? WHERE credential_hash = ? AND disabled_at IS NULL');
   const deleteCredentialHash = db.prepare('DELETE FROM credentials WHERE credential_hash = ?');
-  const deleteCredentialsFor = db.prepare('DELETE FROM credentials WHERE uid = ?');
-  const credentialCount = db.prepare('SELECT COUNT(*) AS total FROM credentials WHERE uid = ?');
+  const disableCredentialsFor = db.prepare('UPDATE credentials SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
+  const credentialCount = db.prepare('SELECT COUNT(*) AS total FROM credentials WHERE uid = ? AND disabled_at IS NULL');
 
   // 设备：指纹只用来提示与自动沿用，不参与凭证校验。
   const upsertDevice = db.prepare(`INSERT INTO devices (device_key, weak_key, profile_json, first_seen, last_seen)
@@ -195,33 +202,36 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
   const deviceByWeakKey = db.prepare('SELECT device_key, weak_key, profile_json, first_seen, last_seen FROM devices WHERE weak_key = ? ORDER BY last_seen DESC');
   const touchDevice = db.prepare('UPDATE devices SET last_seen = ? WHERE device_key = ?');
   const dropDevice = db.prepare('DELETE FROM devices WHERE device_key = ?');
-  const linksForDevice = db.prepare('SELECT uid, bound_at, last_seen, source FROM device_links WHERE device_key = ? ORDER BY last_seen DESC');
-  const linkCount = db.prepare('SELECT COUNT(*) AS total FROM device_links WHERE device_key = ?');
-  const upsertLink = db.prepare(`INSERT INTO device_links (device_key, uid, bound_at, last_seen, source)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(device_key, uid) DO UPDATE SET last_seen = excluded.last_seen, source = excluded.source`);
-  const touchLink = db.prepare('UPDATE device_links SET last_seen = ? WHERE device_key = ? AND uid = ?');
+  const linksForDevice = db.prepare('SELECT uid, bound_at, last_seen, source FROM device_links WHERE device_key = ? AND disabled_at IS NULL ORDER BY last_seen DESC');
+  const linkCount = db.prepare('SELECT COUNT(*) AS total FROM device_links WHERE device_key = ? AND disabled_at IS NULL');
+  const upsertLink = db.prepare(`INSERT INTO device_links (device_key, uid, bound_at, last_seen, source, disabled_at)
+    VALUES (?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(device_key, uid) DO UPDATE SET last_seen = excluded.last_seen, source = excluded.source, disabled_at = NULL`);
+  const touchLink = db.prepare('UPDATE device_links SET last_seen = ? WHERE device_key = ? AND uid = ? AND disabled_at IS NULL');
   const deleteLink = db.prepare('DELETE FROM device_links WHERE device_key = ? AND uid = ?');
-  const deleteLinksFor = db.prepare('DELETE FROM device_links WHERE uid = ?');
-  const linksOfUid = db.prepare('SELECT device_key FROM device_links WHERE uid = ?');
-  const rejectLink = db.prepare(`INSERT INTO device_rejections (device_key, uid, rejected_at)
-    VALUES (?, ?, ?) ON CONFLICT(device_key, uid) DO UPDATE SET rejected_at = excluded.rejected_at`);
-  const rejectedLink = db.prepare('SELECT 1 AS hit FROM device_rejections WHERE device_key = ? AND uid = ?');
-  const deleteRejectionsFor = db.prepare('DELETE FROM device_rejections WHERE uid = ?');
+  const disableLinksFor = db.prepare('UPDATE device_links SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
+  const linksOfUid = db.prepare('SELECT device_key FROM device_links WHERE uid = ? AND disabled_at IS NULL');
+  const rejectLink = db.prepare(`INSERT INTO device_rejections (device_key, uid, rejected_at, disabled_at)
+    VALUES (?, ?, ?, NULL) ON CONFLICT(device_key, uid) DO UPDATE SET rejected_at = excluded.rejected_at, disabled_at = NULL`);
+  const rejectedLink = db.prepare('SELECT 1 AS hit FROM device_rejections WHERE device_key = ? AND uid = ? AND disabled_at IS NULL');
+  const disableRejectionsFor = db.prepare('UPDATE device_rejections SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
   const pruneLinksBefore = db.prepare('DELETE FROM device_links WHERE last_seen < ?');
 
   // 记录隐藏：只影响提出隐藏的人，同局其他人照旧。
-  const hideMatchRow = db.prepare('INSERT OR IGNORE INTO match_hidden (uid, match_id, hidden_at) VALUES (?, ?, ?)');
-  const unhideMatchRow = db.prepare('DELETE FROM match_hidden WHERE uid = ? AND match_id = ?');
-  const hiddenRow = db.prepare('SELECT 1 AS hit FROM match_hidden WHERE uid = ? AND match_id = ?');
-  const hideAllRows = db.prepare('INSERT OR IGNORE INTO match_hidden (uid, match_id, hidden_at) SELECT ?, p.match_id, ? FROM match_players p WHERE p.uid = ? AND NOT EXISTS (SELECT 1 FROM match_hidden h WHERE h.uid = ? AND h.match_id = p.match_id)');
-  const unhideAllRows = db.prepare('DELETE FROM match_hidden WHERE uid = ?');
-  const countHidden = db.prepare('SELECT COUNT(*) AS total FROM match_hidden WHERE uid = ?');
-  const deleteHiddenFor = db.prepare('DELETE FROM match_hidden WHERE uid = ?');
+  const hideMatchRow = db.prepare(`INSERT INTO match_hidden (uid, match_id, hidden_at, disabled_at) VALUES (?, ?, ?, NULL)
+    ON CONFLICT(uid, match_id) DO UPDATE SET hidden_at = excluded.hidden_at, disabled_at = NULL`);
+  const unhideMatchRow = db.prepare('UPDATE match_hidden SET disabled_at = ? WHERE uid = ? AND match_id = ? AND disabled_at IS NULL');
+  const hiddenRow = db.prepare('SELECT 1 AS hit FROM match_hidden WHERE uid = ? AND match_id = ? AND disabled_at IS NULL');
+  const hideAllRows = db.prepare(`INSERT INTO match_hidden (uid, match_id, hidden_at, disabled_at)
+    SELECT ?, p.match_id, ?, NULL FROM match_players p WHERE p.uid = ?
+    ON CONFLICT(uid, match_id) DO UPDATE SET hidden_at = excluded.hidden_at, disabled_at = NULL`);
+  const unhideAllRows = db.prepare('UPDATE match_hidden SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
+  const countHidden = db.prepare('SELECT COUNT(*) AS total FROM match_hidden WHERE uid = ? AND disabled_at IS NULL');
+  const disableHiddenFor = db.prepare('UPDATE match_hidden SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
 
-  // 注销：行保留，内容清空。
+  // 注销：行都留着，只是把内容清空、把相关数据标记为失效。
   const markDeleted = db.prepare('UPDATE players SET name = ?, deleted_at = ? WHERE uid = ?');
-  const deleteNameHistoryFor = db.prepare('DELETE FROM name_history WHERE uid = ?');
+  const disableNameHistoryFor = db.prepare('UPDATE name_history SET disabled_at = ? WHERE uid = ? AND disabled_at IS NULL');
   const anonymizeParticipant = db.prepare('UPDATE match_players SET name_at_time = ? WHERE uid = ?');
   const roundsForUid = db.prepare(`SELECT r.match_id, r.n, r.words_json, r.marks_json, r.votes_json,
       r.vote_details_json, r.mode_details_json
@@ -238,29 +248,30 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     return JSON.stringify(value);
   };
 
+  // 注销只禁用：所有行留在原位，读的时候跳过 disabled_at 不为空的行。
   const eraseIdentity = db.transaction((uid, now = Date.now()) => {
-    const player = playerExists.get(uid);
+    const player = playerActive.get(uid);
     if (!player) return false;
-    const devices = linksOfUid.all(uid).map((row) => row.device_key);
     markDeleted.run(DELETED_NAME, now, uid);
-    deleteNameHistoryFor.run(uid);
-    deleteCredentialsFor.run(uid);
-    deleteRejectionsFor.run(uid);
-    deleteHiddenFor.run(uid);
+    disableNameHistoryFor.run(now, uid);
+    disableCredentialsFor.run(now, uid);
+    disableRejectionsFor.run(now, uid);
+    disableHiddenFor.run(now, uid);
+    disableLinksFor.run(now, uid);
     anonymizeParticipant.run(DELETED_NAME, uid);
-    deleteLinksFor.run(uid);
-    for (const key of devices) if (!linkCount.get(key).total) dropDevice.run(key);
+    // 词、标记、投票的槽位留着，内容换成 null，渲染时显示为空。
+    const erase = (value) => { if (uid in value) value[uid] = null; };
     for (const row of roundsForUid.all(uid)) {
       updateRound.run(
-        stripKey(row.words_json, (value) => { delete value[uid]; }),
-        stripKey(row.marks_json, (value) => { delete value[uid]; }),
-        stripKey(row.votes_json, (value) => { delete value[uid]; }),
+        stripKey(row.words_json, erase),
+        stripKey(row.marks_json, erase),
+        stripKey(row.votes_json, erase),
         stripKey(row.vote_details_json, (value) => {
-          if (value.voteChoices && typeof value.voteChoices === 'object') delete value.voteChoices[uid];
-          if (value.breakVote && typeof value.breakVote === 'object') delete value.breakVote[uid];
+          if (value.voteChoices && typeof value.voteChoices === 'object') erase(value.voteChoices);
+          if (value.breakVote && typeof value.breakVote === 'object') erase(value.breakVote);
         }),
         stripKey(row.mode_details_json, (value) => {
-          if (value.guesses && typeof value.guesses === 'object') delete value.guesses[uid];
+          if (value.guesses && typeof value.guesses === 'object') erase(value.guesses);
         }),
         row.match_id, row.n
       );
@@ -294,16 +305,17 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
     isDeviceRejected(deviceKey, uid) { return Boolean(rejectedLink.get(deviceKey, uid)); },
     pruneDevices(before) {
       pruneLinksBefore.run(before);
-      db.prepare('DELETE FROM devices WHERE last_seen < ? AND device_key NOT IN (SELECT device_key FROM device_links)').run(before);
+      db.prepare(`DELETE FROM devices WHERE last_seen < ? AND NOT EXISTS
+        (SELECT 1 FROM device_links l WHERE l.device_key = devices.device_key AND l.disabled_at IS NULL)`).run(before);
     },
     hideMatch(uid, matchId, now = Date.now()) { hideMatchRow.run(uid, matchId, now); },
-    unhideMatch(uid, matchId) { unhideMatchRow.run(uid, matchId); },
+    unhideMatch(uid, matchId, now = Date.now()) { unhideMatchRow.run(now, uid, matchId); },
     isHidden(uid, matchId) { return Boolean(hiddenRow.get(uid, matchId)); },
-    hideAllMatches(uid, now = Date.now()) { hideAllRows.run(uid, now, uid, uid); return db.prepare('SELECT COUNT(*) AS total FROM match_hidden WHERE uid = ?').get(uid).total; },
-    unhideAllMatches(uid) { unhideAllRows.run(uid); },
+    hideAllMatches(uid, now = Date.now()) { hideAllRows.run(uid, now, uid); return countHidden.get(uid).total; },
+    unhideAllMatches(uid, now = Date.now()) { unhideAllRows.run(now, uid); },
     countHiddenMatches(uid) { return countHidden.get(uid).total; },
     listHiddenMatches(uid, { limit = 10, offset = 0 } = {}) {
-      return db.prepare(`SELECT m.* ${hiddenSource} WHERE p.uid = ? AND h.uid = ?
+      return db.prepare(`SELECT m.* ${hiddenSource} WHERE p.uid = ? AND h.uid = ? AND h.disabled_at IS NULL
         ORDER BY m.started_at DESC, m.id DESC LIMIT ? OFFSET ?`)
         .all(uid, uid, limit, offset).map((row) => ({ ...matchView(row), players: membersOf(row.id) }));
     },

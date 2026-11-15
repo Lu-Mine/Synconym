@@ -1211,6 +1211,9 @@ export function createMemoryDb() {
   const links = new Map();
   const rejections = new Map();
   const hidden = new Map();
+  // 与 SQLite 同一语义：注销只把行标记成失效，不物理删除。
+  const disabled = { nameHistory: new Set(), credentials: new Set(), links: new Set(), rejections: new Set(), hidden: new Set() };
+  const hiddenFor = (uid, matchId) => hidden.has(hiddenKey(uid, matchId)) && !disabled.hidden.has(hiddenKey(uid, matchId));
   const linkKey = (deviceKey, uid) => `${deviceKey}|${uid}`;
   const hiddenKey = (uid, matchId) => `${uid}|${matchId}`;
   const credentialKey = (hash) => (Buffer.isBuffer(hash) ? hash.toString('hex') : String(hash));
@@ -1239,7 +1242,7 @@ export function createMemoryDb() {
   const filteredMatches = (uid, input) => {
     const filter = normalizeMatchFilter(input);
     return [...matches.values()].filter((match) => match.players.some((player) => player.uid === uid)
-      && !hidden.has(hiddenKey(uid, match.id))
+      && !hiddenFor(uid, match.id)
       && (!filter || matchesAny(match, filter)));
   };
   return {
@@ -1260,17 +1263,21 @@ export function createMemoryDb() {
       if (!nameHistory.has(uid)) nameHistory.set(uid, []);
       nameHistory.get(uid).unshift({ name, changedAt: Date.now() });
     },
-    getNameHistory: (uid, limit = 20) => (nameHistory.get(uid) || []).slice(0, limit),
-    setCredentialHash: (uid, hash) => credentials.set(credentialKey(hash), uid),
+    getNameHistory: (uid, limit = 20) => (disabled.nameHistory.has(uid) ? [] : (nameHistory.get(uid) || []).slice(0, limit)),
+    setCredentialHash(uid, hash) { disabled.credentials.delete(credentialKey(hash)); credentials.set(credentialKey(hash), uid); },
     getCredentialHash(uid) {
-      for (const [key, owner] of credentials) if (owner === uid) return Buffer.from(key, 'hex');
+      for (const [key, owner] of credentials) if (owner === uid && !disabled.credentials.has(key)) return Buffer.from(key, 'hex');
       return undefined;
     },
-    addCredential: (uid, hash) => credentials.set(credentialKey(hash), uid),
-    credentialOwner: (hash) => credentials.get(credentialKey(hash)),
+    addCredential(uid, hash) { disabled.credentials.delete(credentialKey(hash)); credentials.set(credentialKey(hash), uid); },
+    credentialOwner: (hash) => (disabled.credentials.has(credentialKey(hash)) ? undefined : credentials.get(credentialKey(hash))),
     touchCredential() {},
     dropCredential: (hash) => credentials.delete(credentialKey(hash)),
-    countCredentials(uid) { let total = 0; for (const owner of credentials.values()) if (owner === uid) total += 1; return total; },
+    countCredentials(uid) {
+      let total = 0;
+      for (const [key, owner] of credentials) if (owner === uid && !disabled.credentials.has(key)) total += 1;
+      return total;
+    },
     insertDevice({ deviceKey, weakKey, profileJson, profile }, now = Date.now()) {
       const previous = devices.get(deviceKey);
       devices.set(deviceKey, { deviceKey, weakKey, profileJson: profileJson ?? profile ?? '{}', firstSeen: previous?.firstSeen ?? now, lastSeen: now });
@@ -1280,66 +1287,86 @@ export function createMemoryDb() {
     touchDevice(deviceKey, now = Date.now()) { const device = devices.get(deviceKey); if (device) device.lastSeen = now; },
     dropDevice: (deviceKey) => { devices.delete(deviceKey); },
     getDeviceLinks(deviceKey) {
-      return [...links.values()].filter((link) => link.deviceKey === deviceKey)
+      return [...links.entries()].filter(([key, link]) => link.deviceKey === deviceKey && !disabled.links.has(key))
+        .map(([, link]) => link)
         .sort((a, b) => b.lastSeen - a.lastSeen)
         .map(({ uid, boundAt, lastSeen, source }) => ({ uid, bound_at: boundAt, last_seen: lastSeen, source }));
     },
-    countDeviceLinks: (deviceKey) => [...links.values()].filter((link) => link.deviceKey === deviceKey).length,
+    countDeviceLinks: (deviceKey) => [...links.entries()]
+      .filter(([key, link]) => link.deviceKey === deviceKey && !disabled.links.has(key)).length,
     linkDevice(deviceKey, uid, source, now = Date.now()) {
       const previous = links.get(linkKey(deviceKey, uid));
+      disabled.links.delete(linkKey(deviceKey, uid));
       links.set(linkKey(deviceKey, uid), { deviceKey, uid, boundAt: previous?.boundAt ?? now, lastSeen: now, source });
     },
     touchDeviceLink(deviceKey, uid, now = Date.now()) {
-      const link = links.get(linkKey(deviceKey, uid));
-      if (link) link.lastSeen = now;
+      const key = linkKey(deviceKey, uid);
+      const link = links.get(key);
+      if (link && !disabled.links.has(key)) link.lastSeen = now;
     },
-    unlinkDevice: (deviceKey, uid) => links.delete(linkKey(deviceKey, uid)),
-    rejectDevice: (deviceKey, uid, now = Date.now()) => rejections.set(linkKey(deviceKey, uid), now),
-    isDeviceRejected: (deviceKey, uid) => rejections.has(linkKey(deviceKey, uid)),
+    unlinkDevice(deviceKey, uid) { disabled.links.delete(linkKey(deviceKey, uid)); links.delete(linkKey(deviceKey, uid)); },
+    rejectDevice(deviceKey, uid, now = Date.now()) {
+      disabled.rejections.delete(linkKey(deviceKey, uid));
+      rejections.set(linkKey(deviceKey, uid), now);
+    },
+    isDeviceRejected: (deviceKey, uid) => rejections.has(linkKey(deviceKey, uid)) && !disabled.rejections.has(linkKey(deviceKey, uid)),
     pruneDevices() {},
-    hideMatch: (uid, matchId, now = Date.now()) => hidden.set(hiddenKey(uid, matchId), now),
-    unhideMatch: (uid, matchId) => hidden.delete(hiddenKey(uid, matchId)),
-    isHidden: (uid, matchId) => hidden.has(hiddenKey(uid, matchId)),
+    hideMatch: (uid, matchId, now = Date.now()) => {
+      disabled.hidden.delete(hiddenKey(uid, matchId));
+      hidden.set(hiddenKey(uid, matchId), now);
+    },
+    unhideMatch: (uid, matchId) => {
+      disabled.hidden.delete(hiddenKey(uid, matchId));
+      hidden.delete(hiddenKey(uid, matchId));
+    },
+    isHidden: (uid, matchId) => hiddenFor(uid, matchId),
     hideAllMatches(uid, now = Date.now()) {
       for (const match of matches.values()) {
-        if (match.players.some((player) => player.uid === uid)) hidden.set(hiddenKey(uid, match.id), now);
+        if (!match.players.some((player) => player.uid === uid)) continue;
+        disabled.hidden.delete(hiddenKey(uid, match.id));
+        hidden.set(hiddenKey(uid, match.id), now);
       }
       return this.countHiddenMatches(uid);
     },
     unhideAllMatches(uid) {
-      for (const key of [...hidden.keys()]) if (key.startsWith(`${uid}|`)) hidden.delete(key);
+      for (const key of [...hidden.keys()]) {
+        if (!key.startsWith(`${uid}|`)) continue;
+        hidden.delete(key);
+        disabled.hidden.delete(key);
+      }
     },
-    countHiddenMatches: (uid) => [...hidden.keys()].filter((key) => key.startsWith(`${uid}|`)).length,
+    countHiddenMatches: (uid) => [...hidden.keys()]
+      .filter((key) => key.startsWith(`${uid}|`) && !disabled.hidden.has(key)).length,
     listHiddenMatches(uid, { limit = 10, offset = 0 } = {}) {
       return [...matches.values()]
-        .filter((match) => hidden.has(hiddenKey(uid, match.id)) && match.players.some((player) => player.uid === uid))
+        .filter((match) => hiddenFor(uid, match.id) && match.players.some((player) => player.uid === uid))
         .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
         .slice(offset, offset + limit)
         .map((match) => ({ ...structuredClone(match), players: membersOf(match) }));
     },
+    // 注销只禁用：行都还在，只是不再可读。
     eraseIdentity(uid, now = Date.now()) {
-      const player = players.get(uid);
+      const player = alive(uid);
       if (!player) return false;
       player.deletedAt = now;
       player.name = DELETED_NAME;
-      nameHistory.delete(uid);
-      for (const [key, owner] of [...credentials]) if (owner === uid) credentials.delete(key);
-      const deviceKeys = new Set();
-      for (const [key, link] of [...links]) if (link.uid === uid) { deviceKeys.add(link.deviceKey); links.delete(key); }
-      for (const key of [...rejections.keys()]) if (key.endsWith(`|${uid}`)) rejections.delete(key);
-      this.unhideAllMatches(uid);
-      for (const deviceKey of deviceKeys) if (!this.countDeviceLinks(deviceKey)) devices.delete(deviceKey);
+      disabled.nameHistory.add(uid);
+      for (const [key, owner] of credentials) if (owner === uid) disabled.credentials.add(key);
+      for (const [key, link] of links) if (link.uid === uid) disabled.links.add(key);
+      for (const key of rejections.keys()) if (key.endsWith(`|${uid}`)) disabled.rejections.add(key);
+      for (const key of hidden.keys()) if (key.startsWith(`${uid}|`)) disabled.hidden.add(key);
+      const erase = (value) => { if (value && typeof value === 'object' && uid in value) value[uid] = null; };
       for (const match of matches.values()) {
         const seat = match.players.find((entry) => entry.uid === uid);
         if (!seat) continue;
         seat.name = DELETED_NAME;
         for (const round of match.rounds || []) {
-          delete round.words?.[uid];
-          delete round.marks?.[uid];
-          delete round.votes?.[uid];
-          if (round.voteChoices) delete round.voteChoices[uid];
-          if (round.breakVote && typeof round.breakVote === 'object') delete round.breakVote[uid];
-          if (round.modeDetails?.guesses) delete round.modeDetails.guesses[uid];
+          erase(round.words);
+          erase(round.marks);
+          erase(round.votes);
+          erase(round.voteChoices);
+          erase(round.breakVote);
+          erase(round.modeDetails?.guesses);
         }
       }
       return true;

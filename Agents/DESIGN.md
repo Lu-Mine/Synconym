@@ -28,6 +28,7 @@
 
 ## 变更记录
 
+- **v0.12**：抹灭痕迹只禁用不删除——`name_history` / `credentials` / `device_links` / `device_rejections` / `match_hidden` 增 `disabled_at`，注销改为写标记，行留在原位，读取一律跳过失效行；各轮属于本人的词、标记、投票保留键位、值置 `null`。前台改为三步确认，前两步各要等 3 秒，抹灭按钮与最终确认按钮都是危险红。
 - **v0.11**：身份以设备为单位——凭证改为一行一个浏览器，新增设备指纹与设备绑定；指纹只取设备自身稳定特征（系统与版本、机型、屏幕、像素比、时区、语言、核数、内存、触点、显卡型号），不含 IP，因此换网络不影响识别；默认 `identity.adopt=auto` 静默沿用，只在同设备多身份、该身份正在房间里游玩、用户曾否认时才出现确认卡片；档案支持单条移除与恢复、清空记录，以及不可恢复的「抹灭我的痕迹」，注销后他人看到 `[注销用户]` 与灰头像。新增 `identity` 配置组。
 - **v0.10**：移除结算页的收敛曲线与导出 SVG，同时移除词向量相似度（`data/vectors/`、`server/similarity.js`、`server/vectors.js`、`scripts/build-vectors.js`）与 `/healthz` 的 `vectors` 字段——词库只收 2 万词，2 人局多数轮次因词未收录而无法计算，曲线长期是未知值
 - **v0.9**：M7 落地：相似度由手工词簇表改为裁剪 fastText 中文词向量（CC BY-SA 3.0），只在 `data/vectors/NOTICE.md` 署名；向量减均值并去掉前 3 个主成分后再标定，分值沿用 0.2–0.9 区间，非精确相遇最高 0.95；未收录词不做字向量兜底；更正“曲线随结算入库”的描述（实际只存在于房间快照）；部署改为用 `DB_PATH` 指向持久卷，补 `/ws` 转发
@@ -391,7 +392,7 @@ CREATE INDEX idx_match_time ON matches(started_at DESC);
 | `restoreMatch` | `{ id }` | 取消该局的隐藏 |
 | `clearHistory` | `{}` | 把本人全部对局移入已移除 |
 | `openRemoved` | `{ page? }` | 回 `removedMatches`，列出已移除的对局，可恢复 |
-| `eraseIdentity` | `{}` | 抹灭痕迹：标记 `players.deleted_at` 并清空名字、曾用名、凭证、设备绑定、已移除记录与各轮中属于本人的词、标记、投票；不可恢复 |
+| `eraseIdentity` | `{}` | 抹灭痕迹：标记 `players.deleted_at` 并清空名字、曾用名，把凭证、设备绑定、已移除记录标记为失效，各轮中属于本人的词、标记、投票置空；行都留在库里，只标记失效，不可恢复 |
 | `transferHost` | `{ uid }` | 仅房主，仅 lobby，目标须在线；双方准备状态重置 |
 | `setReady` | `{ ready }` | 大厅内随时可切换，没有冷却；房主无需准备 |
 | `start` | `{}` | 仅房主；2–4 人，非房主全员已准备且在线 |
@@ -608,18 +609,21 @@ deviceKey = sha256(strong)   weakKey = sha256(weak)
 
 ### 11.6 抹灭痕迹（不可恢复）
 
-后台是「禁用」而非物理 `DELETE`：行保留，内容清空，主键引用维持他人对局的完整性。
+后台是「禁用」而非物理 `DELETE`：行保留在原位，只写 `disabled_at`，读取时跳过；内容置空，主键引用维持他人对局的完整性。
 
 | 数据 | 处置 |
 |---|---|
-| `players.name` / `players.deleted_at` | 名字覆写为 `[注销用户]`，写入删除时间 |
-| `name_history` / `credentials` / `match_hidden` | 全部删除 |
-| `device_links` / `device_rejections` | 该 uid 的行删除；设备已无绑定时连 `devices` 行一并删除 |
+| `players.name` / `players.deleted_at` | 名字覆写为 `[注销用户]`，写入删除时间；行保留 |
+| `name_history` / `credentials` / `match_hidden` | 该 uid 的行写 `disabled_at`，不再可读 |
+| `device_links` / `device_rejections` | 该 uid 的行写 `disabled_at`；`devices` 行保留，仅靠失效绑定不再指向任何人 |
 | `match_players.name_at_time` | 覆写为 `[注销用户]`；uid 仅作内部引用，不再展示、不再被 UID 前缀搜索命中 |
-| 各轮 `words` / `marks` / `votes` / `voteChoices` / `modeDetails.guesses` | 剥离该 uid 的键；词卡位置显示 `/` |
+| 各轮 `words` / `marks` / `votes` / `voteChoices` / `modeDetails.guesses` | 该 uid 的键保留，值置为 `null`；词卡位置显示 `/` |
 | 内存房间 / `recentRooms` | 在房间内先按主动退出处理并通知他人 |
 
+前台是三步确认：第一步说明会永久失去什么，第二步再问一次「真的要这么做吗」，前两步都要等 3 秒才能继续；第三步按下才真正执行。取消任意一步都算整个流程被否决。
+
 已注销身份在他人档案与对局详情中显示为 `[注销用户]`，头像灰底、字形固定为 `/`，详情页不再显示 UID。注销后当前连接立即获得全新身份。昵称校验禁止使用「注销用户」，避免冒充。
+只有 `disabled_at` 为空的行参与读取，因此恢复一条已失效的数据不会有额外副作用；重新绑定同一台设备会写回 `disabled_at = NULL`。
 
 ### 11.7 边界
 
@@ -672,7 +676,7 @@ M1、M2 同期完成设计系统（令牌、组件、动画），不留到后面
 | 动画过多影响低端机 | 统一走 `prefers-reduced-motion` 降级 |
 | 同 WiFi 同型号设备被认成同一人 | 已知并接受；档案页提供「把这台设备改回新身份」解绑并新建 |
 | 自动沿用踢掉正在游玩的人 | 该 uid 在房间内且在线时降级为确认卡片 |
-| 设备指纹属个人数据 | 隐私页明示采集字段、用途与保留期；注销时一并删除设备标识 |
+| 设备指纹属个人数据 | 隐私页明示采集字段、用途与保留期；注销时该 uid 的设备绑定标记失效，设备不再指向任何人 |
 | 最后一次 draft 因网络抖动没送达 | 倒计时结束前 500ms 客户端强制上报一次；服务端取最后一次成功收到的内容 |
 
 ---
