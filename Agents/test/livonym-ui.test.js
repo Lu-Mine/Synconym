@@ -570,8 +570,11 @@ test('结算标题点名祝贺第一名，句子里带他的名字', () => {
   const variants = new Set(Array.from({ length: 40 }, (_, i) => resultTitle({ ...state.room, code: String(i) })));
   assert.ok(variants.size >= 4, `只出现了 ${variants.size} 种说法`);
   for (const line of variants) assert.match(line, /乙/);
-  // 结算页标题用的就是这一句
-  assert.match(livonymResultMarkup({ ...state, uid: 'U2' }), new RegExp(`<h1>${title}</h1>`));
+  // 结算页标题用的就是这一句：去掉标签后的文字与 resultTitle 一致，名字前挂着头像
+  const heading = livonymResultMarkup({ ...state, uid: 'U2' });
+  const headingText = heading.match(/<h1>([\s\S]*?)<\/h1>/)[1].replace(/<[^>]+>/g, '');
+  assert.equal(headingText, title);
+  assert.match(heading, /<h1>[\s\S]*class="player-identity result-title-name"><img[^>]+>[\s\S]*乙[\s\S]*<\/h1>/);
 });
 
 test('并列第一时两个人的名字一起进祝贺句', () => {

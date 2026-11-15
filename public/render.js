@@ -297,7 +297,7 @@ const QA_ENTRIES = [
   ['结算页 30 秒里能选什么？', [
     '重赛：全员都选重赛且至少 2 人，按当前设置直接开下一局。',
     '回房间：回到等待大厅，可以改设置再开。回主页：只有你自己离开，不打扰别人。',
-    '还能点「导出结算海报」存一张 PNG，里面有对局概览和完整词过程，不含房号。30 秒内没选，会被移出这间房。'
+    '30 秒内没选，会被移出这间房。'
   ]],
   ['为什么我的词写不进去？', [
     '每次可以写 1–12 个字，只能是汉字、字母和数字；标点和 emoji 打不进去，超过长度会被自动截断。',
@@ -910,21 +910,39 @@ export function resultWinners(room) {
   return ranked.filter((row) => row.score === ranked[0].score);
 }
 
-export function resultTitle(room) {
-  if (room.outcome === 'break') return '本局已结束';
+// 结算语分两种交付：纯文本直接输出，带名字的句子再把名字交给页面挂头像。
+function resultSentence(room) {
+  if (room.outcome === 'break') return { text: '本局已结束' };
   if (room.outcome === 'played') {
     const names = resultWinners(room).map((row) => row.name);
-    if (!names.length) return resultLine(room, PLAYED_LINES);
-    if (names.length === 1) return resultLine(room, RESULT_CHEERS)(names[0]);
-    return resultLine(room, RESULT_TIE_CHEERS)(`${names.slice(0, -1).join('、')}和${names.at(-1)}`);
+    if (!names.length) return { text: resultLine(room, PLAYED_LINES) };
+    return { build: resultLine(room, names.length === 1 ? RESULT_CHEERS : RESULT_TIE_CHEERS), names };
   }
   const lines = room.outcome === 'exact' && room.history?.length === 1
     ? ['第一轮就想到一块了', '开局就有默契', '一个词，刚好想到一起']
     : RESULT_LINES[room.outcome] || RESULT_LINES.none;
-  return resultLine(room, lines);
+  return { text: resultLine(room, lines) };
 }
 
-// 结算页与结算海报共用的结果说明。
+// 并列第一时名字用顿号与「和」串起来。
+function joinNames(names, wrap = (name) => name) {
+  const parts = names.map(wrap);
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join('、')}和${parts.at(-1)}`;
+}
+
+export function resultTitle(room) {
+  const sentence = resultSentence(room);
+  return sentence.build ? sentence.build(joinNames(sentence.names)) : sentence.text;
+}
+
+// 结算页标题：句中的名字带头像，与总分榜、逐棒回顾里的身份块同一套。
+export function resultTitleMarkup(room) {
+  const sentence = resultSentence(room);
+  if (!sentence.build) return escapeHtml(sentence.text);
+  return sentence.build(joinNames(sentence.names, (name) => playerIdentityMarkup(name, { className: 'result-title-name' })));
+}
+
+// 结算页的结果说明。
 export function resultSummary(room) {
   const history = Array.isArray(room?.history) ? room.history : [];
   if (room?.outcome === 'break') return '崩局投票通过，本局记录不会保存。';
@@ -959,10 +977,9 @@ function voteRecordsMarkup(history, players) {
   return history.map((round) => entry(round) + (round.breakVote ? entry(round, true) : '')).join('');
 }
 
-function resultPathMarkup(room, { poster = false, open = poster } = {}) {
+function resultPathMarkup(room, { open = false } = {}) {
   const path = thoughtPathMarkup(room, true);
-  const exportButton = poster ? `<button class="button secondary result-path-poster" type="button" data-action="export-poster">${icon('download')}<span>导出结算海报</span></button>` : '';
-  return `<details class="surface-block result-votes result-path"${open ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${exportButton}${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${path}</div></details>`;
+  return `<details class="surface-block result-votes result-path"${open ? ' open' : ''}><summary><span class="result-votes-label">${icon('route', 'result-votes-title-icon')}<span>完整词路径</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><div class="result-path-content">${path}</div></details>`;
 }
 
 export function rematchMarkup(state) {
@@ -1011,12 +1028,12 @@ export function resultMarkup(state) {
   const voting = room.phase === 'rematch';
   const voteRecords = voteRecordsMarkup(history, players);
   return `<div class="page result-page" data-screen="${voting ? 'rematch' : 'result'}" data-room="${escapeHtml(room.code)}">
-    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
+    ${headingMarkup('section', 'result-heading', `<h1>${resultTitleMarkup(room)}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
     <div class="result-aside">
       <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
       <details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecords}</ol></details>
     </div>
-    <div class="result-main">${resultPathMarkup({ ...room, players }, { poster: true })}</div>
+    <div class="result-main">${resultPathMarkup({ ...room, players }, { open: true })}</div>
   </div>`;
 }
 
@@ -1065,7 +1082,7 @@ function matchFactsMarkup(match) {
   return `<dl class="match-detail-facts">${cells.map((cell) => `<div><dt>${icon(cell.icon)}<span>${escapeHtml(cell.label)}</span></dt><dd>${escapeHtml(cell.value)}${cell.note ? `<span class="match-fact-note">${escapeHtml(cell.note)}</span>` : ''}</dd></div>`).join('')}</dl>`;
 }
 
-// 历史详情把库里的一局还原成海报与词路径共用的房间形状。
+// 历史详情把库里的一局还原成词路径共用的房间形状。
 export function matchRoom(match) {
   return { ...match, code: match.roomCode, history: match.history || match.rounds, resultPlayers: match.players };
 }
@@ -1081,7 +1098,7 @@ export function matchDetailMarkup(detail, query = {}) {
   return `<div class="page match-detail-page" data-screen="match-detail">${back}
     ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1>${matchFactsMarkup(match)}`, '')}
     <div class="match-detail-main">
-    ${livonym ? livonymReviewBlock(room, true) : resultPathMarkup(room, { poster: true, open: false })}
+    ${livonym ? livonymReviewBlock(room, true) : resultPathMarkup(room, { open: false })}
     </div><div class="match-detail-aside">
     <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`).join('')}</ul></section>
     ${livonym ? '' : `<details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>`}
@@ -1331,7 +1348,7 @@ export function livonymResultMarkup(state) {
   if (fastest) badges.push([{ label: '神猜', id: fastest.id }, `${(fastest.atMs / 1000).toFixed(1)} 秒`]);
 
   return `<div class="page result-page livonym-result-page" data-screen="${escapeHtml(room.phase === 'rematch' ? 'rematch' : 'result')}" data-room="${escapeHtml(room.code)}">
-    ${headingMarkup('section', 'result-heading', `<h1>${escapeHtml(resultTitle(room))}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
+    ${headingMarkup('section', 'result-heading', `<h1>${resultTitleMarkup(room)}</h1><p>${escapeHtml(resultSummary(room))}</p>`, headingMetaMarkup(room.code, room))}
     <div class="result-aside">
       <div id="result-rematch" class="result-rematch-group">${rematchMarkup(state)}</div>
     </div>

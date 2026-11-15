@@ -2196,6 +2196,10 @@ body[data-scene="result"] { --bg-a: #CBD6FF; --bg-b: #E0CFFF; --bg-c: #BCEBD6; }
 .page-heading .current-theme span { font-size: 14px; font-weight: 500; }
 .page-heading .current-theme strong { font-size: 18px; }
 .page-heading-meta:empty { display: none; }
+
+/* 结算语是一句话：头像跟着句子基线走，尺寸与汉字等高，墨迹中心落在汉字中心上。 */
+.result-heading .result-title-name { display: inline; }
+.result-heading .result-title-name .player-identity-avatar { display: inline-block; width: 1em; height: 1em; margin-right: .22em; vertical-align: -.14em; }
 /* 宽度不够时，房号与主题靠右落到说明下方 */
 @container (max-width: 520px) {
   .page-heading-meta { flex-direction: row; align-items: center; justify-content: flex-end; flex-basis: 100%; gap: 16px; }
@@ -4325,7 +4329,8 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
 
 /* 玩家身份：头像尺寸跟着所在文字的字号走，名字与标签沿用大厅那一套。 */
 .player-identity { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.player-identity-name { min-width: 0; overflow-wrap: anywhere; }
+/* 汉字的墨迹中心比行盒中心低约 .03em，抬回来才和头像的中心对齐。 */
+.player-identity-name { min-width: 0; overflow-wrap: anywhere; translate: 0 -.03em; }
 .player-identity .player-identity-avatar { width: 1.3em; height: 1.3em; flex: none; border-radius: .34em; }
 .player-identity .badge { flex: none; }
 .livonym-stream-author { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }

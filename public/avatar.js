@@ -1,4 +1,4 @@
-// 头像的位图渲染与填充：页面与结算海报共用同一套调色板与绘制方式。
+// 头像的位图渲染与填充：调色板与绘制方式统一在这里。
 import { avatarDetails } from './render.js';
 
 const AVATAR_PALETTE = [
