@@ -19,7 +19,7 @@ test('隐私政策使用站内路由，房间内从新标签打开', () => {
 
 test('隐私说明保留原文、目录及返回入口', () => {
   const html = privacyMarkup();
-  assert.match(html, /会永久抹掉你的身份/);
+  assert.match(html, /「脱离当前身份」是唯一换身份的入口/);
   assert.match(html, /单条对局可以从你的记录里移除/);
   assert.equal((html.match(/class="button secondary privacy-back(?: privacy-back-bottom)?" href="\/" data-action="back"/g) || []).length, 2);
   assert.equal((html.match(/<span>返回<\/span>/g) || []).length, 2);

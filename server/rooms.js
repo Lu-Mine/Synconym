@@ -414,24 +414,6 @@ export class RoomManager {
       serverNow: Date.now()
     });
   }
-
-  // 抹灭痕迹：后台标记删除并清空内容，不给恢复入口。
-  eraseIdentity(connection) {
-    const previous = connection.uid;
-    this.detach(connection, true);
-    if (this.clients.get(previous) === connection) this.clients.delete(previous);
-    this.recentRooms.delete(previous);
-    this.db.eraseIdentity(previous);
-    connection.deviceKey = null;
-    connection.uid = this.makeUid();
-    const player = this.db.createPlayer(connection.uid, createName());
-    this.clients.set(connection.uid, connection);
-    const credential = this.issueCredential?.(connection.uid);
-    connection.credentialHash = credentialDigest(credential);
-    this.sendTo(connection, { type: 'identity', uid: connection.uid, credential, name: player.name, erased: true, serverNow: Date.now() });
-    this.sendState(connection, null);
-  }
-
   toast(room, event, player, excludeUid) {
     const message = event === 'join' ? `${player.name} 加入了房间` :
       event === 'leave' ? `${player.name} 已主动退出房间` :
@@ -951,7 +933,6 @@ export class RoomManager {
     if (type === 'restoreMatch') { this.restoreMatch(connection, message.id); return; }
     if (type === 'clearHistory') { this.clearHistory(connection); return; }
     if (type === 'openRemoved') { this.sendRemoved(connection, message.page); return; }
-    if (type === 'eraseIdentity') { this.eraseIdentity(connection); return; }
     const typing = type === 'typing' || type === 'draft';
     const streaming = type === 'livonymStream';
     const guessing = type === 'livonymGuess';

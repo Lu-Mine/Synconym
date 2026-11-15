@@ -502,11 +502,6 @@ const CONFIRM_COPY = Object.freeze({
     title: '脱离当前身份？',
     description: '这台设备会换成新的 UID 与随机名字。旧身份仍留在服务器上，别的浏览器还能认回它，记录原样保留。',
     accept: '换新身份'
-  },
-  leaveIdentitySole: {
-    title: '脱离当前身份？',
-    description: '这台设备是当前身份唯一的入口。脱离后它就没有人再能认回，会一并注销：名字变成「注销用户」，记录里的词、标记、投票不再展示，且不能恢复。',
-    accept: '换新身份'
   }
 });
 
@@ -547,24 +542,24 @@ function confirmAction(kind) {
 function confirmLeave() { return confirmAction('leave'); }
 function confirmBreakVote() { return confirmAction('break'); }
 
-// 抹灭痕迹不可恢复：两次说明 + 一次最终确认，前两步各要等 3 秒才能继续。
-const ERASE_STEPS = Object.freeze([
+// 这台设备是唯一入口时，脱离等于注销，不可恢复：两次说明 + 一次最终确认，前两步各等 3 秒。
+const LEAVE_FINAL_STEPS = Object.freeze([
   {
-    title: '抹灭我的痕迹？',
-    description: '执行后会永久失去：现在的名字与全部曾用名；这个身份的全部对局记录，含你写过的词、标记与投票；身份凭证与设备绑定。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容显示为 /。',
+    title: '脱离当前身份？',
+    description: '这台设备是当前身份唯一的入口。脱离后没有人能再认回它，它会一并注销：名字变成「注销用户」，你写过的词、标记与投票不再展示，头像变灰，内容显示为 /。这个操作不能撤销。',
     accept: '我明白，继续',
     wait: 3
   },
   {
     title: '真的要这么做吗？',
-    description: '没有撤销，没有找回，也没有副本。同一台设备上的其他浏览器再也认不回这个身份，服务器上的记录也回不来。',
+    description: '没有撤销，没有找回，也没有副本。换过去之后，现在的名字与记录都不再属于你。',
     accept: '仍然继续',
     wait: 3
   },
   {
     title: '最后一次确认',
-    description: '按下按钮立即执行。你会以一个新身份重新开始，现在的名字与记录都不再属于你。',
-    accept: '永久抹灭',
+    description: '按下按钮立即执行。你会以一个新身份重新开始。',
+    accept: '脱离并换新身份',
     wait: 0
   }
 ]);
@@ -621,7 +616,7 @@ function confirmSequence(steps) {
   return promise;
 }
 
-function confirmErase() { return confirmSequence(ERASE_STEPS); }
+function confirmLeaveIdentityFinal() { return confirmSequence(LEAVE_FINAL_STEPS); }
 
 window.addEventListener('popstate', async () => {
   if (!state.room) {
@@ -1766,24 +1761,13 @@ const socket = new Socket({
     state.removed = null;
     state.deviceCandidates = null;
     syncDeviceClaim();
-    if (message?.erased) {
-      // 痕迹已抹灭：这个身份不复存在，直接回到首页。
-      profileOpen = false;
-      if (location.search) history.replaceState(null, '', APP_ROOT);
-      syncMockLocation();
-      toast('痕迹已清除，你现在是一个新身份');
-      render({ forceFull: true, initialSync: true });
-      return;
-    }
-    if (message?.orphaned) {
-      profileOpen = false;
-      if (location.search) history.replaceState(null, '', APP_ROOT);
-      syncMockLocation();
-      toast('已脱离旧身份，它没有别的入口，已一并注销');
-      render({ forceFull: true, initialSync: true });
-      return;
-    }
-    if (profileOpen) requestProfile(1);
+    // 换身份后当前页已经是别人的档案了，直接回首页：旧身份若没人认得回来，提示里说清楚。
+    profileOpen = false;
+    if (location.search) history.replaceState(null, '', APP_ROOT);
+    syncMockLocation();
+    toast(message?.orphaned ? '已脱离旧身份，它没有别的入口，已一并注销' : '已换成新身份');
+    render({ forceFull: true, initialSync: true });
+    return;
   },
   onState(next, { initialSync = false } = {}) {
     const previous = state.room;
@@ -2453,9 +2437,11 @@ app.addEventListener('click', async (event) => {
   }
   if (button.dataset.action === 'leave-identity') {
     event.preventDefault();
-    // 只剩这一个入口时，脱离就等于注销，文案要先说清楚。
-    const kind = state.profile?.user?.soleOwner ? 'leaveIdentitySole' : 'leaveIdentity';
-    if (await confirmAction(kind)) socket.send({ type: 'leaveIdentity' }, true);
+    // 只剩这一个入口时脱离就等于注销，用三步确认；还有别的入口时一次确认就够。
+    const confirmed = state.profile?.user?.soleOwner
+      ? await confirmLeaveIdentityFinal()
+      : await confirmAction('leaveIdentity');
+    if (confirmed) socket.send({ type: 'leaveIdentity' }, true);
     return;
   }
   if (button.dataset.action === 'device-claim-yes') {
@@ -2497,11 +2483,6 @@ app.addEventListener('click', async (event) => {
   if (button.dataset.action === 'open-removed') {
     event.preventDefault();
     socket.send({ type: 'openRemoved', page: 1 }, true);
-    return;
-  }
-  if (button.dataset.action === 'erase-identity') {
-    event.preventDefault();
-    if (await confirmErase()) socket.send({ type: 'eraseIdentity' }, true);
     return;
   }
   if (button.dataset.action === 'copy-uid') {

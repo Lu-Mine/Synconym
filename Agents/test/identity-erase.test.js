@@ -40,7 +40,7 @@ test('注销把名字与同局快照替换成注销用户，身份查询视为�
   const uid = a.uid;
   saveMatch(db, 'm1', uid, 'PARTNER');
 
-  manager.handle(a, { type: 'eraseIdentity' });
+  manager.handle(a, { type: 'leaveIdentity' });
 
   assert.equal(db.getPlayer(uid), undefined);
   assert.equal(db.getProfile(uid), undefined);
@@ -58,7 +58,7 @@ test('注销清掉自己写下的词、标记与投票，同局其他人的内�
   const uid = a.uid;
   saveMatch(db, 'm1', uid, 'PARTNER');
 
-  manager.handle(a, { type: 'eraseIdentity' });
+  manager.handle(a, { type: 'leaveIdentity' });
 
   const round = db.getMatch('m1').rounds[0];
   // 槽位留着，内容被抹成 null，所以渲染出来是空的。
@@ -78,15 +78,19 @@ test('注销移除凭证、设备绑定与已移除记录，旧凭证不再能�
   const hash = db.getCredentialHash(uid);
   db.insertDevice({ deviceKey: 'device-x', weakKey: 'weak-x', profileJson: '{}' });
   db.linkDevice('device-x', uid, 'created');
+  // 这台设备就是当前连接，脱离时会被解绑。
+  a.deviceKey = 'device-x';
   saveMatch(db, 'm1', uid, 'PARTNER');
   manager.handle(a, { type: 'deleteMatch', id: 'm1' });
   assert.equal(db.countHiddenMatches(uid), 1);
 
-  manager.handle(a, { type: 'eraseIdentity' });
+  manager.handle(a, { type: 'leaveIdentity' });
 
   assert.equal(db.getCredentialHash(uid), undefined);
   assert.equal(db.credentialOwner(hash), undefined);
-  assert.equal(db.getDeviceLinks('device-x').length, 0);
+  // 本设备重新绑到新身份，旧身份在上面不留绑定。
+  assert.equal(db.getDeviceLinks('device-x').some((link) => link.uid === uid), false);
+  assert.equal(db.getDeviceLinks('device-x').some((link) => link.uid === a.uid), true);
   // 设备行与绑定行都还在，只是绑定被标记失效。
   assert.ok(db.getDevice('device-x'));
   assert.equal(db.countHiddenMatches(uid), 0);
@@ -95,15 +99,15 @@ test('注销移除凭证、设备绑定与已移除记录，旧凭证不再能�
   assert.ok(db.getPlayer(a.uid));
   const identity = a.messages.filter((m) => m.type === 'identity').at(-1);
   assert.equal(identity.uid, a.uid);
-  assert.equal(identity.erased, true);
+  assert.equal(identity.orphaned, true);
   assert.match(identity.credential, /^[A-Za-z0-9_-]{43}$/);
 });
 
-test('注销后同一个 uid 无法再被复用', (t) => {
+test('脱离后同一个 uid 无法再被复用', (t) => {
   const { manager, db, client } = setup(t);
   const a = client();
   const uid = a.uid;
-  manager.handle(a, { type: 'eraseIdentity' });
+  manager.handle(a, { type: 'leaveIdentity' });
   const revived = manager.connect(uid);
   assert.notEqual(revived.uid, uid);
   assert.ok(isValidUid(revived.uid));
@@ -119,7 +123,7 @@ test('在房间里注销按主动退出处理，其他人收到提示', (t) => {
   manager.handle(b, { type: 'joinRoom', code });
   b.messages.length = 0;
 
-  manager.handle(a, { type: 'eraseIdentity' });
+  manager.handle(a, { type: 'leaveIdentity' });
 
   const room = manager.rooms.get(code);
   assert.ok(room.players.every((player) => player.uid !== a.uid));

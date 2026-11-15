@@ -435,8 +435,7 @@ export function privacyMarkup() {
       <div class="privacy-aside">
         <section id="deletion"><h2>保存与删除</h2>
           <p>档案里可以自己动手：单条对局可以从你的记录里移除，移除后仍能在「已移除的记录」里恢复；「清空我的记录」会一次性移除全部对局。这些操作只影响你自己的档案，同局其他玩家的记录不受影响。</p>
-          <p>「抹灭我的痕迹」会永久抹掉你的身份：名字、曾用名、全部对局记录与其中的词、标记、投票都不再展示，身份凭证与设备绑定同时失效，之后无法恢复。库里对应的行不擦除，只标记为失效，读的时候跳过。涉及你的对局里，你会显示为「注销用户」，头像变灰，内容显示为 /。</p>
-          <p>「脱离当前身份」会让这台设备换成新的 UID 与随机名字。旧身份如果还有别的凭证或设备能认回，就原样保留；如果这台设备是它唯一的入口，脱离后就没有人认得回来，它会紧接着被注销，展示与下面「抹灭我的痕迹」相同。</p>
+          <p>「脱离当前身份」是唯一换身份的入口：这台设备会换成新的 UID 与随机名字。旧身份如果还有别的凭证或设备能认回，就原样保留，记录不受影响；如果这台设备是它唯一的入口，脱离后就没有人认得回来，它会一并注销——名字、曾用名与凭证失效，全部对局里的词、标记与投票不再展示，涉及的对局里显示为「注销用户」，头像变灰，内容显示为 /，之后无法恢复。库里对应的行不擦除，只标记为失效，读的时候跳过。</p>
           <p>为了让数据不留在没人认得的身份下面，服务器启动时也会把既没有有效凭证、也没有设备绑定、且存在超过一小时的身份一并注销。</p>
           <p>注销后可以立即获得一个全新的身份继续使用。站点没有设置其他数据的自动删除期限。</p></section>
         <section id="hosting"><h2>部署环境</h2>
@@ -695,11 +694,8 @@ export function profileMarkup(state) {
     <p class="profile-privacy">这台设备上换浏览器也会认出你。服务器保存凭证的哈希值、名字和完成过的对局记录。</p>
     <div class="profile-actions">
       <button class="button secondary" type="button" data-action="back">${icon('arrow-left')}<span>返回</span></button>
-      <button class="button secondary" type="button" data-action="leave-identity">${icon('user-x')}<span>脱离当前身份</span></button>
-      <div class="profile-danger">
-        <button class="button secondary" type="button" data-action="clear-history">${icon('trash-2')}<span>清空我的记录</span></button>
-        <button class="button danger" type="button" data-action="erase-identity">${icon('user-x')}<span>抹灭我的痕迹</span></button>
-      </div>
+      <button class="button secondary" type="button" data-action="clear-history">${icon('trash-2')}<span>清空我的记录</span></button>
+      <button class="button danger" type="button" data-action="leave-identity">${icon('user-x')}<span>脱离当前身份</span></button>
     </div>
     <section class="surface-block profile-history">
       <div class="section-heading"><h2>${icon('route')}<span>对局记录</span></h2><span class="profile-total">${profile.total || 0} 局</span>${profile.removed ? `<button class="button secondary profile-removed-link" type="button" data-action="open-removed"><span>已移除 ${profile.removed} 局</span></button>` : ''}</div>
