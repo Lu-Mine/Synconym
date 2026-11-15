@@ -90,12 +90,17 @@ HTTPS、域名、证书这些平台全包，你不用管。
 | `publicUrl` | 空 | 对外邀请地址，生产应使用 HTTPS 地址 |
 | `dbPath` | `data/synconym.db` | SQLite 路径 |
 | `maxRooms` / `wsMaxPayload` | 500 / 65536 | 房间上限 / 单条 WS 消息字节上限 |
+| `identity.adopt` | `auto` | `auto` 指纹命中就静默沿用同一身份；`confirm` 每次新浏览器都要确认一次 |
+| `identity.adoptMaxIdleDays` | 30 | 设备绑定超过这么多天没活跃就不再自动沿用 |
+| `identity.deviceLinkTtlDays` | 180 | 超过这么多天没活跃的设备绑定会被清理 |
 | `security.trustProxy` | false | 是否使用反向代理提供的来源 IP |
 | `security.maxGlobalConnections` / `maxConnectionsPerSource` | 1000 / 50 | 全局 / 每来源并发 WS 连接上限 |
 | `security.maxAccountsPerSource` / `accountWindowMs` | 20 / 60000 | 每来源在窗口内创建或重置身份的次数 / 窗口毫秒数 |
 | `security.messageBurst` / `messageRefillPerSecond` | 60 / 30 | 每连接消息令牌桶容量 / 每秒恢复数 |
 | `security.globalMessageBurst` / `globalMessageRefillPerSecond` | 1000 / 500 | 全局消息令牌桶容量 / 每秒恢复数 |
 | `security.handshakeTimeoutMs` | 10000 | WS 建连后完成 hello 的最长毫秒数 |
+
+**身份与隐私**：登录身份以设备为单位，指纹只取设备自身稳定特征（系统与版本、机型、屏幕、像素比、时区、语言、核数、内存、触点、显卡型号），**不含 IP**——因此反向代理下拿不到真实 IP 也不影响识别，换网络也不会丢身份。同 WiFi、同型号、同系统的两台设备可能被认成同一人，`auto` 档接受这一代价；需要更保守时改成 `confirm`。用户可在档案页「抹灭我的痕迹」永久删除自己的名字、凭证、设备绑定与对局记录，操作不可恢复，涉及的对局显示为「注销用户」。升级到本版本时，旧的单凭证表 `player_credentials` 会在启动时自动搬到 `credentials` 并删除，旧凭证仍可登录。
 
 **反向代理安全**：默认不信任转发头，代理后的用户会共享代理 IP 的配额。仅当 Node 无法被客户端直接访问，且最后一跳受信代理会覆盖或追加真实对端地址到 `X-Forwarded-For` 时，才设 `trustProxy: true`；程序使用该头最右侧 IP。多层代理时此地址可能是上游代理，须按实际链路配置并验证。不要让不受信客户端直接访问后端并伪造该头。限额是单进程内存状态，重启后重置；仍需网关限流、磁盘监控及 HTTPS。
 
@@ -221,6 +226,19 @@ node -e "const D=require('better-sqlite3');const d=new D(process.argv[1],{readon
 - `/www/wwwroot/synconym` → `/opt/synconym-deploy/releases/` 中的后端完整版本。
 - `/opt/synconym-deploy/frontend-current` → `/opt/synconym-deploy/frontend/<完整 SHA>` 中的前端快照；`prepare-frontend.py` 改写首页及图标引用，浏览器通过 `/assets/<SHA>/` 加载同一快照中的模块。
 - SQLite 在 `/var/lib/synconym/synconym.db`，不随版本链接切换。保留当前、前一组兼容前后端及其 `.deployed-revision`；旧页面还可能请求旧 `/assets/<SHA>/`，不可只保留当前前端目录。清理前先确认引用和回滚窗口。
+
+#### 旧页面自动更新
+
+微信等内置浏览器会长时间复用缓存的首页 HTML，旧首页引用的 `/assets/<旧SHA>/` 又始终可访问，`no-cache` 不足以让玩家换到新版本。现在页面自己会发现这件事：
+
+- 部署时 `prepare-frontend.py` 在首页写入 `<html lang="zh-CN" data-build="<SHA>">`，`/assets/<SHA>/` 的内容不变。
+- `public/update-check.js` 在首屏 2 秒后、每 5 分钟、以及每次页面回到前台，用 `cache: 'no-store'` 取一次首页，读出其中的 `data-build` 与自身比对。
+- 不一致就 `location.replace` 到保留原房间参数、追加 `?v=<SHA 前 12 位>` 的地址。换地址是必须的：内核按 URL 判定资源，不换 URL 就能一直用旧 HTML。
+- 大厅和结算直接换地址重进；对局中只在顶部提示“游戏已更新，本局结束后自动刷新”，等回到大厅或结算再刷，避免丢掉正在写的词和待投的票。请求失败静默忽略，不打扰对局。
+
+首页响应必须是 `no-store`（Apache 的 `<FilesMatch "^(index\.html)$">`、Nginx 的 `.html$` 规则与 Node 静态分支都已如此）。首页被缓存住，页面就拿不到新构建号，这套机制会整体失效；`/assets/` 的长缓存不受影响。
+
+首次上线前就已打开的页面没有这段探测脚本，只能等玩家自己重新进入；之后的版本起不再需要人工通知。
 
 服务器入口 `/opt/synconym-deploy/github-deploy.sh` 和基础设施文件由管理员独立安装，普通发布不会更新它们。以下仓库文件修改后须核对服务器实际路径、备份并手动安装：
 
