@@ -64,10 +64,31 @@ const INSANE_MODE_LABELS = Object.freeze({
   bridge: ['语义搭桥', 'Bridge']
 });
 
+const CLASSIC_MODE_LABELS = Object.freeze({
+  free: ['自由', 'Free'],
+  theme: ['主题', 'Theme'],
+  unknown: ['未知', 'Classic']
+});
+
 export function joinRoomModeMarkup(mode) {
   const details = INSANE_MODE_LABELS[mode];
-  if (!details) return `<span class="join-room-mode join-room-mode--${escapeHtml(mode || 'classic')}"><span class="join-room-mode-label">模式</span><strong>${escapeHtml(mode === 'theme' ? '主题' : mode === 'free' ? '自由' : '未知')}</strong></span>`;
-  return `<span class="join-room-mode join-room-mode--${mode}" data-mode="${mode}" aria-label="房间模式：${details[0]}"><span class="join-room-mode-label">模式</span><strong>${details[0]}</strong><span class="sr-only">${details[1]}</span><span class="join-room-mode-emblem" aria-hidden="true"><i></i><i></i><i></i></span><span class="join-room-mode-wordmark">${wordmarkArt[mode]}</span></span>`;
+  if (!details) {
+    const classicKey = mode === 'theme' ? 'theme' : mode === 'free' ? 'free' : 'unknown';
+    const [classicLabel, classicEn] = CLASSIC_MODE_LABELS[classicKey];
+    return `<div class="join-room-mode join-room-mode--classic join-room-mode--${classicKey}" data-mode="${classicKey}" aria-label="房间玩法：${classicLabel}"><span class="join-room-mode-mark join-room-mode-mark--classic" aria-hidden="true"><span class="classic-mark classic-mark--${classicKey}"><i></i><i></i></span></span><span class="join-room-mode-info"><span class="join-room-mode-wordmark join-room-mode-wordmark--classic" lang="en">${classicEn}</span><strong>${classicLabel}</strong></span></div>`;
+  }
+  return `<div class="join-room-mode join-room-mode--insane join-room-mode--${mode}" data-mode="${mode}" aria-label="房间玩法：${details[0]}"><span class="join-room-mode-mark" aria-hidden="true"><span class="insane-mark insane-mark--${mode}"><i></i><i></i><i></i></span></span><span class="join-room-mode-info"><span class="join-room-mode-wordmark" lang="en">${wordmarkArt[mode]}</span><strong>${details[0]}</strong><span class="sr-only">${details[1]}</span></span></div>`;
+}
+
+export function roomModeBadgeMarkup(mode, className = '') {
+  const details = INSANE_MODE_LABELS[mode];
+  const extra = className ? ` ${className}` : '';
+  if (!details) {
+    const classicKey = mode === 'theme' ? 'theme' : 'free';
+    const [classicLabel, classicEn] = CLASSIC_MODE_LABELS[classicKey];
+    return `<span class="room-mode-badge room-mode-badge--classic room-mode-badge--${classicKey}${extra}" data-mode="${classicKey}" aria-label="当前玩法：${classicLabel}"><span class="classic-mark classic-mark--${classicKey}" aria-hidden="true"><i></i><i></i></span><span class="room-mode-badge-info"><span class="room-mode-badge-en" lang="en">${classicEn}</span><strong>${classicLabel}</strong></span></span>`;
+  }
+  return `<div class="room-mode-badge room-mode-badge--insane room-mode-badge--${mode}${extra}" data-mode="${mode}" aria-label="当前玩法：${details[0]}"><span class="room-mode-badge-mark" aria-hidden="true"><span class="insane-mark insane-mark--${mode}"><i></i><i></i><i></i></span></span><span class="room-mode-badge-info"><span class="room-mode-badge-wordmark" lang="en">${wordmarkArt[mode]}</span><strong>${details[0]}</strong><span class="sr-only">${details[1]}</span></span></div>`;
 }
 
 
@@ -1164,13 +1185,17 @@ function detailDurationLabel(ms) {
 function matchFactsMarkup(match) {
   const theme = match.themeName || '';
   const timed = Number.isFinite(match.startedAt) && Number.isFinite(match.endedAt);
+  const livonym = match.mode === 'livonym';
+  const modeKey = livonym ? 'livonym' : (theme || match.mode === 'theme' ? 'theme' : 'free');
+  const roundsValue = livonym ? `共 ${Number(match.totalRounds) || 0} 棒` : `${Number(match.totalRounds) || 0} / ${Number(match.maxRounds) || 0}`;
+  const hasNote = !livonym && Boolean(theme);
+  const modeCell = `<div class="match-fact-mode match-fact-mode--${modeKey}"><dt>${icon('sparkles')}<span>模式</span></dt><dd class="match-fact-mode-body${hasNote ? ' has-note' : ''}">${roomModeBadgeMarkup(modeKey, 'match-fact-mode-badge')}${hasNote ? `<span class="match-fact-note">${escapeHtml(theme)}</span>` : ''}</dd></div>`;
   const cells = [
     { icon: 'clock', label: '起止时间', value: detailRangeLabel(match.startedAt, match.endedAt), note: timed ? `用时 ${detailDurationLabel(match.endedAt - match.startedAt)}` : '' },
-    { icon: 'rotate-ccw', label: '轮次', value: `${Number(match.totalRounds) || 0} / ${Number(match.maxRounds) || 0}` },
-    { icon: 'door-open', label: '房号', value: match.roomCode || '–' },
-    { icon: 'sparkles', label: '模式', value: theme ? '主题' : '自由', note: theme },
+    { icon: 'rotate-ccw', label: '轮次', value: roundsValue },
+    { icon: 'door-open', label: '房号', value: match.roomCode || '–' }
   ];
-  return `<dl class="match-detail-facts">${cells.map((cell) => `<div><dt>${icon(cell.icon)}<span>${escapeHtml(cell.label)}</span></dt><dd>${escapeHtml(cell.value)}${cell.note ? `<span class="match-fact-note">${escapeHtml(cell.note)}</span>` : ''}</dd></div>`).join('')}</dl>`;
+  return `<dl class="match-detail-facts">${cells.map((cell) => `<div><dt>${icon(cell.icon)}<span>${escapeHtml(cell.label)}</span></dt><dd>${escapeHtml(cell.value)}${cell.note ? `<span class="match-fact-note">${escapeHtml(cell.note)}</span>` : ''}</dd></div>`).join('')}${modeCell}</dl>`;
 }
 
 // 历史详情把库里的一局还原成词路径共用的房间形状。
@@ -1184,16 +1209,18 @@ export function matchDetailMarkup(detail, query = {}) {
   const match = detail.match;
   const room = matchRoom(match);
   const livonym = match.mode === 'livonym';
+  const modeKey = livonym ? 'livonym' : (match.themeName || match.mode === 'theme' ? 'theme' : 'free');
   const outcome = livonym ? `共 ${match.totalRounds} 棒结束`
     : match.outcome === 'none' ? `打满 ${match.totalRounds} 轮未相遇` : `第 ${match.convergedRound} 轮${match.outcome === 'voted' ? '投票' : ''}相遇`;
-  return `<div class="page match-detail-page" data-screen="match-detail">${back}
+  const playerRows = match.players.map((player) => (player.deleted
+    ? `<li>${avatarMarkup(player.name, '', { deleted: true })}<div><strong>${escapeHtml(player.name)}</strong><span>已注销</span></div></li>`
+    : `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`)).join('');
+  return `<div class="page match-detail-page" data-screen="match-detail" data-mode="${escapeHtml(modeKey)}">${back}
     ${headingMarkup('header', 'match-detail-heading', `<h1>${escapeHtml(outcome)}</h1>${matchFactsMarkup(match)}`, '')}
     <div class="match-detail-main">
     ${livonym ? livonymReviewBlock(room, true) : resultPathMarkup(room, { open: false })}
     </div><div class="match-detail-aside">
-    <section class="surface-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${match.players.map((player) => (player.deleted
-      ? `<li>${avatarMarkup(player.name, '', { deleted: true })}<div><strong>${escapeHtml(player.name)}</strong><span>已注销</span></div></li>`
-      : `<li>${avatarMarkup(player.name)}<div><strong>${escapeHtml(player.name)}</strong><span>UID：${escapeHtml(player.uid)}</span></div></li>`)).join('')}</ul></section>
+    <section class="surface-block match-detail-players-block"><div class="section-heading"><h2>${icon('users')}<span>同局玩家</span></h2></div><ul class="match-detail-players">${playerRows}</ul></section>
     ${livonym ? '' : `<details class="surface-block result-votes"><summary><span class="result-votes-label">${icon('vote', 'result-votes-title-icon')}<span>逐轮投票记录</span></span>${icon('chevron-down', 'result-votes-icon')}</summary><ol class="result-vote-records">${voteRecordsMarkup(room.history, match.players)}</ol></details>`}
     </div>
   </div>`;

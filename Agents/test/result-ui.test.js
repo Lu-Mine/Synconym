@@ -60,7 +60,7 @@ test('重赛展示历史玩家、已选重赛可改回房间，按钮显式声�
   assert.match(html, /data-action="rematch-yes" disabled/);
   assert.match(html, /data-action="rematch-room" ><svg/);
   assert.ok(html.includes('已选重赛'));
-  assert.ok(html.includes('30 秒'));
+  assert.ok(html.includes('40 秒'));
   state.room.rematchVotes = { a: 'room' };
   assert.match(resultMarkup(state), /data-action="rematch-room" disabled/);
   for (const button of html.matchAll(/<button\b[^>]*>/g)) assert.ok(button[0].includes('type="button"'));
@@ -99,14 +99,14 @@ test('结算文案按结果匹配多句，同局状态更新文案不跳变', ()
 
 test('未点击的结算阶段就显示倒计时，断线者显示重连等待和原选择', () => {
   const state = fixture();
-  Object.assign(state.room, { phase: 'result', rematchDeadline: 30000, rematchEligibleUids: ['a', 'b'], rematchVotes: { b: 'rematch' } });
+  Object.assign(state.room, { phase: 'result', rematchDeadline: 40000, rematchEligibleUids: ['a', 'b'], rematchVotes: { b: 'rematch' } });
   state.room.players = state.room.resultPlayers;
   const html = resultMarkup(state);
   assert.match(html, /id="countdown"/);
   assert.doesNotMatch(html, /\d+\s*\/\s*\d+ 已选择/);
   assert.ok(html.includes('连接中断 · 已选重赛'));
   assert.ok(!html.includes('等待重连'));
-  assert.ok(!html.includes('结算即开始 30 秒倒计时'));
+  assert.ok(!html.includes('结算即开始 40 秒倒计时'));
   assert.ok(!html.includes('选择后最多等'));
 });
 
@@ -114,13 +114,14 @@ test('结算玩家状态使用对局样式并区分选择、掉线和离开', ()
   const state = fixture();
   state.room.resultPlayers = [...state.room.resultPlayers, { uid: 'c', name: '丙', seat: 2 }, { uid: 'd', name: '丁', seat: 3 }];
   state.room.players = [{ ...state.room.resultPlayers[0] }, { ...state.room.resultPlayers[1], connected: true }, { ...state.room.resultPlayers[2], connected: false }];
-  Object.assign(state.room, { rematchDeadline: 30000, rematchEligibleUids: ['a', 'b', 'c'], rematchVotes: { a: 'rematch', b: 'room' } });
+  Object.assign(state.room, { rematchDeadline: 40000, rematchEligibleUids: ['a', 'b', 'c'], rematchVotes: { a: 'rematch', b: 'room' } });
   let html = resultMarkup(state);
   assert.match(html, /class="game-status-list"/);
   assert.match(html, /<div class="result-player-status"[^>]*><div class="section-heading"><h3>玩家状态<\/h3>/);
   assert.match(html, /class="ready-state"/);
   assert.doesNotMatch(html, /\d+\s*\/\s*\d+ 已选择/);
-  for (const text of ['已选重赛', '已选回房间', '连接中断', '已离开', '（你）']) assert.ok(html.includes(text), text);
+  for (const text of ['已选重赛', '已选回房间', '连接中断', '已离开', '<span class="badge me-label">你</span>']) assert.ok(html.includes(text), text);
+  assert.ok(!html.includes('（你）'));
   assert.match(html, /class="game-status status-done"/);
   assert.match(html, /class="game-status status-away"/);
   state.room.rematchVotes = {};

@@ -3,35 +3,61 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { parseRoomCode } from '../../public/room-code.js';
-import { playerItemMarkup, shellMarkup } from '../../public/render.js';
+import { isInsaneMode, joinRoomModeMarkup, playerItemMarkup, shellMarkup } from '../../public/render.js';
 
 const source = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const check = source.match(/async function checkJoinInput\([\s\S]*?\n}\n/)[0];
 
-function setup(value, response) {
+function setup(value, response, initialDataset = {}) {
   const messages = [], number = { textContent: '' }, host = { innerHTML: '' };
   const input = { value, isConnected: true, closest: () => null };
   const calls = [];
-  const modal = { removeAttribute: () => calls.push('enable'), classList: { add: () => calls.push('open') }, querySelector: () => ({ focus: () => calls.push('focus') }) };
-  const elements = { '#join-modal': modal, '#join-host': host, '#join-room-number .room-code-display > span': number };
-  const context = { markInvalid() {}, MOCK: false, app: { querySelector: (key) => elements[key] }, state: { room: null }, profileOpen: false, pendingJoin: null, pendingConfirm: null, renameOpen: false, inviteTrigger: null, joinCheckVersion: 1, parseRoomCode, playerItemMarkup, hydrateAvatars: () => {}, syncModalScrollLock: () => {}, fetch: async () => response };
+  const modal = { dataset: { ...initialDataset }, removeAttribute: () => calls.push('enable'), classList: { add: () => calls.push('open') }, querySelector: () => ({ focus: () => calls.push('focus') }) };
+  const elements = { '#join-modal': modal, '#join-host': host, '#join-room-number .room-code-display > span': number, '#join-room-mode': { innerHTML: '' } };
+  const context = { markInvalid() {}, MOCK: false, app: { querySelector: (key) => elements[key] }, state: { room: null }, profileOpen: false, pendingJoin: null, pendingConfirm: null, renameOpen: false, inviteTrigger: null, joinCheckVersion: 1, parseRoomCode, isInsaneMode, joinRoomModeMarkup, playerItemMarkup, hydrateAvatars: () => {}, syncModalScrollLock: () => {}, fetch: async () => response };
   context.toast = (message) => messages.push(message);
   runInNewContext(check, context);
-  return { context, input, messages, number, host, calls };
+  return { context, input, modal, messages, number, host, calls };
 }
 
-test('房间预览有效时展示房号和复用的房主条目，尚未加入', async () => {
+test('房间预览有效时显示房号、模式与房主，尚未加入，且仅狂意模式写入 data-room-mode', async () => {
   const host = { uid: 'HOST', name: '<房主>', seat: 0, connected: true };
-  const s = setup('http://example.com/?r=12345', { ok: true, json: async () => ({ host }) });
+  const s = setup('http://example.com/?r=12345', { ok: true, json: async () => ({ host, mode: 'impostor' }) });
   await s.context.checkJoinInput(s.input, 1);
   assert.equal(s.number.textContent, '房号 12345');
   assert.match(s.host.innerHTML, /class="player status-host is-host/);
   assert.match(s.host.innerHTML, /&lt;房主&gt;/);
+  assert.match(s.context.app.querySelector('#join-room-mode').innerHTML, /思维卧底/);
+  assert.equal(s.modal.dataset.roomMode, 'impostor');
   assert.equal(s.context.pendingJoin.code, '12345');
+  assert.equal(s.context.pendingJoin.mode, 'impostor');
   assert.deepEqual(s.calls, ['enable', 'open', 'focus']);
   assert.match(shellMarkup(), /data-action="confirm-join"/);
   assert.match(shellMarkup(), /id="join-room-number"><span class="room-code-display"/);
-  assert.match(shellMarkup(), /id="join-room-number"><span class="room-code-display"><svg class="icon room-code-icon"/);
+  assert.match(shellMarkup(), /id="join-room-mode" aria-live="polite"/);
+
+  const classic = setup('12345', { ok: true, json: async () => ({ host, mode: 'free' }) }, { roomMode: 'impostor' });
+  await classic.context.checkJoinInput(classic.input, 1);
+  assert.equal('roomMode' in classic.modal.dataset, false);
+});
+
+test('五种狂意房间模式复用各自字标与双圆几何图标，经典模式使用简洁徽标', () => {
+  const modes = [
+    ['shiritori', '接龙', 'Shiritori'], ['livonym', '即时竞猜', 'Livonym'],
+    ['impostor', '思维卧底', 'Impostor'], ['blitz', '极速闪电', 'Blitz'],
+    ['bridge', '语义搭桥', 'Bridge']
+  ];
+  for (const [mode, label, english] of modes) {
+    const markup = joinRoomModeMarkup(mode);
+    assert.match(markup, new RegExp(`data-mode="${mode}"`));
+    assert.ok(markup.includes(label));
+    assert.ok(markup.includes(english));
+    assert.match(markup, new RegExp(`class="insane-mark insane-mark--${mode}"`));
+    assert.match(markup, /join-room-mode-wordmark/);
+    assert.ok(markup.indexOf('join-room-mode-wordmark') < markup.indexOf(`<strong>${label}</strong>`));
+  }
+  assert.match(joinRoomModeMarkup('free'), /join-room-mode--classic[\s\S]*join-room-mode-wordmark--classic[\s\S]*Free[\s\S]*<strong>自由<\/strong>/);
+  assert.match(joinRoomModeMarkup('theme'), /join-room-mode--classic[\s\S]*join-room-mode-wordmark--classic[\s\S]*Theme[\s\S]*<strong>主题<\/strong>/);
 });
 
 test('无效输入、房间错误和过期查询不会弹出确认框', async () => {

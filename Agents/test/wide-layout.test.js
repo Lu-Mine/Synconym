@@ -118,19 +118,21 @@ test('所有游戏阶段退出房间按钮单列留空探底、双列左侧居�
   assert.match(css, /\.writing-page \.game-leave\s*\{[^}]*order:\s*unset;\s*align-self:\s*center;\s*width:\s*50%;\s*margin-top:\s*12px/);
 });
 
-test('历史详情的词路径与同局玩家投票使用独立宽屏列，窄屏阅读顺序不变', () => {
+test('历史详情宽屏分左右两列，窄屏单列先同局玩家再完整词路径最后投票记录', () => {
   const html = matchDetailMarkup({ match: { players, rounds: room.history, roomCode: '12345', outcome: 'none', totalRounds: 1, maxRounds: 12, startedAt: 1, endedAt: 2 } });
   const main = html.indexOf('class="match-detail-main"');
   const aside = html.indexOf('class="match-detail-aside"');
   assert.ok(main > html.indexOf('match-detail-heading'));
   assert.ok(main < html.indexOf('完整词路径'));
   assert.ok(html.indexOf('完整词路径') < aside);
-  assert.ok(aside < html.indexOf('同局玩家'));
+  assert.ok(aside < html.indexOf('match-detail-players-block'));
+  assert.ok(html.indexOf('match-detail-players-block') < html.indexOf('同局玩家'));
   assert.ok(html.indexOf('同局玩家') < html.indexOf('逐轮投票记录'));
   for (const detail of [null, { error: '对局不存在或无权查看' }]) {
     assert.doesNotMatch(matchDetailMarkup(detail), /class="match-detail-(main|aside)"/);
   }
   const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.match-detail-main, \.match-detail-aside\s*\{\s*display: contents;\s*\}[^]*?\.match-detail-players-block\s*\{\s*order:\s*1;\s*\}[^]*?\.match-detail-main > \.result-path,\s*\.match-detail-main > \.livonym-result-board\s*\{\s*order:\s*2;\s*\}[^]*?\.match-detail-main > \.livonym-review,\s*\.match-detail-aside > \.result-votes\s*\{\s*order:\s*3;\s*\}/);
   assert.match(css, /@media \(min-width: 1000px\)\s*\{\s*\.app:has\(\.match-detail-page\)\s*\{\s*--app-w: min\(100% - 64px, 1120px\)/);
   assert.match(css, /\.match-detail-main, \.match-detail-aside\s*\{[^}]*flex-direction: column/);
   assert.match(css, /\.history-search-box\.has-time \.input\s*\{[^}]*padding-right/);

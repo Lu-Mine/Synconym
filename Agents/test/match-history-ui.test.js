@@ -120,11 +120,11 @@ test('详情标题下用一条条目带展示起止时间、轮次、房号与�
   assert.match(themed, /icon-clock[^]*?起止时间<\/span><\/dt><dd>2026\/2\/25 14:13 – 14:19<span class="match-fact-note">用时 6 分 50 秒<\/span>/);
   assert.match(themed, /icon-rotate-ccw[^]*?轮次<\/span><\/dt><dd>1 \/ 12<\/dd>/);
   assert.match(themed, /icon-door-open[^]*?房号<\/span><\/dt><dd>12345<\/dd>/);
-  assert.match(themed, /icon-sparkles[^]*?模式<\/span><\/dt><dd>主题<span class="match-fact-note">故宫<\/span>/);
+  assert.match(themed, /icon-sparkles[^]*?模式<\/span><\/dt><dd class="match-fact-mode-body has-note">[\s\S]*classic-mark--theme[\s\S]*Theme<\/span><strong>主题<\/strong>[\s\S]*<span class="match-fact-note">故宫<\/span>/);
 
-  // 四种模式下第四格标题都写「模式」，主题名只出现在二级灰字；跨天时两端都写日期
+  // 第四种模式下第四格标题都写「模式」，主题名只出现在二级灰字；跨天时两端都写日期
   const free = matchDetailMarkup({ match: { ...base, roomCode: '23456', startedAt, endedAt: endedAt + 26 * 60 * 60 * 1000 } });
-  assert.match(free, /icon-sparkles[^]*?模式<\/span><\/dt><dd>自由<\/dd>/);
+  assert.match(free, /icon-sparkles[^]*?模式<\/span><\/dt><dd class="match-fact-mode-body">[\s\S]*classic-mark--free[\s\S]*Free<\/span><strong>自由<\/strong>/);
   assert.match(free, /2026\/2\/25 14:13 – 2026\/2\/26 16:19/);
 
   // 时间缺失时只留占位，不输出 NaN 或 Invalid Date

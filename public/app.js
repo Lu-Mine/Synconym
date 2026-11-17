@@ -459,7 +459,8 @@ async function checkJoinInput(input, version) {
     if (!modal || !host || !data.host) return;
     app.querySelector('#join-room-number .room-code-display > span').textContent = `房号 ${code}`;
     app.querySelector('#join-room-mode').innerHTML = joinRoomModeMarkup(data.mode);
-    modal.dataset.roomMode = data.mode || 'free';
+    if (isInsaneMode(data.mode)) modal.dataset.roomMode = data.mode;
+    else delete modal.dataset.roomMode;
     host.innerHTML = playerItemMarkup(data.host, { hostUid: data.host.uid, phase: 'lobby' }, '');
     hydrateAvatars(host);
     pendingJoin = { code, trigger: input, passwordEnabled: Boolean(data.passwordEnabled), mode: data.mode || 'free' };
