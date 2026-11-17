@@ -570,15 +570,16 @@ export class RoomManager {
     const words = {}, marks = {};
     const previous = room.history.flatMap((r) => Object.entries(r.words).filter(([uid]) => r.marks[uid] === 'none').map(([, word]) => word));
     for (const participant of [...room.matchPlayers, ...room.players.filter((p) => !room.matchPlayers.some((item) => item.uid === p.uid))]) {
-      const p = room.players.find((player) => player.uid === participant.uid) ?? { uid: participant.uid, connected: false };
-      const word = p.connected ? (p.submittedWord ?? p.draft ?? '') : '';
-      if (!word.trim()) { words[p.uid] = '[未提交]'; marks[p.uid] = 'empty'; continue; }
-      try { validateWord(word, previous, room.banRepeat); words[p.uid] = word; marks[p.uid] = 'none'; }
-      catch { words[p.uid] = '[非法答案]'; marks[p.uid] = 'invalid'; }
+      const p = room.players.find((player) => player.uid === participant.uid);
+      const uid = participant.uid;
+      const word = p ? (p.submittedWord ?? p.draft ?? '') : '';
+      if (!word.trim()) { words[uid] = '[未提交]'; marks[uid] = 'empty'; continue; }
+      try { validateWord(word, previous, room.banRepeat); words[uid] = word; marks[uid] = 'none'; }
+      catch { words[uid] = '[非法答案]'; marks[uid] = 'invalid'; }
     }
     room.currentRecord = { n: room.round, words, marks, outcome: 'miss' };
-    const active = this.active(room);
-    if (active.length >= 2 && active.every((p) => marks[p.uid] === 'none' && normalizeWord(words[p.uid]) === normalizeWord(words[active[0].uid]))) {
+    const contenders = room.players.filter((p) => p.connected || marks[p.uid] === 'none');
+    if (contenders.length >= 2 && contenders.every((p) => marks[p.uid] === 'none' && normalizeWord(words[p.uid]) === normalizeWord(words[contenders[0].uid]))) {
       this.finishRound(room, 'exact');
     } else this.setPhase(room, 'voting', 5);
   }
@@ -613,10 +614,10 @@ export class RoomManager {
   }
 
   finishVote(room, early = false) {
-    const active = this.active(room);
-    room.currentRecord.votes = Object.fromEntries(active.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === true]));
-    room.currentRecord.voteChoices = Object.fromEntries(active.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === undefined ? 'timeout' : p.vote ? 'yes' : 'no']));
-    const passed = active.length >= 2 && active.every((p) => p.vote === true);
+    const voters = room.players.filter((p) => p.connected || p.vote !== undefined);
+    room.currentRecord.votes = Object.fromEntries(voters.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === true]));
+    room.currentRecord.voteChoices = Object.fromEntries(voters.filter((p) => !early || p.vote !== undefined).map((p) => [p.uid, p.vote === undefined ? 'timeout' : p.vote ? 'yes' : 'no']));
+    const passed = voters.length >= 2 && voters.every((p) => p.vote === true);
     for (const connection of this.clients.values()) {
       if (connection.roomCode === room.code && connection.ws?.readyState === 1) {
         connection.ws.send(JSON.stringify({ type: 'toast', event: 'voteResult', message: passed ? '全票通过' : '未通过' }));
@@ -673,7 +674,7 @@ export class RoomManager {
     const active = this.active(room);
     if (!active.length) return;
     if (room.phase === 'writing' && active.every((p) => p.submittedWord !== undefined)) this.reveal(room);
-    else if (room.phase === 'voting' && active.some((p) => p.vote === false)) this.finishVote(room, true);
+    else if (room.phase === 'voting' && room.players.some((p) => p.vote === false)) this.finishVote(room, true);
     else if (prepareCanAdvance(room)) this.startWriting(room);
   }
 
@@ -1204,8 +1205,10 @@ export class RoomManager {
       }
       case 'rematch': {
         if (current.phase === 'interrupted' && message.choice === 'room') {
-          current.rematchEligibleUids = [connection.uid];
-          current.rematchVotes = { [connection.uid]: 'room' };
+          if (!player.connected) throw new Error('当前不能重赛');
+          const onlineUids = current.players.filter((item) => item.connected).map((item) => item.uid);
+          current.rematchEligibleUids = onlineUids;
+          current.rematchVotes = Object.fromEntries(onlineUids.map((uid) => [uid, 'room']));
           current.phase = 'result';
           this.finishRematch(current);
           this.touch(current);

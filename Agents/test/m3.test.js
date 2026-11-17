@@ -35,7 +35,7 @@ test('result snapshot and in-memory persistence computed once; unanimous rematch
   exact();
   const deadline = room.rematchDeadline, timer = room.timer;
   assert.equal(room.phase, 'result');
-  assert.equal(deadline, room.endedAt + 30000);
+  assert.equal(deadline, room.endedAt + 40000);
   assert.equal(room.phaseDeadline, deadline);
   assert.deepEqual(new Set(room.rematchEligibleUids), new Set([a.uid, b.uid]));
   assert.deepEqual(room.rematchVotes, {});
@@ -104,7 +104,7 @@ for (const mode of ['timer', 'message', 'cleanup']) test(`rematch timeout via ${
   if (mode === 'timer') t.mock.method(globalThis, 'setTimeout', (callback) => { timeout = callback; return { unref() {} }; });
   exact();
   send(a, { type: 'rematch', accept: true });
-  if (mode === 'timer') { t.mock.timers.tick(30000); timeout(); }
+  if (mode === 'timer') { t.mock.timers.tick(40000); timeout(); }
   else {
     t.mock.timers.setTime(room.rematchDeadline);
     if (mode === 'message') assert.throws(() => send(b, { type: 'rematch', choice: 'rematch' }), /超时/);
@@ -282,7 +282,7 @@ for (const mode of ['timer', 'message', 'cleanup']) test(`result countdown expir
   if (mode === 'timer') t.mock.method(globalThis, 'setTimeout', (callback) => { timeout = callback; return { unref() {} }; });
   exact();
   assert.equal(room.phase, 'result');
-  assert.equal(snapshot(a).phaseDeadline, room.endedAt + 30000);
+  assert.equal(snapshot(a).phaseDeadline, room.endedAt + 40000);
   assert.equal(snapshot(a).rematchDeadline, room.phaseDeadline);
   t.mock.timers.setTime(room.rematchDeadline);
   if (mode === 'timer') timeout();

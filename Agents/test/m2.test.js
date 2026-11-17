@@ -172,19 +172,21 @@ test('同一投票阶段断线回归保留投票，离线者不计票', (t) => {
   assert.equal(room.outcome, 'voted');
 });
 
-test('离线跨过阶段不补发答案或投票，下一轮不沿用旧提交', (t) => {
+test('离线跨过阶段保留已提交的词与投票，不补发未操作，下一轮不沿用旧提交', (t) => {
   const { send, a, b, room, manager, connect } = setup(t);
   send(a, { type: 'submitWord', word: '苹果' });
   manager.disconnect(a);
   manager.advanceDeadline(room);
-  assert.equal(room.currentRecord.words[a.uid], '[未提交]');
+  assert.equal(room.currentRecord.words[a.uid], '苹果');
+  assert.equal(room.currentRecord.marks[a.uid], 'none');
   const restored = connect(a.uid);
   assert.equal(manager.restore(restored, room.code), true);
   assert.equal(room.phase, 'voting');
   send(restored, { type: 'vote', yes: true });
   manager.disconnect(restored);
   manager.advanceDeadline(room);
-  assert.equal(room.history[0].votes[a.uid], undefined);
+  assert.equal(room.history[0].votes[a.uid], true);
+  assert.equal(room.phase, 'prepare');
   const again = connect(a.uid);
   assert.equal(manager.restore(again, room.code), true);
   manager.advanceDeadline(room);
@@ -192,4 +194,25 @@ test('离线跨过阶段不补发答案或投票，下一轮不沿用旧提交',
   assert.equal(room.round, 2);
   assert.equal(manager.playerFor(room, a.uid).submittedWord, undefined);
   assert.equal(manager.playerFor(room, a.uid).vote, undefined);
+});
+
+test('写词后闪断：保留本轮已交词语并正常判定精确相遇', (t) => {
+  const { send, a, b, room, manager } = setup(t);
+  send(a, { type: 'submitWord', word: '苹果' });
+  manager.disconnect(a);
+  send(b, { type: 'submitWord', word: '苹果' });
+  assert.equal(room.phase, 'result');
+  assert.equal(room.outcome, 'exact');
+});
+
+test('投票后闪断：保留本轮已投赞成票并计入一致通过', (t) => {
+  const { send, a, b, room, manager } = setup(t);
+  send(a, { type: 'submitWord', word: '苹果' });
+  send(b, { type: 'submitWord', word: '香蕉' });
+  send(a, { type: 'vote', yes: true });
+  manager.disconnect(a);
+  send(b, { type: 'vote', yes: true });
+  manager.advanceDeadline(room);
+  assert.equal(room.phase, 'result');
+  assert.equal(room.outcome, 'voted');
 });

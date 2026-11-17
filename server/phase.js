@@ -1,6 +1,6 @@
 export const DISCONNECT_WINDOW_MS = 90_000;
 export const PREPARE_GRACE_MS = 10_000;
-export const REMATCH_SECONDS = 30;
+export const REMATCH_SECONDS = 40;
 
 export function hasDisconnectedPlayer(room) {
   return room.players.some((player) => !player.connected && player.leftReason === 'disconnect');

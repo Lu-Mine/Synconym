@@ -351,10 +351,10 @@ const QA_ENTRIES = [
     '同时揭晓时大家写的是同一个词，直接算相遇。',
     '不是同一个词就进入 5 秒投票，全票选「是」也算相遇；没通过就准备下一轮，看着上一轮的词继续往彼此的方向靠近。'
   ]],
-  ['结算页 30 秒里能选什么？', [
+  ['结算页 40 秒里能选什么？', [
     '重赛：全员都选重赛且至少 2 人，按当前设置直接开下一局。',
     '回房间：回到等待大厅，可以改设置再开。回主页：只有你自己离开，不打扰别人。',
-    '30 秒内没选，会被移出这间房。'
+    '40 秒内没选，会被移出这间房。'
   ]],
   ['为什么我的词写不进去？', [
     '每次可以写 1–12 个字，只能是汉字、字母和数字；标点和 emoji 打不进去，超过长度会被自动截断。',
@@ -1092,9 +1092,9 @@ export function rematchMarkup(state) {
     const statusKey = left || away ? 'away' : choice ? 'done' : 'waiting';
     const status = left ? '已离开' : away ? `连接中断${choice ? ` · 已选${label}` : ''}` : choice ? `已选${label}` : label;
     const name = player?.name || snapshot.name || snapshot.uid;
-    return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(name, 'game-status-avatar')}<span>${escapeHtml(name)}${snapshot.uid === uid ? '（你）' : ''}</span></span><span class="ready-state">${icon({ waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${escapeHtml(status)}</span></span></li>`;
+    return `<li class="game-status status-${statusKey}"><span class="game-status-name">${avatarMarkup(name, 'game-status-avatar')}<span>${escapeHtml(name)}</span>${snapshot.uid === uid ? '<span class="badge me-label">你</span>' : ''}</span><span class="ready-state">${icon({ waiting: 'clock', done: 'check', away: 'log-out' }[statusKey], 'game-status-icon')}<span>${escapeHtml(status)}</span></span></li>`;
   }).join('');
-  return `<section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>${icon('rotate-ccw')}<span>下一步</span></h2>${voting ? '<span class="rematch-clock" role="timer" aria-live="off">'+icon('clock')+'<span id="countdown">30 秒</span></span>' : ''}</div>
+  return `<section class="surface-block result-rematch" aria-label="下一步"><div class="section-heading"><h2>${icon('rotate-ccw')}<span>下一步</span></h2>${voting ? '<span class="rematch-clock" role="timer" aria-live="off">'+icon('clock')+'<span id="countdown">40 秒</span></span>' : ''}</div>
     <p class="rematch-description">全员重赛，按当前配置直接开下一局；想调整配置就回房间。</p>
     ${voting ? `<div class="result-player-status" aria-live="polite"><div class="section-heading"><h3>玩家状态</h3></div><ul class="game-status-list">${statuses}</ul></div>` : ''}
     <div class="rematch-actions">
