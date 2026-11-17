@@ -207,7 +207,7 @@ export function createInsaneTransitionController({
     }
   }
 
-  function start({ mode = 'livonym', card = null } = {}) {
+  function start({ mode = 'livonym', card = null, returning = false } = {}) {
     cleanup();
     if (!isInsaneMode(mode) || !wordmarkArt[mode]) return false;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden) {
@@ -215,17 +215,18 @@ export function createInsaneTransitionController({
     }
     activeMode = mode;
     direction = pixelWaveDirectionForCard(card, mode);
+    if (returning) direction = direction === 'rtl' ? 'ltr' : 'rtl';
     const vw = Math.max(320, window.innerWidth);
     const vh = Math.max(320, window.innerHeight);
     maskMetrics = buildPixelWaveMask({ width: vw, height: vh, cell: PIXEL_CELL, direction });
 
     element = document.createElement('div');
-    element.className = `insane-curtain insane-curtain--${mode} is-${direction}`;
+    element.className = `insane-curtain insane-curtain--${mode} is-${direction}${returning ? ' is-returning' : ''}`;
     element.dataset.mode = mode;
     element.setAttribute('aria-hidden', 'true');
     element.innerHTML = `<div class="insane-curtain-sheet">
       <div class="insane-curtain-waves"></div>
-      <div class="insane-curtain-wordmark" lang="en">${wordmarkArt[mode]}</div>
+      <div class="insane-curtain-wordmark" lang="en">${returning ? wordmarkArt.insane : wordmarkArt[mode]}</div>
     </div>`;
 
     sheet = element.querySelector('.insane-curtain-sheet');
@@ -248,7 +249,7 @@ export function createInsaneTransitionController({
     mount().append(element);
 
     phase = 'sweeping-in';
-    roomReady = false;
+    roomReady = returning;
     revealed = false;
     const started = performance.now();
 

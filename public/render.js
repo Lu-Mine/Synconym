@@ -1522,6 +1522,8 @@ export function livonymReviewBlock(room, open = false, uid) {
 // 各玩法英文名都是字形艺术：完整名称由外层提供，艺术字只做视觉。
 // 狂意页的模式卡与房间里的模式标签共用同一份字形。
 export const wordmarkArt = {
+  // 狂意大厅：字母沿中线双频折射撕裂，呈现失序与极光色散。
+  insane: `<span class="wm-insane" aria-hidden="true">${[...'INSANE'].map((letter, i) => `<span class="ins-char${letter === 'S' ? ' ins-s' : letter === 'A' ? ' ins-a' : ''}" data-letter="${letter}" style="--i:${i}">${letter}</span>`).join('')}</span>`,
   // 接龙：字组依次接续，不附加链环或挂钩。
   shiritori: '<span class="wm-shiritori" aria-hidden="true"><span class="sh-part" style="--i:0">Shi</span><span class="sh-part" style="--i:1">ri</span><span class="sh-part" style="--i:2">tori</span></span>',
   // 即时竞猜：i 的点发出绿光，整个单词从左至右逐字点亮。

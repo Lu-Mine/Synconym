@@ -27,13 +27,15 @@ test('Insane 页面不显示顶栏开始游戏按钮', async () => {
   assert.match(css, /body\[data-scene="insane"\] \.header-start\s*\{\s*display:\s*none;/);
 });
 
-test('狂意模式标题复用入口文字故障动画并支持减少动态效果', async () => {
+test('狂意主页标题以 INSANE 英文艺术字在上、下方保留「狂意模式」渐变背光与故障动画，并支持减少动态效果', async () => {
   const html = insaneMarkup();
   const css = await readFile(new URL('../../public/styles.css', import.meta.url), 'utf8');
-  assert.match(html, /<h1><span class="insane-heading-text" data-glow="狂意模式">狂意模式<\/span><\/h1>/);
+  assert.match(html, /<h1><span class="insane-heading-en" lang="en"><span class="sr-only">INSANE<\/span><span class="wm-insane"[\s\S]*?<span class="insane-heading-zh insane-heading-text" data-glow="狂意模式">狂意模式<\/span><\/h1>/);
+  assert.match(css, /\.insane-heading-zh\s*\{[^}]*font-size:\s*22px/);
+  assert.match(css, /\.insane-heading h1\s*\{[^}]*font-size:\s*34px/);
   assert.match(css, /\.insane-portal span,\s*\.insane-heading-text\s*\{[^}]*animation:\s*insane-portal-glitch 4\.2s steps\(1, end\) infinite/);
-  assert.match(css, /\.insane-heading-text::before\s*\{[^}]*content:\s*attr\(data-glow\);[^}]*linear-gradient\(105deg, #416bff 0%, #73e7f4 32%, #ad8aff 64%, #f278bc 100%\)[^}]*background-clip:\s*text;[^}]*filter:\s*blur\(8px\)/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-card::before\s*\{[^}]*\}\s*\.insane-distortion\s*\{[^}]*\}\s*\.insane-portal::after,\s*\.insane-portal span,\s*\.insane-heading-text\s*\{\s*animation:\s*none;/);
+  assert.match(css, /\.insane-heading-en \.ins-char::before\s*\{\s*animation:\s*insane-heading-cyan 4\.2s/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-card::before\s*\{[^}]*\}\s*\.insane-distortion\s*\{[^}]*\}\s*\.insane-portal::after,\s*\.insane-portal span,\s*\.insane-heading-text,\s*\.insane-heading-en \.ins-char::before,\s*\.insane-heading-en \.ins-char::after\s*\{\s*animation:\s*none;/);
 });
 
 test('标题双圆以断拍错位保持圆形，减少动态效果时保持静止', async () => {
@@ -146,7 +148,7 @@ test('五种英文艺术字保留完整名称，并分别提供悬停、焦点�
   for (const [id, name] of [['shiritori', 'Shiritori'], ['livonym', 'Livonym'], ['impostor', 'Impostor'], ['blitz', 'Blitz'], ['bridge', 'Bridge']]) {
     assert.match(html, new RegExp(`insane-wordmark--${id}[^>]*><span class="sr-only">${name}</span>`));
     const card = html.match(new RegExp(`<article class="insane-card insane-card--${id}">[\\s\\S]*?<\\/article>`))[0];
-    const art = card.match(/<span class="wordmark-art"[^>]*>([\s\S]*?)<span class="insane-players">/)[1];
+    const art = card.match(/<span class="wordmark-art"[^>]*>([\s\S]*?)<\/span><\/span><strong>/)[1];
     const text = art.replace(/<svg\b[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, '').trim();
     assert.equal(text, id === 'impostor' ? 'Impstor' : name);
     assert.match(css, new RegExp(`\\.insane-card--${id}:is\\([\\s\\S]*?focus-visible`));
@@ -280,6 +282,7 @@ test('狂意大厅宽屏双列：左侧列表与右侧介绍面板同步悬停�
   ]) {
     const preview = insanePreviewMarkup(id);
     assert.match(preview, new RegExp(`class="insane-preview insane-preview--${id}" data-mode="${id}"`));
+    assert.match(preview, /<canvas class="insane-preview-canvas" aria-hidden="true"><\/canvas>/);
     assert.ok(preview.includes(lead), `右侧面板缺少 ${id} 引语`);
     assert.doesNotMatch(preview, /<button|创建房间/);
     assert.match(css, new RegExp(`\\.insane-preview--${id}\\s*\\{`));
@@ -308,13 +311,73 @@ test('狂意大厅宽屏双列：左侧列表与右侧介绍面板同步悬停�
   assert.match(css, /animation:\s*insane-preview-rain 6\.4s linear infinite;/);
   // 每次位移恰好是各自斜带周期的整数倍，循环回位时画面与原位重合。
   assert.match(css, /@keyframes insane-preview-rain\s*\{\s*from \{ --preview-rain-a: -336px; --preview-rain-b: -168px; \}\s*to \{ --preview-rain-a: 0px; --preview-rain-b: 0px; \}/);
-  assert.match(css, /@supports not \(background-position: 0 round\(down, 0px, 12px\)\) \{\s*\.insane-preview::after \{ display: none; \}/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-preview \{ transition: none; \}\s*\.insane-preview::after \{ display: none; \}/);
+  assert.match(css, /@supports not \(background-position: 0 round\(down, 0px, 12px\)\) \{\s*\.insane-preview::after \{ display: none; \}\s*\.insane-card::after \{ display: none; \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.insane-preview \{ transition: none; \}\s*\.insane-preview::after \{ display: none; \}\s*\.insane-card::after \{ display: none; \}\s*\.insane-card-canvas \{ display: none; \}/);
+  // 窄屏卡片与宽屏双列左卡/右预览均由 unified canvas 晶格渲染器接管：隐藏静态伪元素，左卡按单列收缩态渲染横向波浪、右预览按单列展开态渲染斜向像素雨，同时保留无脚本 CSS 回退。
+  assert.match(css, /\.insane-card:has\(\.insane-details\[open\]\)::after,\s*\.insane-preview::after\s*\{/);
+  assert.match(css, /\.insane-card-canvas,\s*\.insane-preview-canvas\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;/);
+  assert.match(css, /body\.has-insane-card-motion \.insane-card::before,\s*body\.has-insane-card-motion \.insane-card::after\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(css, /@media \(max-width: 999px\)\s*\{\s*\.insane-preview-canvas\s*\{\s*display:\s*none;\s*\}\s*\}/);
+  const wideInsaneStart = css.lastIndexOf('.app:has(.insane-page)');
+  assert.ok(wideInsaneStart > 0);
+  const wideInsaneCss = css.slice(wideInsaneStart);
+  assert.match(wideInsaneCss, /\.insane-card::after\s*\{\s*display:\s*none;\s*\}/);
+  assert.doesNotMatch(wideInsaneCss, /\.insane-card-canvas\s*\{\s*display:\s*none;/);
   // 正文始终压在扫描层之上，动画只做底纹。
   assert.match(css, /\.insane-preview > \* \{ position: relative; z-index: 1; \}/);
+  assert.match(css, /\.insane-preview > \.insane-preview-canvas \{ position: absolute; z-index: 0; \}/);
+  assert.match(css, /body\.has-insane-preview-motion \.insane-preview::before,\s*body\.has-insane-preview-motion \.insane-preview::after\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(app, /import \{ observeInsaneCardMotion \} from '\.\/insane-card-motion\.js';/);
+  assert.match(app, /const previewCanvas = preview\.querySelector\(':scope > \.insane-preview-canvas'\);/);
+  assert.match(app, /nextScreen === lastRenderedScreen[\s\S]*?currentPage\.dataset\.screen === nextScreen/);
+  assert.match(app, /stopInsaneCardMotion = observeInsaneCardMotion\(stage\)/);
   assert.match(app, /app\.addEventListener\('mouseover'/);
   assert.match(app, /app\.addEventListener\('mouseout'/);
   assert.match(app, /app\.addEventListener\('focusin'/);
   assert.match(app, /app\.addEventListener\('focusout'/);
   assert.match(app, /if \(isInsaneSplitLayout\(\)\) event\.preventDefault\(\)/);
 });
+
+test('狂意大厅窄屏卡片与宽屏右侧预览共用像素晶格斜向像素雨画布', async () => {
+  const html = insaneMarkup();
+  assert.match(html, /<article class="insane-card insane-card--[^"]+">\s*<canvas class="insane-card-canvas" aria-hidden="true"><\/canvas>\s*<details class="insane-details">/);
+  assert.match(html, /<aside class="insane-preview insane-preview--[^"]+"[^>]*><canvas class="insane-preview-canvas" aria-hidden="true"><\/canvas>/);
+
+  const motion = await readFile(new URL('../../public/insane-card-motion.js', import.meta.url), 'utf8');
+  assert.match(motion, /export function observeInsaneCardMotion\(stage\)/);
+  assert.match(motion, /activeMotionTargets\(\)/);
+  assert.match(motion, /body\.classList\.toggle\('has-insane-card-motion', active\)/);
+  assert.match(motion, /body\.classList\.toggle\('has-insane-preview-motion', previewActive\)/);
+  assert.match(motion, /syncPreview\(\)/);
+  assert.match(motion, /fixedM: 1/);
+  assert.match(motion, /const lockedM = entry\.fixedM !== null \? entry\.fixedM : \(!narrowQuery\.matches \? 0 : null\);/);
+  assert.match(motion, /readHostColors\(entry\)/);
+  assert.match(motion, /entry\.details\.addEventListener\('toggle', entry\.onToggle\)/);
+  assert.match(motion, /wavePacketAlpha/);
+  assert.match(motion, /rainGustLayerAlpha/);
+  assert.match(motion, /rainDropMask/);
+  assert.match(motion, /gustEnv/);
+  // 刷新后同场景补丁会剥掉 canvas 的 width/height：渲染器按真实缓冲尺寸重设并整块清空，补丁也不得剥掉。
+  assert.match(motion, /entry\.canvas\.width !== targetW\s*\|\|\s*entry\.canvas\.height !== targetH/);
+  assert.match(motion, /ctx\.clearRect\(0, 0, entry\.canvas\.width, entry\.canvas\.height\)/);
+  const dom = await readFile(new URL('../../public/dom.js', import.meta.url), 'utf8');
+  assert.match(dom, /current\.tagName === 'CANVAS' && \(attribute\.name === 'width' \|\| attribute\.name === 'height'\)/);
+});
+
+test('疯人院建房密码输入接入 6 位数字过滤与前置校验', async () => {
+  const app = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
+  assert.match(app, /\['room-password', 'join-password', 'insane-password'\]\.includes\(event\.target\.id\)/);
+  assert.match(app, /if \(passwordEnabled && !\/\^\[0-9\]\{6\}\$\/\.test\(password\)\)/);
+});
+
+test('狂意建房处理函数声明 card 变量并复用读取选项', async () => {
+  const app = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
+  const block = app.match(/if \(button\.dataset\.action === 'create-insane-room'\) \{[\s\S]*?enqueueWrite\(/)?.[0];
+  assert.ok(block, '未找到 create-insane-room 分支');
+  assert.match(block, /const card = button\.closest\('\.insane-card'\);/);
+  assert.match(block, /card\?\.querySelector\('#insane-password, #room-password'\)/);
+  assert.match(block, /insaneTransition\.start\(\{ mode, card \}\)/);
+  assert.match(block, /card\?\.querySelector\('\[data-segmented="describeSeconds"\] \.selected'\)/);
+  assert.match(block, /card\?\.querySelector\('\[data-segmented="roundsPerPlayer"\] \.selected'\)/);
+});
+

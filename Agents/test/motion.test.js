@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { motionTarget, sceneMotion } from '../../public/motion.js';
+import { motionTarget, sceneMotion, createNavHistory } from '../../public/motion.js';
 
 const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
@@ -101,4 +101,58 @@ test('新旧快照保持独立几何，导航与控件使用短时长', () => {
   assert.match(css, /--motion-duration: 180ms/);
   assert.match(css, /--motion-depth-duration: 220ms/);
   assert.match(css, /--motion-control-duration: 160ms/);
+});
+
+test('档案返回按钮跳过已返回的对局详情，不会回到历史详情页', () => {
+  const nav = createNavHistory('home');
+  const homeState = nav.stamp(null);
+  nav.push('profile');
+  nav.push('match-detail');
+  nav.push('profile'); // 点击「返回对局记录」回到 ?me
+  assert.equal(nav.backDelta(), -3); // 直接跳回首页，不经过 match-detail
+
+  // 从详情打开 Q&A，点 Q&A 返回先回详情，再点返回对局记录后，点 ?me 返回仍回首页
+  nav.syncPop(homeState, 'home');
+  nav.push('profile');
+  nav.push('match-detail');
+  nav.push('qa');
+  assert.equal(nav.backDelta(), -1); // Q&A 返回 -> match-detail
+  nav.push('profile'); // 返回对局记录 -> ?me
+  assert.equal(nav.backDelta(), -4); // ?me 返回 -> 首页
+});
+
+test('直达 ?me 或 ?me&match 后点返回回首页，不会回退到详情或站外', () => {
+  const directProfile = createNavHistory('profile');
+  assert.equal(directProfile.backDelta(), 0);
+  directProfile.push('match-detail');
+  directProfile.push('profile');
+  assert.equal(directProfile.backDelta(), 0);
+
+  directProfile.push('qa');
+  assert.equal(directProfile.backDelta(), -1); // 从直达 ?me 打开 Q&A，返回先回 ?me
+
+  const directDetail = createNavHistory('match-detail');
+  directDetail.push('profile');
+  assert.equal(directDetail.backDelta(), 0);
+});
+
+test('同级页面反复切换不会形成返回打转，浏览器前进后退同步正确', () => {
+  const nav = createNavHistory('home');
+  const s0 = nav.stamp(null);
+  nav.push('qa');
+  const s1 = nav.stamp(null);
+  nav.push('privacy');
+  nav.push('qa'); // 重访 qa，收拢 qa -> privacy 环路
+  assert.equal(nav.backDelta(), -3);
+
+  nav.syncPop(s1, 'qa');
+  assert.equal(nav.backDelta(), -1);
+  nav.syncPop(s0, 'home');
+  assert.equal(nav.backDelta(), 0);
+  // 未知/刷新前的历史条目安全退回首页
+  assert.equal(nav.syncPop({ __navSession: 'stale', __navId: 99 }, 'profile').known, false);
+  assert.equal(nav.backDelta(), 0);
+
+  assert.match(app, /navHistory\.backDelta\(\)/);
+  assert.doesNotMatch(app, /\binAppNav\b/);
 });

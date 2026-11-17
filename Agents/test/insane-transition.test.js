@@ -67,7 +67,7 @@ test('app.js 与 styles.css 接入五种玩法过场、艺术字动画与色调�
 
   assert.match(transition, /wordmarkArt\[mode\]/);
   assert.match(transition, /sheet\.style\.maskImage = maskMetrics\.dataUri/);
-  assert.match(app, /insaneTransition\.start\(\{ mode, card: button\.closest\('\.insane-card'\) \}\)/);
+  assert.match(app, /insaneTransition\.start\(\{ mode, card \}\)/);
   assert.match(app, /insaneBackground\.setMode\?\.\(insane && isInsaneMode\(mode\) \? mode : ''/);
 
   for (const mode of INSANE_MODES) {

@@ -3511,7 +3511,9 @@ body.has-insane-gl[data-insane]::before { display: none; }
 .insane-page a:focus-visible { outline: 2px solid #d8baff; outline-offset: 4px; }
 .insane-page summary:focus-visible { outline: 2px solid #d8baff; outline-offset: -4px; border-radius: 12px; }
 .insane-heading { display: flex; align-items: center; justify-content: space-between; min-height: 180px; gap: 24px; padding: 24px 0 32px; }
-.insane-heading h1 { margin: 0; color: #fff; font-size: 42px; line-height: 1.15; letter-spacing: -.025em; }
+.insane-heading h1 { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 0; color: #fff; font-size: 34px; line-height: 1.08; letter-spacing: -.02em; }
+.insane-heading-en { display: inline-flex; filter: drop-shadow(0 0 14px rgb(173 138 255 / .34)); }
+.insane-heading-zh { color: #fff; font-size: 22px; font-weight: 700; line-height: 1.25; letter-spacing: .06em; }
 .insane-heading-text { isolation: isolate; }
 .insane-heading-text::before {
   content: attr(data-glow);
@@ -3522,8 +3524,8 @@ body.has-insane-gl[data-insane]::before { display: none; }
   background: linear-gradient(105deg, #416bff 0%, #73e7f4 32%, #ad8aff 64%, #f278bc 100%);
   background-clip: text;
   -webkit-background-clip: text;
-  filter: blur(8px);
-  opacity: .75;
+  filter: blur(6px);
+  opacity: .88;
   pointer-events: none;
 }
 .insane-intro { margin: 14px 0 0; color: #d3cddd; font-size: 15px; }
@@ -3548,6 +3550,18 @@ body.has-insane-gl[data-insane]::before { display: none; }
   .insane-heading-mark i::after { animation: insane-mark-spark 4.2s -1.1s steps(1, end) infinite; }
   .insane-heading-mark i:last-child::before { animation-delay: -.55s; }
   .insane-heading-mark i:last-child::after { animation-delay: -1.65s; }
+  .insane-heading-en .ins-char::before { animation: insane-heading-cyan 4.2s calc(var(--i) * 45ms) steps(1, end) infinite; }
+  .insane-heading-en .ins-char::after { animation: insane-heading-magenta 4.2s calc(var(--i) * 45ms) steps(1, end) infinite; }
+  @keyframes insane-heading-cyan {
+    0%, 16%, 26%, 56%, 68%, 100% { transform: translate(-.028em, -.01em); }
+    18%, 58% { transform: translate(-.085em, -.02em); }
+    21%, 62% { transform: translate(.03em, -.004em); }
+  }
+  @keyframes insane-heading-magenta {
+    0%, 16%, 26%, 56%, 68%, 100% { transform: translate(.028em, .01em); }
+    18%, 58% { transform: translate(.085em, .02em); }
+    21%, 62% { transform: translate(-.03em, .004em); }
+  }
   @keyframes insane-mark-spark {
     0%, 16%, 23%, 56%, 63%, 100% { opacity: 0; }
     17%, 20%, 57%, 60% { opacity: 1; }
@@ -3664,6 +3678,15 @@ body.has-insane-gl[data-insane]::before { display: none; }
   .insane-card::before { animation: none; transform: translateX(116%) scaleX(var(--wave-mirror, 1)); }
 }
 .insane-card > .insane-details { position: relative; z-index: 1; }
+.insane-card-canvas,
+.insane-preview-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 /* 与常见问题保持一致：支持原生尺寸插值的浏览器平滑展开，其余直接切换。 */
 @supports (interpolate-size: allow-keywords) and selector(::details-content) {
   .insane-details { interpolate-size: allow-keywords; }
@@ -4124,9 +4147,9 @@ body.has-insane-gl[data-insane]::before { display: none; }
 .insane-mark--livonym i:first-child { top: 16px; left: 5px; }
 .insane-mark--livonym i:nth-child(2) { top: 16px; right: 5px; background: transparent; border: 3px solid var(--mode-b); }
 .insane-mark--livonym i:nth-child(3) { top: 10px; left: 23px; width: 17px; height: 42px; border: 2px solid var(--mode-a); border-radius: 50%; opacity: .7; }
-.insane-mark--impostor i:first-child { top: 12px; left: 7px; }
-.insane-mark--impostor i:nth-child(2) { top: 12px; right: 5px; }
-.insane-mark--impostor i:nth-child(3) { z-index: 1; top: 41px; left: 9px; width: 38px; height: 3px; border-radius: 2px; background: #38243d; transform-origin: left center; transform: rotate(-48deg); }
+.insane-mark--impostor i:first-child { top: 16px; left: 6px; }
+.insane-mark--impostor i:nth-child(2) { top: 16px; right: 6px; }
+.insane-mark--impostor i:nth-child(3) { z-index: 1; top: 43px; left: 7.5px; width: 38px; height: 3px; border-radius: 2px; background: var(--mode-surface, #351f30); transform-origin: left center; transform: rotate(-45deg); }
 .insane-mark--blitz i:first-child { top: 9px; left: 9px; }
 .insane-mark--blitz i:nth-child(2) { right: 9px; bottom: 9px; }
 .insane-mark--blitz i:nth-child(3) { top: 15px; left: 20px; width: 22px; height: 31px; background: #513452; clip-path: polygon(55% 0, 8% 55%, 43% 55%, 30% 100%, 94% 37%, 60% 37%, 75% 0); }
@@ -4181,6 +4204,20 @@ body.has-insane-gl[data-insane]::before { display: none; }
 .br-letter::before { content: attr(data-letter); position: absolute; inset: 0; color: transparent; -webkit-text-stroke: .6px #e9e2ff; mask-image: repeating-linear-gradient(to bottom, #000 0 3px, transparent 3px 4px); pointer-events: none; }
 .br-leap { display: inline-block; opacity: 0; color: #d9d1f2; }
 
+/* 狂意：字母沿水平断层产生双频色散切片，中心 S/A 形成极光失序张力。 */
+.wm-insane { position: relative; display: inline-flex; align-items: baseline; gap: .045em; font-weight: 800; letter-spacing: .04em; color: #f6f3ff; }
+.ins-char { position: relative; display: inline-block; isolation: isolate; }
+.ins-char::before,
+.ins-char::after { content: attr(data-letter); position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .76; }
+.ins-char::before { color: #7ce8ff; clip-path: inset(0 0 51% 0); mask-image: repeating-linear-gradient(to bottom, #000 0 4px, rgb(0 0 0 / .35) 4px 5px); transform: translate(-.028em, -.01em); }
+.ins-char::after { color: #ff77c8; clip-path: inset(51% 0 0 0); mask-image: repeating-linear-gradient(to bottom, #000 0 4px, rgb(0 0 0 / .35) 4px 5px); transform: translate(.028em, .01em); }
+.ins-s { transform: skewX(-6deg); }
+.ins-a { color: transparent; filter: drop-shadow(0 0 18px rgb(173 138 255 / .46)); }
+.ins-a::before,
+.ins-a::after { z-index: 1; opacity: 1; mask-image: none; }
+.ins-a::before { color: #f6fcff; text-shadow: -.034em -.01em 0 rgb(124 232 255 / .85); clip-path: inset(0 0 53% 0); transform: translate(-.028em, -.008em); }
+.ins-a::after { color: #f5eaff; text-shadow: .034em .01em 0 rgb(255 119 200 / .85); clip-path: inset(51% 0 0 0); transform: translate(.028em, .008em); }
+
 /* 悬停、键盘焦点与触屏展开共用动效。 */
 .insane-card { --orb-a-motion: translate(0, 0); --orb-b-motion: translate(0, 0); --detail-motion: translate(0, 0); }
 .insane-mark i { transition: transform 440ms var(--ease-out), opacity 360ms ease, filter 360ms ease; }
@@ -4188,7 +4225,7 @@ body.has-insane-gl[data-insane]::before { display: none; }
 .insane-mark i:nth-child(2) { transform: var(--orb-b-motion); }
 .insane-mark i:nth-child(3) { transform: var(--detail-motion); }
 .insane-card--shiritori { --detail-motion: rotate(-42deg); }
-.insane-card--impostor { --detail-motion: rotate(-48deg); }
+.insane-card--impostor { --detail-motion: rotate(-45deg); }
 
 @media (prefers-reduced-motion: no-preference) {
   .insane-card--shiritori:is(:hover, :has(.insane-card-row:focus-visible), :has(.insane-details[open])) {
@@ -4237,8 +4274,8 @@ body.has-insane-gl[data-insane]::before { display: none; }
     animation: impostor-eliminated 380ms ease-out both;
   }
   @keyframes impostor-strike {
-    from { transform: rotate(-48deg) scaleX(0); }
-    to { transform: rotate(-48deg) scaleX(1); }
+    from { transform: rotate(-45deg) scaleX(0); }
+    to { transform: rotate(-45deg) scaleX(1); }
   }
   @keyframes impostor-eliminated {
     0%, 45% { opacity: 1; }
@@ -4319,7 +4356,8 @@ body.has-insane-gl[data-insane]::before { display: none; }
 @media (max-width: 560px) {
   .insane-page { padding-top: 12px; }
   .insane-heading { min-height: 150px; padding-bottom: 24px; }
-  .insane-heading h1 { font-size: 34px; }
+  .insane-heading h1 { font-size: 28px; }
+  .insane-heading-zh { font-size: 18px; }
   .insane-heading-mark { width: 82px; height: 80px; }
   .insane-heading-mark i { width: 49px; height: 49px; }
   .insane-heading-mark i:first-child { left: 0; }
@@ -4336,7 +4374,8 @@ body.has-insane-gl[data-insane]::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .insane-card::before { animation: none; transform: translateX(116%) scaleX(var(--wave-mirror, 1)); }
   .insane-distortion { display: none; }
-  .insane-portal::after, .insane-portal span, .insane-heading-text { animation: none; }
+  .insane-portal::after, .insane-portal span, .insane-heading-text,
+  .insane-heading-en .ins-char::before, .insane-heading-en .ins-char::after { animation: none; }
   .insane-portal::after { display: none; }
   .insane-portal, .insane-card, .insane-disclosure .icon { transition: none; }
 }
@@ -4348,9 +4387,67 @@ body.has-insane-gl[data-insane]::before { display: none; }
 .insane-preview--impostor { --mode-a: #f0a2b1; --mode-b: #bd9cff; --mode-surface: #351f30; --mode-surface-active: #432738; }
 .insane-preview--blitz { --mode-a: #f9d483; --mode-b: #ff9f8d; --mode-surface: #392c1e; --mode-surface-active: #493925; }
 .insane-preview--bridge { --mode-a: #91cef1; --mode-b: #c7a9ff; --mode-surface: #1b2b40; --mode-surface-active: #233a54; }
-/* 介绍面板的像素雨：方块整格下坠，两层不同速度错开，块与块之间留空档。 */
+/* 介绍面板与窄屏展开卡片共用斜向像素雨：方块整格下坠，两层不同速度错开，块与块之间留空档。 */
 @property --preview-rain-a { syntax: '<length>'; inherits: false; initial-value: 0px; }
 @property --preview-rain-b { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.insane-card:has(.insane-details[open])::after,
+.insane-preview::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  /* 左上各留一整段行程，方块斜落时整层始终盖满面板。 */
+  inset: -360px;
+  pointer-events: none;
+  --pixel-size: 12px;
+  --pixel-columns: linear-gradient(90deg, #000 0 9px, transparent 9px 12px);
+  --pixel-rows: linear-gradient(#000 0 9px, transparent 9px 12px);
+  /* 135° 斜带的周期与整格位移互为整数倍，循环回位时画面与原位重合。 */
+  /* 边缘只留 8px 渐变，不足一格，方块内部保持纯色而不是被斜边切成三角。 */
+  background-image:
+    repeating-linear-gradient(135deg, transparent 0 26px, color-mix(in srgb, var(--mode-a) 10%, transparent) 34px 62px, transparent 70px 118.8px),
+    repeating-linear-gradient(135deg, transparent 0 50px, color-mix(in srgb, var(--mode-b) 6%, transparent) 58px 110px, transparent 118px 237.6px);
+  background-size: 200% 200%;
+  background-repeat: no-repeat;
+  background-position:
+    round(down, var(--preview-rain-a), 12px) round(down, var(--preview-rain-a), 12px),
+    round(down, var(--preview-rain-b), 12px) round(down, var(--preview-rain-b), 12px);
+  -webkit-mask-image: var(--pixel-columns), var(--pixel-rows);
+  -webkit-mask-size: var(--pixel-size) 100%, 100% var(--pixel-size);
+  -webkit-mask-repeat: repeat;
+  -webkit-mask-composite: source-in;
+  mask-image: var(--pixel-columns), var(--pixel-rows);
+  mask-size: var(--pixel-size) 100%, 100% var(--pixel-size);
+  mask-repeat: repeat;
+  mask-composite: intersect;
+  animation: insane-preview-rain 6.4s linear infinite;
+}
+/* 两层各自走整数个斜带周期：快的一层每秒滑 2 格，慢的一层 1 格，错开成参差。 */
+@keyframes insane-preview-rain {
+  from { --preview-rain-a: -336px; --preview-rain-b: -168px; }
+  to { --preview-rain-a: 0px; --preview-rain-b: 0px; }
+}
+@supports not (background-position: 0 round(down, 0px, 12px)) {
+  .insane-preview::after { display: none; }
+  .insane-card::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .insane-preview { transition: none; }
+  .insane-preview::after { display: none; }
+  .insane-card::after { display: none; }
+  .insane-card-canvas { display: none; }
+  .insane-preview-canvas { display: none; }
+  .livonym-history-hero-canvas { display: none; }
+  .insane-preview--bridge .br-leap { opacity: 1; }
+  .insane-preview--bridge .br-letter::before { opacity: 0; }
+}
+body.has-insane-card-motion .insane-card::before,
+body.has-insane-card-motion .insane-card::after {
+  display: none;
+}
+@media (max-width: 999px) {
+  .insane-preview-canvas { display: none; }
+}
 
 @media (min-width: 1000px) {
   .app:has(.insane-page) { --app-w: min(100% - 64px, 1120px); }
@@ -4361,6 +4458,7 @@ body.has-insane-gl[data-insane]::before { display: none; }
     gap: 24px;
     align-items: start;
   }
+  .insane-card::after { display: none; }
   .insane-card .insane-disclosure,
   .insane-card .insane-description { display: none; }
   .insane-card-row {
@@ -4410,46 +4508,12 @@ body.has-insane-gl[data-insane]::before { display: none; }
       linear-gradient(90deg, color-mix(in srgb, var(--mode-a) 4%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
       linear-gradient(color-mix(in srgb, var(--mode-b) 4%, transparent) 1px, transparent 1px) 0 0 / 24px 24px;
   }
-  /* 斜向方块阶梯：两层周期与速度不同的斜带，被 24px 方格蒙版切成参差台阶，整格向左上回位。 */
-  .insane-preview::after {
-    content: '';
-    position: absolute;
-    z-index: 0;
-    /* 左上各留一整段行程，方块斜落时整层始终盖满面板。 */
-    inset: -360px;
-    pointer-events: none;
-    --pixel-size: 12px;
-    --pixel-columns: linear-gradient(90deg, #000 0 9px, transparent 9px 12px);
-    --pixel-rows: linear-gradient(#000 0 9px, transparent 9px 12px);
-    /* 135° 斜带的周期与整格位移互为整数倍，循环回位时画面与原位重合。 */
-    /* 边缘只留 8px 渐变，不足一格，方块内部保持纯色而不是被斜边切成三角。 */
-    background-image:
-      repeating-linear-gradient(135deg, transparent 0 26px, color-mix(in srgb, var(--mode-a) 10%, transparent) 34px 62px, transparent 70px 118.8px),
-      repeating-linear-gradient(135deg, transparent 0 50px, color-mix(in srgb, var(--mode-b) 6%, transparent) 58px 110px, transparent 118px 237.6px);
-    background-size: 200% 200%;
-    background-repeat: no-repeat;
-    background-position:
-      round(down, var(--preview-rain-a), 12px) round(down, var(--preview-rain-a), 12px),
-      round(down, var(--preview-rain-b), 12px) round(down, var(--preview-rain-b), 12px);
-    -webkit-mask-image: var(--pixel-columns), var(--pixel-rows);
-    -webkit-mask-size: var(--pixel-size) 100%, 100% var(--pixel-size);
-    -webkit-mask-repeat: repeat;
-    -webkit-mask-composite: source-in;
-    mask-image: var(--pixel-columns), var(--pixel-rows);
-    mask-size: var(--pixel-size) 100%, 100% var(--pixel-size);
-    mask-repeat: repeat;
-    mask-composite: intersect;
-    animation: insane-preview-rain 6.4s linear infinite;
-  }
-  /* 两层各自走整数个斜带周期：快的一层每秒滑 2 格，慢的一层 1 格，错开成参差。 */
-  @keyframes insane-preview-rain {
-    from { --preview-rain-a: -336px; --preview-rain-b: -168px; }
-    to { --preview-rain-a: 0px; --preview-rain-b: 0px; }
-  }
-  @supports not (background-position: 0 round(down, 0px, 12px)) {
-    .insane-preview::after { display: none; }
-  }
   .insane-preview > * { position: relative; z-index: 1; }
+  .insane-preview > .insane-preview-canvas { position: absolute; z-index: 0; }
+  body.has-insane-preview-motion .insane-preview::before,
+  body.has-insane-preview-motion .insane-preview::after {
+    display: none;
+  }
   .insane-preview-head {
     display: grid;
     grid-template-columns: 62px minmax(0, 1fr) auto;
@@ -4505,12 +4569,6 @@ body.has-insane-gl[data-insane]::before { display: none; }
     .insane-preview--blitz .bz-trails { animation: blitz-trails .4s linear infinite; }
     .insane-preview--bridge .br-leap { animation: bridge-leap 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
     .insane-preview--bridge .br-letter::before { animation: bridge-outline 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .insane-preview { transition: none; }
-    .insane-preview::after { display: none; }
-    .insane-preview--bridge .br-leap { opacity: 1; }
-    .insane-preview--bridge .br-letter::before { opacity: 0; }
   }
 }
 
@@ -5161,24 +5219,68 @@ body[data-insane][data-insane-mode="bridge"]::before {
   animation: bridge-outline 1.4s calc(var(--i) * 120ms) ease-out infinite backwards;
 }
 .insane-curtain.is-returning .insane-curtain-sheet {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, #101426, #11182b 52%, #17152a);
+  background:
+    radial-gradient(ellipse 62% 58% at 32% 44%, rgb(134 113 185 / .22), transparent 64%),
+    radial-gradient(ellipse 62% 58% at 68% 56%, rgb(216 140 152 / .18), transparent 64%),
+    radial-gradient(ellipse 48% 44% at 50% 50%, color-mix(in srgb, var(--mode-a) 11%, transparent), transparent 68%),
+    linear-gradient(135deg, #071026 0%, #0d1734 52%, #151331 100%);
 }
-.insane-curtain.is-returning .insane-return-wordmark {
-  position: relative;
-  display: inline-block;
-  color: #fff;
-  font-size: clamp(58px, 12vw, 120px);
-  font-weight: 700;
-  line-height: 1.05;
-  animation: insane-return-glitch 1.45s steps(1, end) 1 both;
+.insane-curtain.is-returning .insane-curtain-waves { opacity: .72; }
+.insane-curtain.is-returning .insane-curtain-wordmark > .wm-insane {
+  color: #f6f3ff;
+  filter: drop-shadow(0 0 26px rgb(173 138 255 / .34));
+  animation: insane-wm-settle 1.36s var(--ease-out) both;
 }
-@keyframes insane-return-glitch {
-  0%, 59%, 72%, 100% { transform: none; text-shadow: none; }
-  61% { transform: translateX(-2px) skewX(-4deg); text-shadow: 4px 0 #ff77c8, -4px 0 #8cecff; }
-  64% { transform: translateX(3px); text-shadow: -3px 0 #ff77c8, 3px 0 #8cecff; }
-  67% { transform: translateX(-1px); text-shadow: 2px 0 #ff77c8, -2px 0 #8cecff; }
+.insane-curtain.is-returning .ins-char::before {
+  mask-image: repeating-linear-gradient(to bottom, #000 0 7px, rgb(0 0 0 / .28) 7px 9px);
+  animation: insane-wm-cyan 1.8s calc(var(--i) * 55ms) steps(1, end) infinite;
+}
+.insane-curtain.is-returning .ins-char::after {
+  mask-image: repeating-linear-gradient(to bottom, #000 0 7px, rgb(0 0 0 / .28) 7px 9px);
+  animation: insane-wm-magenta 1.8s calc(var(--i) * 55ms) steps(1, end) infinite;
+}
+.insane-curtain.is-returning .ins-a::before,
+.insane-curtain.is-returning .ins-a::after {
+  mask-image: none;
+  opacity: 1;
+}
+.insane-curtain.is-returning .ins-char {
+  animation: insane-wm-char 1.8s calc(var(--i) * 55ms) steps(1, end) infinite;
+}
+.insane-curtain.is-returning .ins-s {
+  animation: insane-wm-s 1.8s calc(var(--i) * 55ms) steps(1, end) infinite;
+}
+@keyframes insane-wm-settle {
+  0% { opacity: 0; transform: scale(.96); }
+  20%, 100% { opacity: 1; transform: scale(1); }
+}
+@keyframes insane-wm-char {
+  0%, 10%, 64%, 76%, 100% { transform: translate(0, 0); }
+  3% { transform: translate(-2px, 1px); }
+  6% { transform: translate(2px, -1px); }
+  68% { transform: translate(2px, 0); }
+  72% { transform: translate(-1px, 1px); }
+}
+@keyframes insane-wm-s {
+  0%, 10%, 64%, 76%, 100% { transform: skewX(-6deg) translate(0, 0); }
+  3% { transform: skewX(-12deg) translate(-2px, 1px); }
+  6% { transform: skewX(-2deg) translate(2px, -1px); }
+  68% { transform: skewX(-10deg) translate(2px, 0); }
+  72% { transform: skewX(-4deg) translate(-1px, 1px); }
+}
+@keyframes insane-wm-cyan {
+  0%, 12%, 64%, 78%, 100% { transform: translate(-.028em, -.01em); opacity: .76; }
+  3% { transform: translate(-.1em, -.024em); opacity: .98; }
+  7% { transform: translate(.045em, -.005em); opacity: .9; }
+  68% { transform: translate(-.085em, -.02em); opacity: .98; }
+  73% { transform: translate(.03em, .005em); opacity: .88; }
+}
+@keyframes insane-wm-magenta {
+  0%, 12%, 64%, 78%, 100% { transform: translate(.028em, .01em); opacity: .76; }
+  3% { transform: translate(.1em, .024em); opacity: .98; }
+  7% { transform: translate(-.045em, .005em); opacity: .9; }
+  68% { transform: translate(.085em, .02em); opacity: .98; }
+  73% { transform: translate(-.03em, -.005em); opacity: .88; }
 }
 @media (prefers-reduced-motion: reduce) { .insane-curtain { display: none; } }
 

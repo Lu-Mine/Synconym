@@ -31,7 +31,8 @@ const modes = [
 export const INSANE_DEFAULT_MODE = modes[0].id;
 
 function resolveMode(modeId) {
-  return modes.find((mode) => mode.id === modeId) || modes.find((mode) => mode.id === INSANE_DEFAULT_MODE) || modes[0];
+  const id = typeof modeId === 'object' && modeId !== null ? (modeId.currentMode || modeId.mode || modeId.id) : modeId;
+  return modes.find((mode) => mode.id === id) || modes.find((mode) => mode.id === INSANE_DEFAULT_MODE) || modes[0];
 }
 
 export function insanePreviewBodyMarkup(modeId = INSANE_DEFAULT_MODE) {
@@ -52,16 +53,17 @@ export function insanePreviewBodyMarkup(modeId = INSANE_DEFAULT_MODE) {
 
 export function insanePreviewMarkup(modeId = INSANE_DEFAULT_MODE) {
   const mode = resolveMode(modeId);
-  return `<aside class="insane-preview insane-preview--${mode.id}" data-mode="${mode.id}" aria-label="玩法介绍" aria-live="polite">${insanePreviewBodyMarkup(mode.id)}</aside>`;
+  return `<aside class="insane-preview insane-preview--${mode.id}" data-mode="${mode.id}" aria-label="玩法介绍" aria-live="polite"><canvas class="insane-preview-canvas" aria-hidden="true"></canvas>${insanePreviewBodyMarkup(mode.id)}</aside>`;
 }
 
 export function insaneMarkup(selectedMode = INSANE_DEFAULT_MODE) {
   const active = resolveMode(selectedMode);
   const cards = modes.map((mode) => `<article class="insane-card insane-card--${mode.id}">
+    <canvas class="insane-card-canvas" aria-hidden="true"></canvas>
     <details class="insane-details">
       <summary class="insane-card-row">
         <span class="insane-mark insane-mark--${mode.id}" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="insane-card-title"><strong>${mode.name}</strong><span class="insane-wordmark insane-wordmark--${mode.id}" lang="en"><span class="sr-only">${mode.english}</span><span class="wordmark-art" aria-hidden="true">${wordmarkArt[mode.id]}</span></span></span>
+        <span class="insane-card-title"><span class="insane-wordmark insane-wordmark--${mode.id}" lang="en"><span class="sr-only">${mode.english}</span><span class="wordmark-art" aria-hidden="true">${wordmarkArt[mode.id]}</span></span><strong>${mode.name}</strong></span>
         <span class="insane-players">${icon('users')}<span>${mode.players}</span></span>
         <span class="insane-disclosure" aria-hidden="true">${icon('chevron-down')}</span>
       </summary>
@@ -74,7 +76,7 @@ export function insaneMarkup(selectedMode = INSANE_DEFAULT_MODE) {
   return `<div class="page insane-page" data-screen="insane">
     <a class="insane-back" href="/" data-action="home">${icon('arrow-left')}<span>返回主页</span></a>
     <header class="insane-heading">
-      <div><h1><span class="insane-heading-text" data-glow="狂意模式">狂意模式</span></h1><p class="insane-intro">让想法，走点不一样的路。</p></div>
+      <div><h1><span class="insane-heading-en" lang="en"><span class="sr-only">INSANE</span>${wordmarkArt.insane}</span><span class="insane-heading-zh insane-heading-text" data-glow="狂意模式">狂意模式</span></h1><p class="insane-intro">让想法，走点不一样的路。</p></div>
       <span class="insane-heading-mark" aria-hidden="true"><i></i><i></i></span>
     </header>
     <div class="insane-list-heading"><h2>选择一种玩法</h2>${modes.some((mode) => !mode.ready) ? '<p>其余玩法仍在筹备中</p>' : ''}</div>

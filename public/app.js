@@ -3,7 +3,7 @@ import { matchDetailMarkup } from './render.js';
 import { Socket } from './ws.js';
 import { observeStoryMotion } from './story-motion.js';
 import { countdownState, updateStartCountdown, showLaunchCurtain, clearLaunchCurtain, fadeFirstRound } from './countdown.js';
-import { motionTarget, sceneMotion } from './motion.js';
+import { motionTarget, sceneMotion, createNavHistory } from './motion.js';
 import { patchMarkup } from './dom.js';
 import { copyText, readClipboardText } from './clipboard.js';
 import { parseRoomCode, sanitizeRoomInput, sanitizeNumericInput } from './room-code.js';
@@ -12,6 +12,7 @@ import { refreshPlayingCount } from './playing.js';
 import { insaneMarkup, INSANE_DEFAULT_MODE, insanePreviewBodyMarkup } from './insane.js';
 import { createInsaneBackground } from './insane-background.js';
 import { createInsaneTransitionController } from './insane-transition.js';
+import { observeInsaneCardMotion } from './insane-card-motion.js';
 import { createUpdateWatcher, canApplyNow, updateUrl } from './update-check.js';
 import { collectDeviceProfile } from './device.js';
 import {
@@ -174,9 +175,11 @@ function syncInsanePreviewDOM(root = app) {
   }
   const preview = layout.querySelector('.insane-preview');
   if (!preview || preview.dataset.mode === previewMode) return;
+  const previewCanvas = preview.querySelector(':scope > .insane-preview-canvas');
   preview.className = `insane-preview insane-preview--${previewMode}`;
   preview.dataset.mode = previewMode;
   preview.innerHTML = insanePreviewBodyMarkup(previewMode);
+  if (previewCanvas) preview.prepend(previewCanvas);
 }
 
 let settings = {
@@ -196,8 +199,31 @@ let qaOpen = new URLSearchParams(location.search).has('qa');
 let insaneOpen = new URLSearchParams(location.search).has('insane');
 let insaneSelectedMode = INSANE_DEFAULT_MODE;
 let insaneHoveredMode = null;
-// 隐私、Q&A、档案在站内点开时压入历史，「返回」据此退回上一页；直接打开链接时退回首页。
-let inAppNav = false;
+// 隐私、Q&A、档案在站内点开时记录逻辑返回栈，「返回」按层级与来源回退（不从 ?me 退回详情）；直接打开链接时退回首页。
+function currentNonRoomNavScreen() {
+  if (privacyOpen) return 'privacy';
+  if (qaOpen) return 'qa';
+  if (insaneOpen) return 'insane';
+  if (profileOpen) return historyQuery(location.search).id ? 'match-detail' : 'profile';
+  return 'home';
+}
+const navHistory = createNavHistory(currentNonRoomNavScreen());
+let navBackInFlight = false;
+let navBackTimer;
+function stampCurrentHistoryState() {
+  history.replaceState(navHistory.stamp(history.state), '', location.href);
+}
+function pushNavScreen(screen) {
+  navHistory.push(screen);
+  stampCurrentHistoryState();
+}
+function syncNavOnPopstate() {
+  navBackInFlight = false;
+  clearTimeout(navBackTimer);
+  const synced = navHistory.syncPop(history.state, currentNonRoomNavScreen());
+  if (!synced.known) stampCurrentHistoryState();
+}
+stampCurrentHistoryState();
 let pathOpen = false;
 let pathTrigger = null;
 let startOpen = false;
@@ -279,6 +305,7 @@ let roomHistoryGuard = false;
 
 let stopJoinPlaceholder = () => {};
 let stopStoryMotion = () => {};
+let stopInsaneCardMotion = () => {};
 let awaitingRoomRestore = false;
 let restoreStatusTimer;
 
@@ -624,6 +651,7 @@ window.addEventListener('popstate', async () => {
   if (!state.room) {
     if (typeof insaneTransition !== 'undefined' && insaneTransition.isActive()) {
       pendingInsaneReveal = null;
+      pendingInsaneReturn = false;
       insaneTransition.cancel();
     }
     profileOpen = new URLSearchParams(location.search).has('me');
@@ -983,6 +1011,19 @@ function animateStepperValue(nextNumber, direction = 1) {
 }
 
 function patchSettingsDOM(values, editable) {
+  for (const group of app.querySelectorAll('.insane-card [data-segmented]')) {
+    const name = group.dataset.segmented;
+    if (!values[name]) continue;
+    const buttons = [...group.querySelectorAll('.segment')];
+    const selectedIndex = buttons.findIndex((btn) => String(btn.dataset.value) === String(values[name]));
+    if (selectedIndex >= 0) group.style.setProperty('--selected', String(selectedIndex));
+    buttons.forEach((btn, idx) => {
+      const selected = idx === selectedIndex;
+      btn.classList.toggle('selected', selected);
+      btn.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
   const section = app.querySelector('.settings');
   if (!section || section.dataset.editable !== String(editable)
     || section.dataset.mode !== String(values.mode)) return false;
@@ -1148,7 +1189,7 @@ function scheduleHistorySearch(value) {
     const raw = String(value ?? '').trim();
     const params = new URLSearchParams({ me: '' });
     if (raw) params.set('q', raw);
-    history.replaceState(null, '', `${APP_ROOT}?${params}`);
+    history.replaceState(navHistory.stamp(history.state), '', `${APP_ROOT}?${params}`);
     syncMockLocation();
     if (socket.ready) requestProfile(1);
     else render();
@@ -1161,12 +1202,14 @@ function requestProfile(page = 1) {
   if (query.id) { socket.send({ type: 'openMatch', id: query.id }, true); return; }
   query.page = page;
   state.historyQuery = query;
-  history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
+  history.replaceState(navHistory.stamp(history.state), '', `${APP_ROOT}${historyHref(query)}`);
   syncMockLocation();
   socket.send({ type: 'openProfile', page: query.page, filter: historyFilter(query) }, true);
 }
 
 function resetToHome() {
+  navBackInFlight = false;
+  clearTimeout(navBackTimer);
   socket.roomCode = '';
   previousRoomCode = '';
   profileOpen = false;
@@ -1179,17 +1222,36 @@ function resetToHome() {
   state.removed = null;
   awaitingRemoved = false;
   if (location.search) history.replaceState(null, '', APP_ROOT);
+  navHistory.reset('home');
+  stampCurrentHistoryState();
   syncMockLocation();
   render();
 }
 
 function goBack() {
-  if (inAppNav) history.back();
-  else resetToHome();
+  if (navBackInFlight) return;
+  const delta = navHistory.backDelta();
+  if (delta < 0) {
+    navBackInFlight = true;
+    clearTimeout(navBackTimer);
+    navBackTimer = setTimeout(() => { navBackInFlight = false; }, 500);
+    history.go(delta);
+    return;
+  }
+  resetToHome();
 }
 
 function openProfile() {
   if (state.room) return;
+  const query = historyQuery(location.search);
+  if (profileOpen && !query.id) {
+    if (!query.raw && query.page <= 1) return;
+    history.replaceState(navHistory.stamp(history.state), '', `${APP_ROOT}?me`);
+    syncMockLocation();
+    requestProfile(1);
+    render();
+    return;
+  }
   privacyOpen = false;
   qaOpen = false;
   insaneOpen = false;
@@ -1198,8 +1260,8 @@ function openProfile() {
   state.removed = null;
   awaitingRemoved = false;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
+  pushNavScreen('profile');
   syncMockLocation();
-  inAppNav = true;
   requestProfile(1);
   render();
 }
@@ -1480,7 +1542,8 @@ function patchSameScene(stage, nextScreen) {
     return true;
   }
   const currentPage = stage.querySelector('[data-screen]');
-  if (nextScreen === currentScreen && currentPage
+  if (nextScreen === lastRenderedScreen && currentPage
+      && (nextScreen === 'profile' || currentPage.dataset.screen === nextScreen)
       && (!state.room || (currentPage.dataset.room === state.room.code
         && (!currentPage.dataset.round || currentPage.dataset.round === String(state.room.round))))) {
     patchMarkup(stage, buildScreenMarkup(nextScreen));
@@ -1530,6 +1593,8 @@ function replaceScene(stage, nextScreen, generation) {
   if (generation !== renderGeneration) return;
   stopStoryMotion();
   stopJoinPlaceholder();
+  stopInsaneCardMotion();
+  stopInsaneCardMotion = () => {};
   stage.innerHTML = html;
   if (nextScreen === 'home') syncRecentRoomDOM();
   stopJoinPlaceholder = observeJoinPlaceholder(stage);
@@ -1549,8 +1614,15 @@ function replaceScene(stage, nextScreen, generation) {
       input.setSelectionRange(input.value.length, input.value.length);
     }
   }
-  if (nextScreen === 'insane') syncInsanePreviewDOM(stage);
-  else insaneHoveredMode = null;
+  if (nextScreen === 'insane') {
+    syncInsanePreviewDOM(stage);
+    stopInsaneCardMotion = observeInsaneCardMotion(stage);
+  } else {
+    insaneHoveredMode = null;
+    if (stage.querySelector('.livonym-history-hero')) {
+      stopInsaneCardMotion = observeInsaneCardMotion(stage);
+    }
+  }
   refreshTimers();
 }
 
@@ -1719,6 +1791,7 @@ const socket = new Socket({
       gameUi.submitted = false; gameUi.voted = false; gameUi.ready = false;
       if (insaneTransition.isActive() && insaneTransition.phase() !== 'sweeping-out') {
         pendingInsaneReveal = null;
+        pendingInsaneReturn = false;
         insaneTransition.cancel();
       }
     }
@@ -1755,7 +1828,7 @@ const socket = new Socket({
     state.profile = profile;
     const query = historyQuery(location.search);
     query.page = profile.page;
-    history.replaceState(null, '', `${APP_ROOT}${historyHref(query)}`);
+    history.replaceState(navHistory.stamp(history.state), '', `${APP_ROOT}${historyHref(query)}`);
     syncMockLocation();
     render();
   },
@@ -1773,6 +1846,8 @@ const socket = new Socket({
     // 换身份后当前页已经是别人的档案了，直接回首页：旧身份若没人认得回来，提示里说清楚。
     profileOpen = false;
     if (location.search) history.replaceState(null, '', APP_ROOT);
+    navHistory.reset('home');
+    stampCurrentHistoryState();
     syncMockLocation();
     toast(message?.orphaned ? '已脱离旧身份，它没有别的入口，已一并注销' : '已换成新身份');
     render({ forceFull: true, initialSync: true });
@@ -1813,6 +1888,7 @@ const socket = new Socket({
         history.replaceState(null, '', `${APP_ROOT}?r=${next.room.code}`);
         syncMockLocation();
         history.pushState({ roomGuard: true }, '', location.href);
+        navHistory.advanceRoomGuard();
         roomHistoryGuard = true;
         previousRoomCode = next.room.code;
       }
@@ -1828,11 +1904,17 @@ const socket = new Socket({
         profileOpen = false;
         state.profile = null;
         history.replaceState({ insane: true }, '', `${APP_ROOT}?insane`);
+        navHistory.reset('insane');
+        stampCurrentHistoryState();
         syncMockLocation();
         pendingInsaneReturn = insaneTransition.start({ mode: previous.mode, returning: true });
       } else {
         if (previous?.code) insaneOpen = false;
         if (!insaneOpen && !profileOpen && !privacyOpen && !qaOpen && location.search) history.replaceState(null, '', APP_ROOT);
+        if (previous?.code) {
+          navHistory.reset(currentNonRoomNavScreen());
+          stampCurrentHistoryState();
+        }
         syncMockLocation();
       }
     }
@@ -1852,6 +1934,7 @@ const socket = new Socket({
     } else {
       if (insaneTransition.isActive()) {
         pendingInsaneReveal = null;
+        pendingInsaneReturn = false;
         insaneTransition.cancel();
       }
       render({ initialSync });
@@ -1882,7 +1965,7 @@ const socket = new Socket({
     }
     if (state.room) render();
     else if (insaneOpen) render();
-    if (message.includes('密码')) markInvalid(app.querySelector(pendingJoin ? '#join-password' : '#room-password'));
+    if (message.includes('密码')) markInvalid(app.querySelector(pendingJoin ? '#join-password' : '#insane-password, #room-password'));
     else if (/词|答案/.test(message)) markInvalid(app.querySelector('#word-input'));
     else if (/名字/.test(message)) markInvalid(app.querySelector('#player-name'));
     toast(message);
@@ -1950,7 +2033,7 @@ function acceptPasswordInput(input) {
   const before = cursor == null ? null : sanitizeNumericInput(input.value.slice(0, cursor), 6).length;
   input.value = sanitizeNumericInput(input.value, 6);
   if (before != null) input.setSelectionRange(before, before);
-  if (input.id === 'join-password') return;
+  if (input.id === 'join-password' || input.id === 'insane-password') return;
   const base = state.room ? (pendingLobbySettings || state.room) : settings;
   const next = { ...base, password: input.value, passwordEnabled: input.value.length > 0 };
   if (state.room) scheduleLobbySettingsSync(next);
@@ -1959,7 +2042,7 @@ function acceptPasswordInput(input) {
 
 app.addEventListener('invalid', (event) => markInvalid(event.target), true);
 app.addEventListener('focusout', (event) => {
-  if (['room-password', 'join-password'].includes(event.target.id) && event.target.value && !/^[0-9]{6}$/.test(event.target.value)) markInvalid(event.target);
+  if (['room-password', 'join-password', 'insane-password'].includes(event.target.id) && event.target.value && !/^[0-9]{6}$/.test(event.target.value)) markInvalid(event.target);
 });
 app.addEventListener('input', (event) => {
   event.target.removeAttribute('aria-invalid');
@@ -1968,7 +2051,7 @@ app.addEventListener('input', (event) => {
     syncHistoryTimeBadge();
     if (!event.isComposing) scheduleHistorySearch(event.target.value);
   }
-  if (['room-password', 'join-password'].includes(event.target.id) && !event.isComposing) acceptPasswordInput(event.target);
+  if (['room-password', 'join-password', 'insane-password'].includes(event.target.id) && !event.isComposing) acceptPasswordInput(event.target);
 });
 
 app.addEventListener('submit', (event) => {
@@ -2040,7 +2123,7 @@ app.addEventListener('input', (event) => {
 });
 
 app.addEventListener('compositionend', (event) => {
-  if (['room-password', 'join-password'].includes(event.target.id)) acceptPasswordInput(event.target);
+  if (['room-password', 'join-password', 'insane-password'].includes(event.target.id)) acceptPasswordInput(event.target);
   if (event.target.id === 'room-code') {
     event.target.value = sanitizeRoomInput(event.target.value);
     checkJoinOnInput(event.target);
@@ -2233,8 +2316,8 @@ app.addEventListener('click', async (event) => {
     qaOpen = false;
     state.matchDetail = null;
     history.pushState({ profile: true }, '', `${APP_ROOT}${new URL(matchLink.href).search}`);
+    pushNavScreen(historyQuery(location.search).id ? 'match-detail' : 'profile');
     syncMockLocation();
-    inAppNav = true;
     requestProfile(historyQuery(location.search).page);
     render();
     return;
@@ -2276,6 +2359,7 @@ app.addEventListener('click', async (event) => {
     insaneOpen = true;
     state.profile = null;
     history.pushState({ insane: true }, '', `${APP_ROOT}?insane`);
+    pushNavScreen('insane');
     syncMockLocation();
     render();
     return;
@@ -2291,8 +2375,8 @@ app.addEventListener('click', async (event) => {
     insaneOpen = false;
     state.profile = null;
     history.pushState({ privacy: true }, '', `${APP_ROOT}?privacy`);
+    pushNavScreen('privacy');
     syncMockLocation();
-    inAppNav = true;
     render();
     return;
   }
@@ -2307,8 +2391,8 @@ app.addEventListener('click', async (event) => {
     insaneOpen = false;
     state.profile = null;
     history.pushState({ qa: true }, '', `${APP_ROOT}?qa`);
+    pushNavScreen('qa');
     syncMockLocation();
-    inAppNav = true;
     render();
     return;
   }
@@ -2387,11 +2471,36 @@ app.addEventListener('click', async (event) => {
     event.preventDefault();
     if (!socket.ready) { toast('连接尚未恢复，请稍后重试'); return; }
     const mode = button.dataset.mode || 'livonym';
+    const card = button.closest('.insane-card');
+    const pwdInput = card?.querySelector('#insane-password, #room-password');
+    const password = pwdInput ? pwdInput.value.trim() : (settings.password || '');
+    const passwordEnabled = Boolean(password);
+    if (passwordEnabled && !/^[0-9]{6}$/.test(password)) {
+      markInvalid(pwdInput);
+      toast('请输入 6 位数字密码');
+      pwdInput?.focus();
+      return;
+    }
     button.disabled = true;
     if (isInsaneMode(mode)) {
-      insaneTransition.start({ mode, card: button.closest('.insane-card') });
+      insaneTransition.start({ mode, card });
     }
-    enqueueWrite({ type: 'createRoom', ...INSANE_ROOM_SETTINGS, mode });
+    const descSecBtn = card?.querySelector('[data-segmented="describeSeconds"] .selected');
+    const describeSeconds = descSecBtn ? Number(descSecBtn.dataset.value) : (settings.describeSeconds || 45);
+    const rppBtn = card?.querySelector('[data-segmented="roundsPerPlayer"] .selected');
+    const roundsPerPlayer = rppBtn ? Number(rppBtn.dataset.value) : (settings.roundsPerPlayer || 1);
+    enqueueWrite({
+      type: 'createRoom',
+      mode,
+      maxRounds: 12,
+      writeSeconds: 45,
+      prepareSeconds: 30,
+      banRepeat: true,
+      describeSeconds,
+      roundsPerPlayer,
+      passwordEnabled,
+      password
+    });
     return;
   }
   if (button.dataset.action === 'open-start') {

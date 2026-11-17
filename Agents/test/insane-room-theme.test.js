@@ -89,6 +89,47 @@ test('狂意玩法的房间退出后回到狂意模式大厅', async () => {
   assert.match(app, /if \(previous\?\.code\) insaneOpen = false;/);
   assert.match(app, /if \(!insaneOpen && !profileOpen && !privacyOpen && !qaOpen && location\.search\) history\.replaceState\(null, '', APP_ROOT\);/);
 });
+test('狂意房间回厅使用反向像素波过场，并在遮罩居中呈现 INSANE 纯字形艺术字，不显示双球或「狂意模式」', async () => {
+  const app = await source();
+  const transition = await readFile(new URL('../../public/insane-transition.js', import.meta.url), 'utf8');
+  const styles = await css();
+  const { wordmarkArt } = await import('../../public/render.js');
+  assert.match(wordmarkArt.insane, /class="wm-insane"/);
+  assert.match(app, /pendingInsaneReturn = insaneTransition\.start\(\{ mode: previous\.mode, returning: true \}\)/);
+  assert.match(app, /pendingInsaneReturn && !nextRoom/);
+  assert.match(transition, /if \(returning\) direction = direction === 'rtl' \? 'ltr' : 'rtl'/);
+  assert.match(transition, /roomReady = returning/);
+  assert.match(transition, /class="insane-curtain-wordmark" lang="en">\$\{returning \? wordmarkArt\.insane : wordmarkArt\[mode\]\}/);
+  assert.doesNotMatch(transition, /狂意模式|insane-heading-mark|insane-return-wordmark|insane-curtain-return/);
+  assert.match(styles, /\.insane-curtain\.is-returning \.insane-curtain-sheet\s*\{[\s\S]*#071026/);
+  assert.match(styles, /\.insane-curtain\.is-returning \.insane-curtain-wordmark > \.wm-insane\s*\{[\s\S]*animation:\s*insane-wm-settle 1\.36s/);
+  assert.match(styles, /@keyframes insane-wm-cyan/);
+  assert.match(styles, /@keyframes insane-wm-magenta/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{ \.insane-curtain \{ display: none; \} \}/);
+});
+
+test('五种狂意加入确认窗复用暗色狂意令牌、玩法色与双圆字标，不破坏按钮与弹窗圆角', async () => {
+  const app = await source();
+  const styles = await css();
+  assert.match(app, /if \(isInsaneMode\(data\.mode\)\) modal\.dataset\.roomMode = data\.mode;\s*else delete modal\.dataset\.roomMode;/);
+  for (const [mode, color] of [
+    ['shiritori', '#b7a1ff'],
+    ['livonym', '#8ee4d7'],
+    ['impostor', '#f0a2b1'],
+    ['blitz', '#f9d483'],
+    ['bridge', '#91cef1']
+  ]) {
+    assert.match(styles, new RegExp(`#join-modal\\[data-room-mode="${mode}"\\]\\s*\\{[^}]*--mode-a:\\s*${color};`));
+  }
+  assert.match(styles, /#join-modal\[data-room-mode\]\s*\{[\s\S]*?color-scheme:\s*dark;[\s\S]*?--accent:\s*#6a56f0;/);
+  assert.match(styles, /\.join-room-mode-mark \.insane-mark\s*\{/);
+  for (const mode of INSANE_MODES) {
+    assert.match(styles, new RegExp(`#join-modal\\.is-open \\.join-room-mode--${mode} \\.insane-mark i:first-child\\s*\\{[^}]*infinite`));
+    assert.match(styles, new RegExp(`#join-modal\\.is-open \\.join-room-mode--${mode} \\.insane-mark i:nth-child\\(2\\)\\s*\\{[^}]*infinite`));
+    assert.match(styles, new RegExp(`#join-modal\\.is-open \\.join-room-mode--${mode} \\.insane-mark i:nth-child\\(3\\)\\s*\\{[^}]*infinite`));
+  }
+  assert.doesNotMatch(styles, /\[data-action="confirm-join"\]\s*\{[^}]*clip-path|border-radius:\s*7px 18px/);
+});
 
 test('狂意背景漩涡仅在狂意大厅（screen === insane）开启 glitch', async () => {
   const bg = await readFile(new URL('../../public/insane-background.js', import.meta.url), 'utf8');

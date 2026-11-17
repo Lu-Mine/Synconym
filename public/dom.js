@@ -15,8 +15,9 @@ function patchNode(current, next) {
     return;
   }
   for (const attribute of [...current.attributes]) {
-    // open 属于用户的展开状态；头像 src 与渲染缓存由 hydrateAvatars 管理。
+    // open 属于用户的展开状态；头像 src 与渲染缓存由 hydrateAvatars 管理；画布尺寸由动效渲染器按视口维护。
     if ((current.tagName === 'DETAILS' && attribute.name === 'open')
+      || (current.tagName === 'CANVAS' && (attribute.name === 'width' || attribute.name === 'height'))
       || (current.matches('img.avatar') && ['src', 'data-rendered-name'].includes(attribute.name))) continue;
     if (!next.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
   }
