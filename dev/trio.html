@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>三人全流程自动模拟 · 即时竞猜 Livonym</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      background: #0d111a;
+      color: #eef2ff;
+      font: 13px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+    }
+    .trio-bar {
+      flex: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px 16px;
+      padding: 10px 16px;
+      background: #151b29;
+      border-bottom: 1px solid #28324a;
+      z-index: 20;
+    }
+    .trio-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1 1 360px;
+    }
+    .trio-badge {
+      flex: none;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(142, 228, 215, 0.14);
+      border: 1px solid rgba(142, 228, 215, 0.4);
+      color: #8ee4d7;
+      font-weight: 700;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .trio-narrative {
+      min-width: 0;
+    }
+    .trio-narrative strong {
+      display: block;
+      font-size: 14px;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .trio-narrative span {
+      display: block;
+      font-size: 12px;
+      color: #9aa7c7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .trio-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    button, select {
+      font: inherit;
+      padding: 6px 12px;
+      min-height: 32px;
+      border-radius: 8px;
+      border: 1px solid #33405c;
+      background: #1c2436;
+      color: #e2e8f0;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) {
+      border-color: #8ee4d7;
+      color: #fff;
+    }
+    button:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+    }
+    #btn-start {
+      background: #3d5afe;
+      border-color: #3d5afe;
+      color: #fff;
+      font-weight: 600;
+    }
+    #btn-start:hover:not(:disabled) {
+      background: #2c47ea;
+    }
+    #btn-interrupt {
+      border-color: rgba(255, 90, 70, 0.45);
+      color: #ff9d90;
+    }
+    .trio-steps {
+      flex: none;
+      display: flex;
+      gap: 6px;
+      padding: 6px 16px;
+      overflow-x: auto;
+      background: #111622;
+      border-bottom: 1px solid #21293d;
+      scrollbar-width: thin;
+    }
+    .trio-step-pill {
+      flex: none;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #7c89a8;
+      background: #171e2e;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .trio-step-pill.is-done {
+      color: #6fe8bd;
+      border-color: rgba(111, 232, 189, 0.25);
+    }
+    .trio-step-pill.is-active {
+      color: #fff;
+      background: rgba(61, 90, 254, 0.25);
+      border-color: #6c83ff;
+      font-weight: 600;
+    }
+    .trio-grid {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 10px;
+      overflow: auto;
+    }
+    .trio-grid.is-mobile {
+      grid-template-columns: repeat(3, 390px);
+      justify-content: safe center;
+    }
+    .trio-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      border-radius: 12px;
+      border: 1px solid #28324a;
+      background: #0b0e14;
+      overflow: hidden;
+    }
+    .trio-pane-head {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 12px;
+      background: #171d2c;
+      border-bottom: 1px solid #28324a;
+      border-top: 3px solid var(--pane-color, #3d5afe);
+    }
+    .trio-pane-who {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .trio-pane-who strong {
+      font-size: 13px;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .trio-pane-name {
+      color: #9aa7c7;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .trio-pane-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+    }
+    .trio-role-tag {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #232c42;
+      color: #cbd5e1;
+      white-space: nowrap;
+    }
+    .trio-role-tag.is-describer {
+      background: rgba(142, 228, 215, 0.18);
+      color: #8ee4d7;
+    }
+    .trio-role-tag.is-guesser {
+      background: rgba(160, 169, 255, 0.18);
+      color: #b4beff;
+    }
+    .trio-role-tag.is-guessed {
+      background: rgba(14, 159, 110, 0.22);
+      color: #6fe8bd;
+    }
+    .trio-stage-no {
+      color: #8ee4d7;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+    }
+    .trio-pane iframe {
+      flex: 1 1 auto;
+      width: 100%;
+      height: 100%;
+      min-height: 520px;
+      border: 0;
+      background: #f4f5f9;
+    }
+    .trio-back-link {
+      color: #8ee4d7;
+      text-decoration: none;
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+    .trio-back-link:hover { text-decoration: underline; }
+    @media (max-width: 1180px) {
+      .trio-grid {
+        grid-template-columns: repeat(3, 390px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="trio-bar">
+    <div class="trio-status">
+      <span class="trio-badge" id="step-badge">就绪</span>
+      <div class="trio-narrative">
+        <strong id="step-title">Livonym 三人同屏全流程自动模拟</strong>
+        <span id="step-detail">点击「开始自动演示」，将实时驱动 3 个独立 WebSocket 玩家完成从开房配置到档案回顾的全部功能。</span>
+      </div>
+    </div>
+    <div class="trio-controls">
+      <button id="btn-start" type="button">开始自动演示</button>
+      <button id="btn-pause" type="button" disabled>暂停</button>
+      <button id="btn-step" type="button" disabled>单步继续</button>
+      <button id="btn-interrupt" type="button" disabled>演示 2 人残局中断</button>
+      <button id="btn-reset" type="button">重置三屏</button>
+      <select id="speed" aria-label="演示速度">
+        <option value="0.6">0.6x 慢速细看</option>
+        <option value="1" selected>1x 正常节奏</option>
+        <option value="1.8">1.8x 快速</option>
+      </select>
+      <select id="layout-mode" aria-label="视口宽度">
+        <option value="flex" selected>三栏自适应</option>
+        <option value="mobile">390px 窄屏三栏</option>
+      </select>
+      <a class="trio-back-link" href="/__mock">单人 Mock</a>
+    </div>
+  </header>
+
+  <nav class="trio-steps" id="trio-steps" aria-label="模拟步骤">
+    <span class="trio-step-pill" data-step="1">1. Q&amp;A 与狂意预配置</span>
+    <span class="trio-step-pill" data-step="2">2. 大厅密码/头像顺序换位</span>
+    <span class="trio-step-pill" data-step="3">3. 5s 开局倒计时</span>
+    <span class="trio-step-pill" data-step="4">4. 第1棒 5s 准备与字数</span>
+    <span class="trio-step-pill" data-step="5">5. 第1棒 拦截/弹幕/标签/旁观/N-1锁框</span>
+    <span class="trio-step-pill" data-step="6">6. 第1棒 6s 结算与用时</span>
+    <span class="trio-step-pill" data-step="7">7. 第2棒(部分猜中+1分)</span>
+    <span class="trio-step-pill" data-step="8">8. 第3棒 冲刺结算</span>
+    <span class="trio-step-pill" data-step="9">9. 终局总分榜/称号/回顾/浮窗</span>
+    <span class="trio-step-pill" data-step="10">10. 档案 ?me 与历史详情</span>
+  </nav>
+
+  <main class="trio-grid" id="trio-grid">
+    <section class="trio-pane" style="--pane-color:#3D5AFE">
+      <div class="trio-pane-head">
+        <div class="trio-pane-who">
+          <strong>玩家 1（房主）</strong>
+          <span class="trio-pane-name" id="name-0">连接中…</span>
+        </div>
+        <div class="trio-pane-meta">
+          <span class="trio-role-tag" id="role-0">首页</span>
+          <span class="trio-stage-no" id="stage-0">--</span>
+        </div>
+      </div>
+      <iframe id="frame-0" title="玩家 1 视角"></iframe>
+    </section>
+
+    <section class="trio-pane" style="--pane-color:#FF5A46">
+      <div class="trio-pane-head">
+        <div class="trio-pane-who">
+          <strong>玩家 2</strong>
+          <span class="trio-pane-name" id="name-1">连接中…</span>
+        </div>
+        <div class="trio-pane-meta">
+          <span class="trio-role-tag" id="role-1">首页</span>
+          <span class="trio-stage-no" id="stage-1">--</span>
+        </div>
+      </div>
+      <iframe id="frame-1" title="玩家 2 视角"></iframe>
+    </section>
+
+    <section class="trio-pane" style="--pane-color:#00A878">
+      <div class="trio-pane-head">
+        <div class="trio-pane-who">
+          <strong>玩家 3</strong>
+          <span class="trio-pane-name" id="name-2">连接中…</span>
+        </div>
+        <div class="trio-pane-meta">
+          <span class="trio-role-tag" id="role-2">首页</span>
+          <span class="trio-stage-no" id="stage-2">--</span>
+        </div>
+      </div>
+      <iframe id="frame-2" title="玩家 3 视角"></iframe>
+    </section>
+  </main>
+
+  <script type="module" src="/__mock/trio.js"></script>
+</body>
+</html>

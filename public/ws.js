@@ -5,9 +5,12 @@ export class Socket {
       onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked };
     this.device = device;
     this.mock = Boolean(globalThis.__SYNCONYM_MOCK__);
-    this.identityKey = this.mock ? 'sy_mock_identity' : 'sy_identity';
-    this.uidKey = this.mock ? 'sy_mock_uid' : 'sy_uid';
-    this.leaveKey = this.mock ? 'sy_mock_pending_leave' : 'sy_pending_leave';
+    const slot = this.mock ? (new URLSearchParams(location.search).get('slot') || '') : '';
+    this.slot = slot;
+    const suffix = slot ? `_${slot}` : '';
+    this.identityKey = (this.mock ? 'sy_mock_identity' : 'sy_identity') + suffix;
+    this.uidKey = (this.mock ? 'sy_mock_uid' : 'sy_uid') + suffix;
+    this.leaveKey = (this.mock ? 'sy_mock_pending_leave' : 'sy_pending_leave') + suffix;
     let identity;
     try { identity = JSON.parse((this.mock ? sessionStorage : localStorage).getItem(this.identityKey)); } catch { /* 无效的本地身份 */ }
     this.uid = typeof identity?.uid === 'string' && typeof identity?.credential === 'string' ? identity.uid : '';
@@ -28,7 +31,7 @@ export class Socket {
     ws.addEventListener('open', () => {
       this.send({
         type: 'hello', uid: this.uid || undefined, credential: this.credential || undefined,
-        device: this.device || undefined,
+        device: this.slot ? undefined : (this.device || undefined),
         roomCode: this.pendingLeave || this.roomCode || undefined, leaveRoom: Boolean(this.pendingLeave)
       }, true);
     });

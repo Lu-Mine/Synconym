@@ -107,7 +107,7 @@ export function createSynconymServer({
       }
       if (pathname === '/__mock' || pathname.startsWith('/__mock/')) {
         if (!mock) { response.writeHead(404); response.end('Not found'); return; }
-        const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js', '/__mock/play': 'play.html', '/__mock/control.js': 'control.js' };
+        const mockFiles = { '/__mock': 'mock.html', '/__mock/': 'mock.html', '/__mock/mock.js': 'mock.js', '/__mock/play': 'play.html', '/__mock/control.js': 'control.js', '/__mock/trio': 'trio.html', '/__mock/trio.js': 'trio.js' };
         const file = mockFiles[pathname];
         if (!file) { response.writeHead(404); response.end('Not found'); return; }
         const mockRoot = resolve(root, '../dev');

@@ -11,7 +11,7 @@ for (const mock of [false, true]) {
     await once(server, 'listening');
     t.after(() => new Promise((resolve) => server.close(resolve)));
     const base = `http://127.0.0.1:${server.address().port}`;
-    for (const path of ['/__mock', '/__mock/', '/__mock/mock.js']) {
+    for (const path of ['/__mock', '/__mock/', '/__mock/mock.js', '/__mock/trio', '/__mock/trio.js']) {
       const response = await fetch(base + path);
       assert.equal(response.status, mock ? 200 : 404, path);
       if (mock) assert.match(response.headers.get('content-type'), path.endsWith('.js') ? /javascript/ : /html/);
