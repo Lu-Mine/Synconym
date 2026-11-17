@@ -18,6 +18,11 @@ for name in ('styles.css', 'selection.css', 'scrollbars.js', 'app.js'):
     if needle not in html:
         raise SystemExit('missing index reference: ' + name)
     html = html.replace(needle, '"' + prefix + name + '"')
+# 页面自带的构建号：客户端拿它和首页响应对照，判断手里的 HTML 是不是旧的。
+document = '<html lang="zh-CN">'
+if document not in html:
+    raise SystemExit('missing html tag')
+html = html.replace(document, '<html lang="zh-CN" data-build="' + revision + '">')
 index.write_text(html, encoding='utf-8')
 for path in target.rglob('*.js'):
     content = path.read_text(encoding='utf-8')

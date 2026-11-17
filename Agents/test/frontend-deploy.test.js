@@ -18,6 +18,7 @@ test('前端快照使用版本化路径且保留模块相对引用', () => {
     assert.match(html, new RegExp(`/assets/${revision}/app\\.js`));
     assert.match(html, new RegExp(`/assets/${revision}/styles\\.css`));
     assert.match(readFileSync(join(target, 'render.js'), 'utf8'), new RegExp(`/assets/${revision}/icons\\.svg`));
+    assert.match(html, new RegExp(`<html lang="zh-CN" data-build="${revision}">`));
     assert.equal(readFileSync(join(target, '.deployed-revision'), 'utf8').trim(), revision);
     assert.match(readFileSync('deploy/github-deploy.sh', 'utf8'), /prepare-frontend\.py" "\$release\/public" "\$candidate" "\$revision"/);
   } finally {

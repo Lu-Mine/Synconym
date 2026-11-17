@@ -41,7 +41,7 @@ function repository(t) {
   git(root, 'config', 'user.name', 'Deploy test');
   mkdirSync(join(root, 'public'));
   mkdirSync(join(root, 'deploy'));
-  writeFileSync(join(root, 'public/index.html'), '<link href="/styles.css"><link href="/selection.css"><script src="/scrollbars.js"></script><script src="/app.js"></script>');
+  writeFileSync(join(root, 'public/index.html'), '<html lang="zh-CN"><link href="/styles.css"><link href="/selection.css"><script src="/scrollbars.js"></script><script src="/app.js"></script>');
   for (const file of ['app.js', 'scrollbars.js', 'styles.css', 'selection.css', 'icons.svg', 'github-mark.svg', 'render.js']) writeFileSync(join(root, 'public', file), `// ${file}\n`);
   writeFileSync(join(root, 'server.js'), 'v1');
   writeFileSync(join(root, 'deploy/bt-start.sh'), '# fixture');
