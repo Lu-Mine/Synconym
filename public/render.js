@@ -674,11 +674,20 @@ export function profileMarkup(state) {
         <button class="button secondary" type="button" data-action="profile-next" ${page >= pages ? 'disabled' : ''}><span>下一页</span></button>
       </div>`
     : '';
+  const removedPage = state.removed?.page || 1;
+  const removedPages = state.removed ? Math.max(1, Math.ceil((state.removed.total || 0) / (state.removed.pageSize || 10))) : 1;
+  const removedPager = state.removed && removedPages > 1
+    ? `<div class="profile-pager">
+        <button class="button secondary" type="button" data-action="removed-prev" ${removedPage <= 1 ? 'disabled' : ''}><span>上一页</span></button>
+        <span class="profile-page-count">第 ${removedPage} / ${removedPages} 页</span>
+        <button class="button secondary" type="button" data-action="removed-next" ${removedPage >= removedPages ? 'disabled' : ''}><span>下一页</span></button>
+      </div>`
+    : '';
   const removedBlock = state.removed
     ? `<div class="surface-block profile-removed">
         <div class="section-heading"><h2>${icon('trash-2')}<span>已移除的记录</span></h2><span class="profile-total">${state.removed.total || 0} 局</span></div>
         ${state.removed.matches?.length
-          ? `<ol class="profile-matches">${state.removed.matches.map((match) => profileMatchMarkup(match, {}, { restorable: true })).join('')}</ol>`
+          ? `<ol class="profile-matches">${state.removed.matches.map((match) => profileMatchMarkup(match, {}, { restorable: true })).join('')}</ol>${removedPager}`
           : '<p class="profile-empty">没有已移除的记录。移除后的对局会出现在这里，随时可以恢复。</p>'}
       </div>`
     : '';

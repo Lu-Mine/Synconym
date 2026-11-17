@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws';
 import { createDatabase } from './db.js';
 import { RoomManager } from './rooms.js';
 import { createSecurityPolicy } from './security.js';
-import { normalizeDeviceProfile, decideAdoption, collectDeviceLinks } from './identity.js';
+import { normalizeDeviceProfile, decideAdoption, collectDeviceLinks, collectDeviceKeys } from './identity.js';
 import { modeCapacity } from './rules.js';
 import { loadConfig } from './config.js';
 import { createMockControls } from './mock.js';
@@ -142,8 +142,14 @@ export function createSynconymServer({
   server.on('upgrade', (request, socket, head) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
     if (pathname !== '/ws' && !(mock && pathname === '/__mock/ws')) { socket.destroy(); return; }
+    if (!security.allowOrigin(request, manager.publicUrl)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     const ip = security.ipOf(request, socket);
     if (!security.tryAcquireConnection(ip)) { socket.destroy(); return; }
+    request._clientIp = ip;
     let established = false;
     socket.once('close', () => { if (!established) security.releaseConnection(ip); });
     wss.handleUpgrade(request, socket, head, (ws) => { established = true; wss.emit('connection', ws, request); });
@@ -156,7 +162,7 @@ export function createSynconymServer({
       const send = ws.send.bind(ws);
       ws.send = (data, ...args) => send(JSON.stringify(mockControls.annotate(JSON.parse(data))), ...args);
     }
-    const ip = security.ipOf(request, { remoteAddress: ws._socket?.remoteAddress });
+    const ip = request._clientIp ?? security.ipOf(request, { remoteAddress: ws._socket?.remoteAddress });
     let connection, authenticationFailed = false, handshaken = false;
     const bucket = security.createMessageBucket();
     const handshakeTimer = setTimeout(() => ws.terminate(), security.options.handshakeTimeoutMs);
@@ -182,12 +188,14 @@ export function createSynconymServer({
           if (stored) {
             const valid = typeof message.credential === 'string' && /^[A-Za-z0-9_-]{43}$/.test(message.credential);
             const candidate = valid ? createHash('sha256').update(message.credential).digest() : null;
-            if (!candidate || stored.length !== candidate.length || !timingSafeEqual(stored, candidate)) {
+            const owner = candidate ? db.credentialOwner(candidate) : undefined;
+            if (!owner || owner !== message.uid) {
               ws.send(JSON.stringify({ type: 'error', message: '身份验证失败' }));
               ws.close(4003, 'Authentication failed');
               authenticationFailed = true;
               return;
             }
+            db.touchCredential?.(candidate);
           } else if (message.uid !== undefined) {
             reborn = true;
             message.uid = undefined;
@@ -207,15 +215,16 @@ export function createSynconymServer({
             device = normalizeDeviceProfile(message.device);
           }
           if (message.uid === undefined && device) {
-            db.insertDevice(device);
+            const deviceKeys = collectDeviceKeys(db, device);
+            const links = collectDeviceLinks(db, device).filter((link) => Boolean(db.getPlayer(link.uid)));
             const decision = decideAdoption({
-              links: collectDeviceLinks(db, device),
+              links,
               playing: (uid) => Boolean(manager.clients.get(uid)?.roomCode),
-              rejected: (uid) => db.isDeviceRejected(device.deviceKey, uid),
+              rejected: (uid) => deviceKeys.some((key) => db.isDeviceRejected(key, uid)),
               adopt: manager.identity.adopt,
               adoptMaxIdleDays: manager.identity.adoptMaxIdleDays
             });
-            if (decision.action === 'adopt') { message.uid = decision.uid; adopted = true; }
+            if (decision.action === 'adopt' && db.getPlayer(decision.uid)) { message.uid = decision.uid; adopted = true; }
             else if (decision.action === 'choose') deviceCandidates = manager.deviceCandidates(decision);
           }
           if (message.uid === undefined && !security.allowAccount(ip)) {
@@ -232,7 +241,11 @@ export function createSynconymServer({
             ? createHash('sha256').update(credential).digest()
             : (typeof message.credential === 'string' ? createHash('sha256').update(message.credential).digest() : null);
           connection.deviceKey = device?.deviceKey ?? null;
-          if (device) db.linkDevice(device.deviceKey, connection.uid, adopted ? 'adopted' : 'created');
+          connection.weakKey = device?.weakKey ?? null;
+          if (device) {
+            db.insertDevice(device);
+            db.linkDevice(device.deviceKey, connection.uid, adopted ? 'adopted' : 'created');
+          }
           handshaken = true;
           clearTimeout(handshakeTimer);
           connection.ws = ws;

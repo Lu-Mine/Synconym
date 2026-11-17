@@ -4,6 +4,7 @@ import { normalizeMatchFilter, DELETED_NAME } from './db.js';
 import { preparePlan, prepareCanAdvance, DISCONNECT_WINDOW_MS, REMATCH_SECONDS } from './phase.js';
 import { markDisconnected, disconnectExpired, removePlayer } from './presence.js';
 import { createName } from './names.js';
+import { collectDeviceKeys } from './identity.js';
 import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord, modeCapacity } from './rules.js';
 import {
   LIVONYM_LIMITS, LIVONYM_PHASES, LIVONYM_INTRO_SECONDS, LIVONYM_SCORE_SECONDS,
@@ -240,18 +241,24 @@ export class RoomManager {
     return list.length ? { reason: decision.reason || 'multiple', candidates: list } : null;
   }
 
-  // 沿用设备上已有的身份：只接受本设备已经绑定过的 uid。
+  deviceKeysFor(connection) {
+    return collectDeviceKeys(this.db, { deviceKey: connection.deviceKey, weakKey: connection.weakKey });
+  }
+
+  // 沿用设备上已有的身份：只接受本设备（含弱指纹关联）已经绑定过的 uid。
   claimDevice(connection, uid) {
     const key = connection.deviceKey;
     if (!key || typeof uid !== 'string' || uid === connection.uid) { this.sendState(connection); return; }
-    if (!this.db.getDeviceLinks(key).some((link) => link.uid === uid) || !this.db.getPlayer(uid)) {
+    const keys = this.deviceKeysFor(connection);
+    if (!keys.some((k) => this.db.getDeviceLinks(k).some((link) => link.uid === uid)) || !this.db.getPlayer(uid)) {
       throw new Error('这台设备没有记录过这个身份');
     }
     const previous = connection.uid;
-    this.detach(connection, true);
+    delete connection.removedPage;
+    this.evictUidFromRooms(previous, connection);
     if (this.clients.get(previous) === connection) this.clients.delete(previous);
     // 放弃的那个新身份不该继续占着设备。
-    this.db.unlinkDevice(key, previous);
+    for (const k of keys) this.db.unlinkDevice(k, previous);
     if (connection.credentialHash) this.db.disableCredential(connection.credentialHash);
     connection.uid = uid;
     this.clients.set(uid, connection);
@@ -270,7 +277,7 @@ export class RoomManager {
   rejectDevice(connection, uid) {
     const key = connection.deviceKey;
     if (!key || typeof uid !== 'string') return;
-    this.db.rejectDevice(key, uid);
+    for (const k of this.deviceKeysFor(connection)) this.db.rejectDevice(k, uid);
     this.db.linkDevice(key, connection.uid, 'created');
     this.sendTo(connection, { type: 'toast', message: '这台设备不会再提示这个身份' });
   }
@@ -280,13 +287,14 @@ export class RoomManager {
   leaveIdentity(connection) {
     const key = connection.deviceKey;
     const previous = connection.uid;
-    if (key) {
-      this.db.unlinkDevice(key, previous);
-      this.db.rejectDevice(key, previous);
+    for (const k of this.deviceKeysFor(connection)) {
+      this.db.unlinkDevice(k, previous);
+      this.db.rejectDevice(k, previous);
     }
+    delete connection.removedPage;
     // 本浏览器手里的旧凭证从此没人再用，直接失效。
     if (connection.credentialHash) this.db.disableCredential(connection.credentialHash);
-    this.detach(connection, true);
+    this.evictUidFromRooms(previous, connection);
     if (this.clients.get(previous) === connection) this.clients.delete(previous);
     this.recentRooms.delete(previous);
     connection.uid = this.makeUid();
@@ -300,12 +308,74 @@ export class RoomManager {
     this.sendState(connection, null);
   }
 
+  evictUidFromRooms(uid, excludeConnection = null) {
+    if (!uid) return;
+    if (excludeConnection?.roomCode) this.detach(excludeConnection, true);
+    for (const room of [...this.rooms.values()]) {
+      if (room.players.some((player) => player.uid === uid)) {
+        this.detach({ uid, roomCode: room.code }, true);
+      }
+    }
+    for (const conn of [...this.connections]) {
+      if (conn.uid !== uid || conn === excludeConnection) continue;
+      conn.roomCode = null;
+      conn.replaced = true;
+      this.connections.delete(conn);
+      if (conn.ws?.readyState === 1) conn.ws.close(4001, 'Replaced by new connection');
+    }
+    if (this.clients.get(uid) && this.clients.get(uid) !== excludeConnection) {
+      this.clients.delete(uid);
+    }
+  }
+
+  anonymizeUidInRooms(uid) {
+    if (!uid) return;
+    const erase = (obj) => { if (obj && typeof obj === 'object' && uid in obj) obj[uid] = null; };
+    const anonymizeRecord = (record) => {
+      if (!record || typeof record !== 'object') return;
+      erase(record.words);
+      erase(record.marks);
+      erase(record.votes);
+      erase(record.voteChoices);
+      if (record.breakVote && typeof record.breakVote === 'object') {
+        erase(record.breakVote);
+        erase(record.breakVote.choices);
+      }
+      if (record.modeDetails && typeof record.modeDetails === 'object') {
+        erase(record.modeDetails.guesses);
+        erase(record.modeDetails.wrongGuesses);
+        if (record.modeDetails.describerUid === uid && 'description' in record.modeDetails) {
+          record.modeDetails.description = null;
+        }
+      }
+    };
+    for (const room of this.rooms.values()) {
+      let touched = false;
+      for (const list of [room.matchPlayers, room.resultPlayers]) {
+        if (!Array.isArray(list)) continue;
+        for (const entry of list) {
+          if (entry?.uid === uid) {
+            entry.name = DELETED_NAME;
+            entry.deleted = true;
+            touched = true;
+          }
+        }
+      }
+      if (touched || room.history?.length || room.currentRecord) {
+        for (const record of room.history || []) anonymizeRecord(record);
+        anonymizeRecord(room.currentRecord);
+      }
+      if (touched) this.broadcast(room);
+    }
+  }
+
   // 兜底巡检：把已经没有任何凭证与设备绑定的身份注销掉，通常只在老数据里出现。
   sweepOwnerlessIdentities(graceMs = 60 * 60 * 1000, now = Date.now()) {
     const orphans = this.db.listOwnerlessPlayers(now - graceMs);
     for (const uid of orphans) {
       if (this.clients.has(uid)) continue;
       this.recentRooms.delete(uid);
+      this.anonymizeUidInRooms(uid);
       this.db.eraseIdentity(uid, now);
     }
     return orphans.length;
@@ -315,6 +385,7 @@ export class RoomManager {
   dropIfOrphaned(uid) {
     if (!uid || this.clients.has(uid) || this.db.hasOwner(uid)) return false;
     this.recentRooms.delete(uid);
+    this.anonymizeUidInRooms(uid);
     this.db.eraseIdentity(uid);
     return true;
   }
@@ -378,18 +449,21 @@ export class RoomManager {
     if (!match || !match.players.some((player) => player.uid === connection.uid)) throw new Error('对局不存在或无权操作');
     this.db.hideMatch(connection.uid, match.id);
     this.sendProfile(connection, 1);
+    if (connection.removedPage) this.sendRemoved(connection, connection.removedPage);
   }
 
   restoreMatch(connection, id) {
     if (typeof id !== 'string' || !id) throw new Error('对局不存在');
     this.db.unhideMatch(connection.uid, id);
     this.sendProfile(connection, 1);
+    if (connection.removedPage) this.sendRemoved(connection, connection.removedPage);
   }
 
   clearHistory(connection) {
     const removed = this.db.hideAllMatches(connection.uid);
     this.sendTo(connection, { type: 'toast', message: removed ? `已移除 ${removed} 局记录` : '没有可移除的记录' });
     this.sendProfile(connection, 1);
+    if (connection.removedPage) this.sendRemoved(connection, connection.removedPage);
   }
 
   // 被移除的记录仍然留在库里，随时可以恢复。
@@ -398,6 +472,7 @@ export class RoomManager {
     const total = this.db.countHiddenMatches(connection.uid);
     const pages = Math.max(1, Math.ceil(total / PROFILE_PAGE_SIZE));
     const current = Math.min(Math.max(Math.floor(Number(page)) || 1, 1), pages);
+    connection.removedPage = current;
     const matches = this.db.listHiddenMatches(connection.uid, {
       limit: PROFILE_PAGE_SIZE, offset: (current - 1) * PROFILE_PAGE_SIZE
     }).map((match) => ({
@@ -1280,8 +1355,11 @@ export function createMemoryDb() {
       return total;
     },
     disableCredential(hash) { disabled.credentials.add(credentialKey(hash)); },
-    countLinkedDevices: (uid) => [...links.entries()]
-      .filter(([key, link]) => link.uid === uid && !disabled.links.has(key)).length,
+    countLinkedDevices: (uid) => new Set(
+      [...links.entries()]
+        .filter(([key, link]) => link.uid === uid && !disabled.links.has(key))
+        .map(([, link]) => devices.get(link.deviceKey)?.weakKey || link.deviceKey)
+    ).size,
     hasOwner(uid) {
       for (const [key, owner] of credentials) if (owner === uid && !disabled.credentials.has(key)) return true;
       return this.countLinkedDevices(uid) > 0;
@@ -1293,7 +1371,10 @@ export function createMemoryDb() {
     },
     insertDevice({ deviceKey, weakKey, profileJson, profile }, now = Date.now()) {
       const previous = devices.get(deviceKey);
-      devices.set(deviceKey, { deviceKey, weakKey, profileJson: profileJson ?? profile ?? '{}', firstSeen: previous?.firstSeen ?? now, lastSeen: now });
+      devices.set(deviceKey, {
+        deviceKey, weakKey, device_key: deviceKey, weak_key: weakKey,
+        profileJson: profileJson ?? profile ?? '{}', firstSeen: previous?.firstSeen ?? now, lastSeen: now
+      });
     },
     getDevice: (deviceKey) => devices.get(deviceKey),
     devicesByWeakKey: (weakKey) => [...devices.values()].filter((device) => device.weakKey === weakKey),
@@ -1379,6 +1460,7 @@ export function createMemoryDb() {
           erase(round.votes);
           erase(round.voteChoices);
           erase(round.breakVote);
+          erase(round.breakVote?.choices);
           erase(round.modeDetails?.guesses);
         }
       }

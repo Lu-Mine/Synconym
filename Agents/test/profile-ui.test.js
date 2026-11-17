@@ -93,6 +93,22 @@ test('分页按钮按当前页决定是否可用', () => {
   assert.ok(!single.includes('profile-pager'));
 });
 
+test('已移除记录超过一页时渲染分页按钮', () => {
+  const html = profileMarkup({
+    ...fixture({ removedCount: 12 }),
+    removed: {
+      total: 12,
+      page: 1,
+      pageSize: 10,
+      matches: [
+        { id: 'm1', roomCode: 'ABCDEF', mode: 'free', targetScore: 3, totalRounds: 1, durationMs: 1000, finishedAt: 1700000000000, winners: ['u1'], players: [{ uid: 'u1', nickname: '甲', finalScore: 3, isWinner: true }] },
+      ],
+    },
+  });
+  assert.match(html, /data-action="removed-prev" disabled/);
+  assert.match(html, /data-action="removed-next"/);
+});
+
 test('读取中显示占位，首页名字区只在首页可点进档案', () => {
   assert.ok(profileMarkup({ profile: null }).includes('正在读取档案'));
 
@@ -121,6 +137,7 @@ test('浏览器后退和前进按地址切换档案，并仅在连接就绪时�
     window: { addEventListener: (_, callback) => { listener = callback; } },
     state: { room: null, profile: { page: 2 } }, profileOpen: true,
     location: { search: '' }, URLSearchParams, historyQuery, socket: { ready: true },
+    closeWrongPopovers: () => {},
     requestProfile: (page) => requests.push(page), render: () => { renders++; }
   };
   runInNewContext(handler, context);

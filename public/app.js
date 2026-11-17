@@ -125,6 +125,7 @@ document.addEventListener('dragstart', (event) => {
 });
 
 let state = { room: null, profile: null, deviceCandidates: null, removed: null };
+let awaitingRemoved = false;
 // 狂意页的「创建房间」按钮直接开局，用它固定的房间配置。
 const INSANE_ROOM_SETTINGS = Object.freeze({
   mode: 'livonym', maxRounds: 12, writeSeconds: 45, prepareSeconds: 30, banRepeat: true,
@@ -542,7 +543,7 @@ function confirmAction(kind) {
 function confirmLeave() { return confirmAction('leave'); }
 function confirmBreakVote() { return confirmAction('break'); }
 
-// 这台设备是唯一入口时，脱离等于注销，不可恢复：两次说明 + 一次最终确认，前两步各等 3 秒。
+// 这台设备是唯一入口时，脱离等于注销，不可恢复：两次说明 + 一次最终确认，三步各等 3 秒。
 const LEAVE_FINAL_STEPS = Object.freeze([
   {
     title: '脱离当前身份？',
@@ -560,7 +561,7 @@ const LEAVE_FINAL_STEPS = Object.freeze([
     title: '最后一次确认',
     description: '按下按钮立即执行。你会以一个新身份重新开始。',
     accept: '脱离并换新身份',
-    wait: 0
+    wait: 3
   }
 ]);
 
@@ -1174,6 +1175,8 @@ function resetToHome() {
   insaneSelectedMode = INSANE_DEFAULT_MODE;
   insaneHoveredMode = null;
   state.profile = null;
+  state.removed = null;
+  awaitingRemoved = false;
   if (location.search) history.replaceState(null, '', APP_ROOT);
   syncMockLocation();
   render();
@@ -1191,6 +1194,8 @@ function openProfile() {
   insaneOpen = false;
   profileOpen = true;
   state.profile = null;
+  state.removed = null;
+  awaitingRemoved = false;
   history.pushState({ profile: true }, '', `${APP_ROOT}?me`);
   syncMockLocation();
   inAppNav = true;
@@ -1739,8 +1744,10 @@ const socket = new Socket({
     syncDeviceClaim();
   },
   onRemovedMatches(removed) {
+    if (!profileOpen || historyQuery(location.search).id || (!state.removed && !awaitingRemoved)) return;
+    awaitingRemoved = false;
     state.removed = removed;
-    if (profileOpen) render();
+    render();
   },
   onProfile(profile) {
     if (!profileOpen || historyQuery(location.search).id) return;
@@ -1759,6 +1766,7 @@ const socket = new Socket({
   onIdentity(message) {
     state.profile = null;
     state.removed = null;
+    awaitingRemoved = false;
     state.deviceCandidates = null;
     syncDeviceClaim();
     // 换身份后当前页已经是别人的档案了，直接回首页：旧身份若没人认得回来，提示里说清楚。
@@ -2482,7 +2490,15 @@ app.addEventListener('click', async (event) => {
   }
   if (button.dataset.action === 'open-removed') {
     event.preventDefault();
+    awaitingRemoved = true;
     socket.send({ type: 'openRemoved', page: 1 }, true);
+    return;
+  }
+  if (button.dataset.action === 'removed-prev' || button.dataset.action === 'removed-next') {
+    event.preventDefault();
+    const step = button.dataset.action === 'removed-next' ? 1 : -1;
+    awaitingRemoved = true;
+    socket.send({ type: 'openRemoved', page: Math.max(1, (state.removed?.page || 1) + step) }, true);
     return;
   }
   if (button.dataset.action === 'copy-uid') {

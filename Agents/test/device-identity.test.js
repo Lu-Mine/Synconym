@@ -292,3 +292,73 @@ test('认领设备上另一个身份时，被放弃的那个若无主也注销',
   // 刚放弃的身份已经没有任何凭证与绑定，留着就是无主数据。
   assert.equal(db.getPlayer(abandoned), undefined);
 });
+
+test('同一身份在多个浏览器签发多份凭证后，任一浏览器重连都可通过鉴权', async (t) => {
+  const { server } = await startServer(t);
+  const port = server.address().port;
+
+  const first = await connect(port, { device: SAFARI });
+  const { uid, credential: safariCred } = first.hello;
+  first.ws.close();
+
+  const second = await connect(port, { device: WECHAT });
+  assert.equal(second.hello.uid, uid);
+  const wechatCred = second.hello.credential;
+  assert.notEqual(wechatCred, safariCred);
+  second.ws.close();
+
+  const reSafari = await connect(port, { uid, credential: safariCred, device: SAFARI });
+  assert.equal(reSafari.hello.uid, uid);
+  assert.deepEqual(reSafari.errors, []);
+  reSafari.ws.close();
+
+  const reWechat = await connect(port, { uid, credential: wechatCred, device: WECHAT });
+  assert.equal(reWechat.hello.uid, uid);
+  assert.deepEqual(reWechat.errors, []);
+  reWechat.ws.close();
+});
+
+test('跨浏览器与系统升级的弱指纹关联可执行认领、拒绝与完整退出', async (t) => {
+  const { db, server } = await startServer(t);
+  const port = server.address().port;
+
+  const a = await connect(port, { device: SAFARI });
+  const targetUid = a.hello.uid;
+  a.ws.send(JSON.stringify({ type: 'createRoom' }));
+  await waitFor(() => a.states.some((s) => s.room));
+
+  // 微信内置浏览器因大号在房间中收到 playing 候选，可执行拒绝
+  const b = await connect(port, { device: WECHAT });
+  assert.equal(b.hello.deviceCandidates?.candidates[0].uid, targetUid);
+  b.ws.send(JSON.stringify({ type: 'rejectDevice', uid: targetUid }));
+  await waitFor(() => db.isDeviceRejected(normalizeDeviceProfile(SAFARI).deviceKey, targetUid));
+  b.ws.close();
+  a.ws.close();
+
+  // 拒绝后，即使升级系统（仅 weakKey 相同）也不再弹出 targetUid 候选提示，而是自动沿用刚才在微信建立的新身份
+  const c = await connect(port, { device: UPGRADED });
+  assert.equal(c.hello.uid, b.hello.uid);
+  assert.equal(c.hello.deviceCandidates, undefined);
+  c.ws.close();
+
+  // 模拟另一台设备系统升级后持原凭证重连：产生两个不同 deviceKey 但共享 weakKey，且只有 1 份凭证
+  const IPAD_OLD = { ...SAFARI, screen: '820x1180' };
+  const IPAD_NEW = { ...UPGRADED, screen: '820x1180' };
+  const d1 = await connect(port, { device: IPAD_OLD });
+  const soloUid = d1.hello.uid;
+  const soloCred = d1.hello.credential;
+  d1.ws.close();
+
+  const d2 = await connect(port, { uid: soloUid, credential: soloCred, device: IPAD_NEW });
+  d2.ws.send(JSON.stringify({ type: 'openProfile', page: 1 }));
+  await waitFor(() => d2.profiles.length > 0);
+  assert.equal(d2.profiles[0].user.soleOwner, true);
+
+  d2.ws.send(JSON.stringify({ type: 'leaveIdentity' }));
+  await waitFor(() => d2.identities.some((m) => m.uid !== soloUid));
+  const leftMsg = d2.identities.at(-1);
+  assert.equal(leftMsg.orphaned, true);
+  assert.equal(db.getPlayer(soloUid), undefined);
+  d2.ws.close();
+});
+

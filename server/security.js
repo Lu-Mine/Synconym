@@ -17,6 +17,7 @@ const DEFAULTS = {
 };
 
 const positive = (value) => Number.isFinite(value) && value > 0 ? value : null;
+const isLoopback = (hostname) => ['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname);
 
 function createBucket(capacity, refillPerSecond) {
   return {
@@ -72,6 +73,23 @@ export function createSecurityPolicy(config = {}) {
       }
       const address = socket.remoteAddress || 'unknown';
       return address.startsWith('::ffff:') ? address.slice(7) : address;
+    },
+    allowOrigin(request, publicUrl = '') {
+      const origin = request?.headers?.origin;
+      if (origin === undefined) return true;
+      if (typeof origin !== 'string' || !origin) return false;
+      let originUrl;
+      try { originUrl = new URL(origin); } catch { return false; }
+      if (!['http:', 'https:'].includes(originUrl.protocol)) return false;
+      const host = typeof request.headers?.host === 'string' ? request.headers.host.trim() : '';
+      const sameHost = Boolean(host) && originUrl.host.toLowerCase() === host.toLowerCase();
+      if (publicUrl) {
+        try {
+          if (originUrl.origin === new URL(publicUrl).origin) return true;
+        } catch { /* ignore invalid publicUrl */ }
+        return sameHost && isLoopback(originUrl.hostname);
+      }
+      return sameHost;
     },
     tryAcquireConnection(ip) {
       if (connections >= options.maxGlobalConnections) return false;

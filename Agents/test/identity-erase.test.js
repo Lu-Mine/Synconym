@@ -166,3 +166,71 @@ test('注销只把数据标记成失效，行本身留在库里', async (t) => {
   assert.equal(hidden.disabled_at, 2000);
   assert.ok(raw.prepare('SELECT 1 FROM devices WHERE device_key = ?').get('device-x'));
 });
+
+test('注销身份同时擦除 breakVote.choices 与内存房间的在途快照', (t) => {
+  const { manager, db, client } = setup(t);
+  const a = client();
+  const b = client();
+  const uid = a.uid;
+  const keep = b.uid;
+  db.saveMatch({
+    id: 'm-break',
+    roomCode: '12345',
+    mode: 'free',
+    themeId: null,
+    maxRounds: 12,
+    totalRounds: 1,
+    convergedRound: null,
+    outcome: 'none',
+    startedAt: 1000,
+    endedAt: 1500,
+    players: [{ uid, seat: 0, name: '破局者' }, { uid: keep, seat: 1, name: '留守者' }],
+    rounds: [{
+      n: 1,
+      words: { [uid]: '秘密词', [keep]: '公开词' },
+      marks: { [uid]: 'none', [keep]: 'none' },
+      votes: { [uid]: false, [keep]: false },
+      voteChoices: { [uid]: false, [keep]: false },
+      outcome: 'miss',
+      breakVote: { triggeredBy: uid, choices: { [uid]: true, [keep]: false }, passed: false },
+    }],
+  });
+
+  db.eraseIdentity(uid, 3000);
+  const detail = db.getMatch('m-break');
+  assert.equal(detail.rounds[0].breakVote.choices[uid], null);
+  assert.equal(detail.rounds[0].breakVote.choices[keep], false);
+
+  // 验证多标签页下，一个标签页退出/注销身份时，另一个处于房间内的标签页被立刻移出且房间内存历史被匿名化
+  const tab1 = client();
+  const tab2 = manager.connect(tab1.uid);
+  tab2.messages = [];
+  tab2.ws = { readyState: 1, send: (data) => tab2.messages.push(JSON.parse(data)) };
+  let tab1ClosedCode = null;
+  tab1.ws.close = (code) => { tab1ClosedCode = code; };
+
+  manager.handle(tab1, { type: 'createRoom' });
+  const code = tab1.messages.find((m) => m.type === 'state').room.code;
+  manager.handle(b, { type: 'joinRoom', code });
+
+  const room = manager.rooms.get(code);
+  room.history.push({
+    n: 1,
+    words: { [tab1.uid]: '敏感词', [b.uid]: '敏感词' },
+    marks: { [tab1.uid]: 'none', [b.uid]: 'none' },
+    votes: {},
+    voteChoices: {},
+    outcome: 'exact',
+    breakVote: { choices: { [tab1.uid]: true, [b.uid]: false }, passed: false },
+  });
+  room.matchPlayers = [{ uid: tab1.uid, seat: 0, name: tab1.name }, { uid: b.uid, seat: 1, name: b.name }];
+
+  const abandonedUid = tab1.uid;
+  manager.handle(tab2, { type: 'leaveIdentity' });
+  assert.equal(tab1ClosedCode, 4001);
+  assert.equal(room.players.some((p) => p.uid === abandonedUid), false);
+  assert.equal(room.matchPlayers.find((p) => p.uid === abandonedUid).name, DELETED_NAME);
+  assert.equal(room.history[0].words[abandonedUid], null);
+  assert.equal(room.history[0].breakVote.choices[abandonedUid], null);
+});
+

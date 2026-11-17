@@ -129,3 +129,81 @@ test('策略计数随连接释放归零', async (t) => {
   await greeted(b);
   b.close();
 });
+
+test('WebSocket 升级校验 Origin 并绑定代理 IP', async (t) => {
+  const db = createDatabase(':memory:');
+  const { server, wss } = createSynconymServer({
+    db,
+    publicUrl: 'https://synconym.example.com',
+    security: { trustProxy: true, maxAccountsPerSource: 1 },
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => { for (const ws of wss.clients) ws.terminate(); server.close(); db.close(); });
+  const port = server.address().port;
+
+  // 跨域 Origin 被拒绝
+  await assert.rejects(connect(port, { Origin: 'https://evil.example.com' }));
+  // 协议不匹配的 Origin 被拒绝
+  await assert.rejects(connect(port, { Origin: 'http://synconym.example.com' }));
+
+  // 匹配 publicUrl 的 Origin 放行
+  const okPublic = await connect(port, {
+    Origin: 'https://synconym.example.com',
+    'x-forwarded-for': '198.51.100.77',
+  });
+  okPublic.close();
+
+  // 本地回环同 Host 的 Origin 放行
+  const okLoopback = await connect(port, {
+    Origin: `http://127.0.0.1:${port}`,
+    'x-forwarded-for': '198.51.100.88',
+  });
+  okLoopback.send(JSON.stringify({
+    type: 'hello',
+    nickname: '首号',
+    device: {
+      deviceKey: 'd'.repeat(64),
+      weakKey: 'w'.repeat(64),
+      platform: 'iOS',
+      osVersion: '17',
+      browser: 'Safari',
+      browserVersion: '17',
+      screen: '390x844@3',
+      cores: 6,
+      memory: 4,
+      gpu: 'Apple GPU',
+      tz: 'Asia/Shanghai',
+      lang: 'zh-CN',
+    },
+  }));
+  await once(okLoopback, 'message');
+
+  // 同一來源 IP 超出建号配额时，不仅返回 4004，且不会向 devices 表写入脏数据
+  const blockedDeviceKey = 'e'.repeat(64);
+  const second = await connect(port, { 'x-forwarded-for': '198.51.100.88' });
+  const closed = once(second, 'close');
+  second.send(JSON.stringify({
+    type: 'hello',
+    nickname: '次号',
+    device: {
+      deviceKey: blockedDeviceKey,
+      weakKey: 'f'.repeat(64),
+      platform: 'iOS',
+      osVersion: '17',
+      browser: 'Safari',
+      browserVersion: '17',
+      screen: '390x844@3',
+      cores: 6,
+      memory: 4,
+      gpu: 'Apple GPU',
+      tz: 'Asia/Shanghai',
+      lang: 'zh-CN',
+    },
+  }));
+  const [code] = await closed;
+  assert.equal(code, 4004);
+  assert.equal(db.getDevice(blockedDeviceKey), undefined);
+  okLoopback.close();
+});
+

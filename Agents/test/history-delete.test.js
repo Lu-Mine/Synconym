@@ -95,10 +95,28 @@ test('已移除的记录可以分页取回，恢复后从列表消失', (t) => {
 
   const target = first.matches[0].id;
   manager.handle(a, { type: 'restoreMatch', id: target });
-  manager.handle(a, { type: 'openRemoved', page: 1 });
-  const second = a.messages.filter((m) => m.type === 'removedMatches').at(-1).removed;
-  assert.equal(second.total, 12);
-  assert.ok(!second.matches.some((match) => match.id === target));
+  // 恢复后无需再次手动发送 openRemoved，服务端自动推送最新 removedMatches
+  const autoAfterRestore = a.messages.filter((m) => m.type === 'removedMatches').at(-1).removed;
+  assert.equal(autoAfterRestore.total, 12);
+  assert.ok(!autoAfterRestore.matches.some((match) => match.id === target));
+
+  // 已打开已移除列表时，再次移除或清空也会自动同步并修正越界页码
+  manager.handle(a, { type: 'openRemoved', page: 2 });
+  const page2 = a.messages.filter((m) => m.type === 'removedMatches').at(-1).removed;
+  assert.equal(page2.page, 2);
+  assert.equal(page2.matches.length, 2);
+
+  // 把第 2 页仅有的 2 条恢复后，自动回退到第 1 页
+  for (const item of page2.matches) {
+    manager.handle(a, { type: 'restoreMatch', id: item.id });
+  }
+  const clamped = a.messages.filter((m) => m.type === 'removedMatches').at(-1).removed;
+  assert.equal(clamped.total, 10);
+  assert.equal(clamped.page, 1);
+
+  manager.handle(a, { type: 'clearHistory' });
+  const afterClear = a.messages.filter((m) => m.type === 'removedMatches').at(-1).removed;
+  assert.equal(afterClear.total, 13);
 });
 
 test('移除不存在的对局会被拒绝', (t) => {

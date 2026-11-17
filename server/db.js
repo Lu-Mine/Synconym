@@ -219,7 +219,9 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
 
   // 一个身份是否还有人能认回：有效凭证或有效设备绑定，二者有其一就算有主。
   const disableCredentialHash = db.prepare('UPDATE credentials SET disabled_at = ? WHERE credential_hash = ? AND disabled_at IS NULL');
-  const linkedDevicesOf = db.prepare('SELECT COUNT(*) AS total FROM device_links WHERE uid = ? AND disabled_at IS NULL');
+  const linkedDevicesOf = db.prepare(`SELECT COUNT(DISTINCT COALESCE(d.weak_key, l.device_key)) AS total
+    FROM device_links l LEFT JOIN devices d ON d.device_key = l.device_key
+    WHERE l.uid = ? AND l.disabled_at IS NULL`);
   const ownedCredential = db.prepare('SELECT 1 AS hit FROM credentials WHERE uid = ? AND disabled_at IS NULL LIMIT 1');
   const ownerlessPlayers = db.prepare(`SELECT pl.uid FROM players pl
     WHERE pl.deleted_at IS NULL AND pl.created_at < ?
@@ -277,7 +279,10 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
         stripKey(row.votes_json, erase),
         stripKey(row.vote_details_json, (value) => {
           if (value.voteChoices && typeof value.voteChoices === 'object') erase(value.voteChoices);
-          if (value.breakVote && typeof value.breakVote === 'object') erase(value.breakVote);
+          if (value.breakVote && typeof value.breakVote === 'object') {
+            erase(value.breakVote);
+            if (value.breakVote.choices && typeof value.breakVote.choices === 'object') erase(value.breakVote.choices);
+          }
         }),
         stripKey(row.mode_details_json, (value) => {
           if (value.guesses && typeof value.guesses === 'object') erase(value.guesses);

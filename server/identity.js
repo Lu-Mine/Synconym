@@ -73,13 +73,25 @@ export function decideAdoption({ links = [], playing = () => false, rejected = (
   if (playing(uid)) return { action: 'choose', reason: 'playing', candidates };
   return { action: 'adopt', uid, candidates };
 }
+export function collectDeviceKeys(database, device) {
+  if (!device?.deviceKey) return [];
+  const keys = [device.deviceKey];
+  const seen = new Set(keys);
+  const weakKey = device.weakKey || database.getDevice?.(device.deviceKey)?.weak_key || database.getDevice?.(device.deviceKey)?.weakKey;
+  if (!weakKey) return keys;
+  for (const other of database.devicesByWeakKey(weakKey) || []) {
+    const key = other.device_key ?? other.deviceKey;
+    if (key && !seen.has(key)) { keys.push(key); seen.add(key); }
+  }
+  return keys;
+}
+
 // 强指纹命中的设备优先，再补上「同设备但系统升级过」的弱指纹设备，按 uid 去重。
 export function collectDeviceLinks(database, device) {
-  const links = [...database.getDeviceLinks(device.deviceKey)];
-  const seen = new Set(links.map((link) => link.uid));
-  for (const other of database.devicesByWeakKey(device.weakKey)) {
-    if (other.device_key === device.deviceKey) continue;
-    for (const link of database.getDeviceLinks(other.device_key)) {
+  const links = [];
+  const seen = new Set();
+  for (const key of collectDeviceKeys(database, device)) {
+    for (const link of database.getDeviceLinks(key) || []) {
       if (!seen.has(link.uid)) { links.push(link); seen.add(link.uid); }
     }
   }
