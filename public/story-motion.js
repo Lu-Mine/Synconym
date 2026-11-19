@@ -143,6 +143,65 @@ const SCENES = {
       [1100, () => setStatus(other, 'done', '已投票', 'check')],
       [2200, () => {}]
     ];
+  },
+  livonym(demo, press) {
+    const stream = demo.querySelector('[data-demo-stream]');
+    const guess = demo.querySelector('[data-demo-guess]');
+    const form = demo.querySelector('[data-demo-guess-form]');
+    const tags = demo.querySelector('[data-demo-tags]');
+    const hint = demo.querySelector('[data-demo-hint]');
+    const submit = demo.querySelector('[data-demo-submit]');
+    const panels = Object.fromEntries([...demo.querySelectorAll('[data-demo-panel]')].map((el) => [el.dataset.demoPanel, el]));
+    const steps = [...demo.querySelectorAll('.stage-step')];
+    const show = (name) => { for (const [key, el] of Object.entries(panels)) el.classList.toggle('is-shown', key === name); };
+    const step = (index) => steps.forEach((el, i) => el.classList.toggle('is-current', i === index));
+    const typeSteps = (el, text, ms, prefix = '') => [...text].map((_, i) => [ms, () => {
+      if (el) el.textContent = prefix + text.slice(0, i + 1);
+    }]);
+    return () => [
+      [0, () => {
+        step(1);
+        show('play');
+        if (stream) stream.textContent = '';
+        if (guess) guess.textContent = '';
+        if (tags) tags.innerHTML = '';
+        form?.classList.remove('is-cooling', 'is-correct');
+        submit?.classList.remove('is-correct');
+        const label = submit?.querySelector('span');
+        if (label) label.textContent = '抢答';
+        if (hint) hint.textContent = '第 1 名 +3 分，第 2 名 +2 分；猜错冷却 1.5 秒';
+      }],
+      [600, () => {}],
+      ...typeSteps(stream, '夏天的大花盘，', 100),
+      [260, () => {}],
+      ...typeSteps(guess, '太阳花', 120),
+      [260, () => press(submit)],
+      [160, () => {
+        if (guess) guess.textContent = '';
+        if (tags) tags.innerHTML = '<span class="badge tag">太阳花</span>';
+        form?.style.setProperty('--guess-cooldown', '1500ms');
+        form?.classList.add('is-cooling');
+        if (hint) hint.textContent = '猜错了，冷却 1.5 秒';
+      }],
+      [200, () => {}],
+      ...typeSteps(stream, '会跟着太阳转', 120, '夏天的大花盘，'),
+      [620, () => {
+        form?.classList.remove('is-cooling');
+        if (hint) hint.textContent = '第 1 名 +3 分，第 2 名 +2 分；猜错冷却 1.5 秒';
+      }],
+      [200, () => {}],
+      ...typeSteps(guess, '向日葵', 120),
+      [300, () => press(submit)],
+      [160, () => {
+        form?.classList.add('is-correct');
+        submit?.classList.add('is-correct');
+        const label = submit?.querySelector('span');
+        if (label) label.textContent = '正确！';
+        if (hint) hint.textContent = '第 1 个猜中，本轮 +3 分';
+      }],
+      [1200, () => { step(2); show('score'); }],
+      [2800, () => {}]
+    ];
   }
 };
 

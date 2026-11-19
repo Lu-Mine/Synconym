@@ -1,4 +1,4 @@
-import { icon, wordmarkArt } from './render.js';
+import { icon, livonymDemoMarkup, wordmarkArt } from './render.js';
 
 // 这些玩法尚未接入服务端，页面只展示设计中的规则。
 const modes = [
@@ -10,7 +10,7 @@ const modes = [
   {
     id: 'livonym', name: '即时竞猜', english: 'Livonym', players: '3–8 人', ready: true,
     lead: '看着想法出现，抢先猜中答案。',
-    description: '一人实时打字描述秘密词，其他人限时竞猜。文字输入即刻展现，无需提交；按猜中先后得分，轮流出题，最后以总分排名。'
+    description: '一人实时打字描述秘密词，其他人限时抢猜。文字输入即刻展现，无需提交；按抢猜先后顺位阶梯得分，猜错有 1.5 秒冷却。出题人按猜中人数得分，若全员猜中则得 0 分；轮流出题，最后以总分排名。'
   },
   {
     id: 'shiritori', name: '接龙', english: 'Shiritori', players: '2–4 人',
@@ -35,8 +35,44 @@ function resolveMode(modeId) {
   return modes.find((mode) => mode.id === id) || modes.find((mode) => mode.id === INSANE_DEFAULT_MODE) || modes[0];
 }
 
+function insaneConfigMarkup(modeId) {
+  if (modeId !== 'livonym') return '';
+  return `<div class="insane-room-config" data-insane-config="livonym">
+    <div class="setting-row">
+      <span class="setting-label">描述时限</span>
+      <div class="segmented" role="group" data-segmented="describeSeconds" style="--selected:1;--count:3">
+        <button class="segment" type="button" data-setting="describeSeconds" data-value="30" aria-pressed="false">30 秒</button>
+        <button class="segment selected" type="button" data-setting="describeSeconds" data-value="45" aria-pressed="true">45 秒</button>
+        <button class="segment" type="button" data-setting="describeSeconds" data-value="60" aria-pressed="false">60 秒</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">每人轮数</span>
+      <div class="segmented" role="group" data-segmented="roundsPerPlayer" style="--selected:0;--count:2">
+        <button class="segment selected" type="button" data-setting="roundsPerPlayer" data-value="1" aria-pressed="true">1 轮</button>
+        <button class="segment" type="button" data-setting="roundsPerPlayer" data-value="2" aria-pressed="false">2 轮</button>
+      </div>
+    </div>
+    <div class="setting-row password-setting-row">
+      <label class="setting-label" for="insane-password">房间密码</label>
+      <div class="password-input-wrap">
+        <input class="input code-input password-input" id="insane-password" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" spellcheck="false" placeholder="留空无密码，或 6 位数字密码">
+      </div>
+    </div>
+  </div>`;
+}
+
+const MODE_DEMOS = {
+  blitz: () => '',
+  livonym: livonymDemoMarkup,
+  shiritori: () => '',
+  impostor: () => '',
+  bridge: () => ''
+};
+
 export function insanePreviewBodyMarkup(modeId = INSANE_DEFAULT_MODE) {
   const mode = resolveMode(modeId);
+  const demoMarkup = MODE_DEMOS[mode.id]?.() || '';
   return `<div class="insane-preview-head">
       <span class="insane-mark insane-mark--${mode.id}" aria-hidden="true"><i></i><i></i><i></i></span>
       <div class="insane-preview-title">
@@ -48,6 +84,7 @@ export function insanePreviewBodyMarkup(modeId = INSANE_DEFAULT_MODE) {
     <div class="insane-preview-body">
       <h3 class="insane-preview-lead">${mode.lead}</h3>
       <p class="insane-preview-desc">${mode.description}</p>
+      ${demoMarkup}
     </div>`;
 }
 
@@ -56,23 +93,30 @@ export function insanePreviewMarkup(modeId = INSANE_DEFAULT_MODE) {
   return `<aside class="insane-preview insane-preview--${mode.id}" data-mode="${mode.id}" aria-label="玩法介绍" aria-live="polite"><canvas class="insane-preview-canvas" aria-hidden="true"></canvas>${insanePreviewBodyMarkup(mode.id)}</aside>`;
 }
 
+function insaneHowTagMarkup(mode) {
+  return `<button class="insane-how-tag" type="button" data-action="insane-how" data-mode="${mode.id}" aria-label="查看${mode.name}怎么玩">${icon('circle-help')}<span>怎么玩</span></button>`;
+}
+
 export function insaneMarkup(selectedMode = INSANE_DEFAULT_MODE) {
   const active = resolveMode(selectedMode);
-  const cards = modes.map((mode) => `<article class="insane-card insane-card--${mode.id}">
+  const cards = modes.map((mode) => {
+    const config = insaneConfigMarkup(mode.id);
+    return `<article class="insane-card insane-card--${mode.id}">
     <canvas class="insane-card-canvas" aria-hidden="true"></canvas>
     <details class="insane-details">
       <summary class="insane-card-row">
         <span class="insane-mark insane-mark--${mode.id}" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="insane-card-title"><span class="insane-wordmark insane-wordmark--${mode.id}" lang="en"><span class="sr-only">${mode.english}</span><span class="wordmark-art" aria-hidden="true">${wordmarkArt[mode.id]}</span></span><strong>${mode.name}</strong></span>
+        <span class="insane-card-identity"><span class="insane-card-title"><span class="insane-wordmark insane-wordmark--${mode.id}" lang="en"><span class="sr-only">${mode.english}</span><span class="wordmark-art" aria-hidden="true">${wordmarkArt[mode.id]}</span></span><strong>${mode.name}</strong></span>${insaneHowTagMarkup(mode)}</span>
         <span class="insane-players">${icon('users')}<span>${mode.players}</span></span>
-        <span class="insane-disclosure" aria-hidden="true">${icon('chevron-down')}</span>
+        ${config ? `<span class="insane-disclosure" aria-hidden="true">${icon('chevron-down')}</span>` : ''}
       </summary>
-      <div class="insane-description"><h3>${mode.lead}</h3><p>${mode.description}</p></div>
+      ${config ? `<div class="insane-description">${config}</div>` : ''}
     </details>
     ${mode.ready
       ? `<button class="insane-create" type="button" data-action="create-insane-room" data-mode="${mode.id}" aria-label="用${mode.name}创建房间"><span>创建房间</span></button>`
       : `<button class="insane-create" type="button" disabled aria-label="${mode.name}创建房间，暂未开放"><span>创建房间</span></button>`}
-  </article>`).join('');
+  </article>`;
+  }).join('');
   return `<div class="page insane-page" data-screen="insane">
     <a class="insane-back" href="/" data-action="home">${icon('arrow-left')}<span>返回主页</span></a>
     <header class="insane-heading">

@@ -113,8 +113,9 @@ test('五种玩法默认收起，人数准确且未开放创建', () => {
       ? /<button class="insane-create" type="button" data-action="create-insane-room" data-mode="livonym"/
       : /<button class="insane-create" type="button" disabled/);
   }
-  assert.match(html, /六人局里会有两名卧底/);
-  assert.match(html, /输入 8 秒，揭晓 3 秒/);
+  assert.match(insanePreviewMarkup('impostor'), /六人局里会有两名卧底/);
+  assert.match(insanePreviewMarkup('blitz'), /输入 8 秒，揭晓 3 秒/);
+  assert.match(html, /class="insane-how-tag" type="button" data-action="insane-how"/);
 });
 
 test('独立路由支持返回、状态更新和对称过渡', async () => {
@@ -291,7 +292,8 @@ test('狂意大厅宽屏双列：左侧列表与右侧介绍面板同步悬停�
   assert.match(css, /\.insane-preview\s*\{\s*display:\s*none;\s*\}/);
   assert.match(css, /@media \(min-width: 1000px\)\s*\{[\s\S]*?\.app:has\(\.insane-page\)\s*\{\s*--app-w:\s*min\(100% - 64px, 1120px\);/);
   assert.match(css, /\.insane-layout\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1\.08fr\) minmax\(0, 1fr\)/);
-  assert.match(css, /\.insane-card \.insane-disclosure,\s*\.insane-card \.insane-description\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(css, /\.insane-card \.insane-disclosure,\s*\.insane-card \.insane-description,\s*\.insane-how-tag,\s*\.insane-how-modal\s*\{\s*display:\s*none;\s*\}/);
+  assert.ok(css.lastIndexOf('.insane-how-tag,') > css.indexOf('.insane-how-tag {'));
   assert.match(css, /\.insane-preview\s*\{[^}]*position:\s*sticky;[^}]*top:\s*20px;/);
 
   // 介绍面板的像素雨：方格细到 12px，斜带被方格切出锯齿台阶，整格朝右下错落滑动。
@@ -379,5 +381,47 @@ test('狂意建房处理函数声明 card 变量并复用读取选项', async ()
   assert.match(block, /insaneTransition\.start\(\{ mode, card \}\)/);
   assert.match(block, /card\?\.querySelector\('\[data-segmented="describeSeconds"\] \.selected'\)/);
   assert.match(block, /card\?\.querySelector\('\[data-segmented="roundsPerPlayer"\] \.selected'\)/);
+});
+
+test('狂意页 Livonym 说明升级为与主页一致的 story-demo 演示形态并接入动态播放', async () => {
+  const html = insaneMarkup();
+  const preview = insanePreviewMarkup('livonym');
+  assert.match(preview, /class="story-demo livonym-demo" data-demo="livonym" data-story-demo aria-hidden="true" inert/);
+  assert.match(preview, /class="surface-block livonym-stream-block"/);
+  assert.match(preview, /class="surface-block game-form guess-form is-correct" data-demo-guess-form/);
+  assert.match(preview, /class="surface-block livonym-score-block"/);
+  assert.match(preview, /data-demo-panel="play"/);
+  assert.match(preview, /data-demo-panel="score"/);
+  assert.doesNotMatch(preview, /<button|创建房间/);
+  const livonymCard = html.match(/<article class="insane-card insane-card--livonym">[\s\S]*?<\/article>/)?.[0] || '';
+  assert.match(livonymCard, /data-action="insane-how" data-mode="livonym"[^>]*><svg[^>]*><use href="\/icons\.svg#icon-circle-help"><\/use><\/svg><span>怎么玩<\/span><\/button>/);
+  assert.match(livonymCard, /data-insane-config="livonym"/);
+
+  const app = await readFile(new URL('../../public/app.js', import.meta.url), 'utf8');
+  assert.match(app, /stopPreviewStoryMotion\(\);/);
+  assert.match(app, /hydrateAvatars\(preview\);/);
+  assert.match(app, /stopPreviewStoryMotion = observeStoryMotion\(preview\);/);
+  assert.match(app, /function syncInsaneHowDialogHeight\(/);
+  assert.doesNotMatch(app, /if \(!dialog\.querySelector\('\[data-story-demo\]'\)\) return;/);
+  assert.match(app, /function openInsaneHowModal\(/);
+  assert.match(app, /stopHowStoryMotion = observeStoryMotion\(dialog\);/);
+
+  const insane = await readFile(new URL('../../public/insane.js', import.meta.url), 'utf8');
+  assert.match(insane, /const MODE_DEMOS = \{/);
+  for (const id of ['blitz', 'livonym', 'shiritori', 'impostor', 'bridge']) {
+    assert.match(insane, new RegExp(`\\b${id}:`));
+  }
+
+  const motion = await readFile(new URL('../../public/story-motion.js', import.meta.url), 'utf8');
+  assert.match(motion, /livonym\(demo, press\)/);
+  assert.match(motion, /form\?\.classList\.add\('is-cooling'\)/);
+  assert.match(motion, /form\?\.classList\.add\('is-correct'\)/);
+  assert.match(motion, /show\('score'\)/);
+
+  const css = await readFile(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.insane-preview\s*\{[^}]*overflow-anchor:\s*none;/);
+  assert.doesNotMatch(css, /^\.insane-preview-body\s*\{[^}]*overflow-y:\s*auto;/m);
+  assert.match(css, /\.insane-how-dialog\.insane-preview\s*\{[^}]*overflow:\s*hidden;/);
+  assert.match(css, /\.insane-how-dialog \.insane-preview-body\s*\{[^}]*overflow-y:\s*auto;\s*overflow-x:\s*hidden;/);
 });
 

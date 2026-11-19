@@ -1616,6 +1616,34 @@ p {
   object-fit: contain;
 }
 
+.player-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+}
+
+.player-order-badge {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  border: 2px solid var(--card);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .player-meta {
   min-width: 0;
   flex: 1;
@@ -2707,7 +2735,8 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
 .profile-match-outcome { color: var(--ink); font-size: 13px; font-weight: 550; }
 .profile-match-outcome:is([data-outcome="exact"], [data-outcome="voted"]) { color: #187A61; }
 .profile-match-room { font-size: inherit; }
-.profile-match-theme { margin-left: 8px; }
+.profile-match-theme,
+.profile-match-livonym-tag { margin-left: 8px; }
 .profile-match-open { display: none; align-items: center; gap: 6px; color: var(--accent); font-size: 13px; }
 .profile-match-open .icon { width: 16px; height: 16px; }
 @media (min-width: 561px) {
@@ -2715,7 +2744,8 @@ body[data-scene="breakVote"] .writing-page[data-screen="breakVote"] .writing-sta
   .profile-match-heading { grid-column: 1 / -1; }
   .profile-match-meta { grid-template-columns: minmax(0, 120px) minmax(0, 96px) minmax(0, 1fr); }
   .profile-match-icon { width: 14px; height: 14px; }
-  .profile-match-theme { padding-left: 12px; }
+  .profile-match-theme,
+  .profile-match-livonym-tag { padding-left: 12px; }
   .profile-match-open { display: flex; grid-area: 2 / 2 / 3 / 3; align-self: end; justify-self: end; }
 }
 @media (max-width: 360px) {
@@ -3155,6 +3185,93 @@ body[data-scene="countdown"] .site-footer { position: relative; z-index: 1; flex
 .start-countdown-theme { display: grid; gap: 6px; max-width: 100%; margin: 32px 0 0; color: var(--ink-secondary); animation: countdown-reveal 600ms var(--ease-out) both; }
 .start-countdown-theme span { font-size: .875rem; }
 .start-countdown-theme strong { color: var(--ink); font-size: 1.75rem; line-height: 1.4; overflow-wrap: anywhere; }
+.countdown-clue-order {
+  margin-top: 26px;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  max-width: min(100%, 640px);
+  padding: 18px 24px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--card, #131729) 90%, #070b16);
+  border: 1px solid color-mix(in srgb, var(--mode-a, var(--accent)) 28%, var(--line));
+  box-shadow: 0 12px 32px rgb(0 0 0 / .36);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  text-shadow: none;
+}
+.countdown-rounds-count {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: .04em;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+.countdown-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 14px;
+  max-width: 100%;
+}
+.countdown-order-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--ink-secondary);
+}
+.countdown-order-item.is-active {
+  color: var(--ink);
+}
+.order-step {
+  flex: none;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.countdown-order-item.is-active .order-step {
+  color: var(--mode-a, var(--countdown-ink));
+}
+.order-player-identity {
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 550;
+  line-height: 1.3;
+}
+.countdown-order-item.is-active .order-player-identity {
+  color: var(--ink);
+  font-weight: 700;
+}
+.order-player-identity .player-identity-name {
+  max-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.countdown-order-arrow {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  color: var(--muted);
+}
+@media (max-width: 520px) {
+  .countdown-clue-order {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+}
 @keyframes countdown-beat-odd {
   from { opacity: .2; transform: translateY(12px) scale(1.18); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -3181,6 +3298,7 @@ body[data-scene="countdown"] .site-footer { position: relative; z-index: 1; flex
   .start-countdown[data-beat="0"] .start-countdown-number { font-size: 3rem; }
   .start-countdown-theme { margin-top: 16px; gap: 2px; }
   .start-countdown-theme strong { font-size: 1.25rem; }
+  .countdown-clue-order { margin-top: 14px; }
   body[data-scene="countdown"] .site-footer { margin-top: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4457,10 +4575,13 @@ body.has-insane-card-motion .insane-card::after {
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
     gap: 24px;
     align-items: start;
+    min-height: 720px;
   }
   .insane-card::after { display: none; }
   .insane-card .insane-disclosure,
-  .insane-card .insane-description { display: none; }
+  .insane-card .insane-description,
+  .insane-how-tag,
+  .insane-how-modal { display: none; }
   .insane-card-row {
     grid-template-columns: 56px minmax(0, 1fr) auto 116px;
     gap: 14px;
@@ -4489,6 +4610,7 @@ body.has-insane-card-motion .insane-card::after {
     min-height: 260px;
     padding: 28px;
     overflow: hidden;
+    overflow-anchor: none;
     border: 1px solid color-mix(in srgb, var(--mode-a) 55%, #424155);
     border-radius: 16px;
     background:
@@ -4514,62 +4636,161 @@ body.has-insane-card-motion .insane-card::after {
   body.has-insane-preview-motion .insane-preview::after {
     display: none;
   }
-  .insane-preview-head {
-    display: grid;
-    grid-template-columns: 62px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 16px;
+}
+
+.insane-card-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.insane-how-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid rgb(255 255 255 / .14);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .06);
+  color: #d4cfe0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.insane-how-tag .icon { width: 13px; height: 13px; flex: none; }
+.insane-how-tag:hover {
+  color: #fff;
+  background: rgb(255 255 255 / .11);
+  border-color: rgb(255 255 255 / .26);
+}
+.insane-how-tag:focus-visible { outline: 2px solid rgb(255 255 255 / .55); outline-offset: 2px; }
+@media (min-width: 1000px) {
+  .insane-how-tag,
+  .insane-how-modal { display: none; }
+}
+
+.insane-preview-head {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.insane-preview-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 4px;
+}
+.insane-preview-title > .insane-wordmark {
+  color: var(--mode-a);
+  font-size: 26px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  white-space: nowrap;
+}
+.insane-preview-title > strong { color: #fff; font-size: 16px; font-weight: 650; line-height: 1.35; }
+.insane-preview-body {
+  border-top: 1px solid color-mix(in srgb, var(--mode-a) 22%, rgb(255 255 255 / .1));
+  padding-top: 20px;
+}
+.insane-preview-lead {
+  margin: 0 0 12px;
+  color: var(--mode-a);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.insane-preview-desc {
+  margin: 0;
+  color: #e6e2ef;
+  font-size: 15px;
+  line-height: 1.85;
+  text-wrap: pretty;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .insane-preview-body { animation: insane-preview-in 180ms var(--ease-out); }
+  @keyframes insane-preview-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
   }
-  .insane-preview-title {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    min-width: 0;
-    gap: 4px;
-  }
-  .insane-preview-title > .insane-wordmark {
-    color: var(--mode-a);
-    font-size: 26px;
-    line-height: 1.1;
-    font-weight: 700;
-    letter-spacing: -.015em;
-    white-space: nowrap;
-  }
-  .insane-preview-title > strong { color: #fff; font-size: 16px; font-weight: 650; line-height: 1.35; }
-  .insane-preview-body {
-    border-top: 1px solid color-mix(in srgb, var(--mode-a) 22%, rgb(255 255 255 / .1));
-    padding-top: 20px;
-  }
-  .insane-preview-lead {
-    margin: 0 0 12px;
-    color: var(--mode-a);
-    font-size: 17px;
-    font-weight: 650;
-    line-height: 1.45;
-  }
-  .insane-preview-desc {
-    margin: 0;
-    color: #e6e2ef;
-    font-size: 15px;
-    line-height: 1.85;
-    text-wrap: pretty;
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .insane-preview-body { animation: insane-preview-in 180ms var(--ease-out); }
-    @keyframes insane-preview-in {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: none; }
-    }
-    .insane-preview--shiritori .sh-part { animation: sh-pass 1.15s calc(var(--i) * 120ms) infinite; }
-    .insane-preview--livonym .live-char { animation: live-type 2.4s calc(var(--i) * 140ms) infinite; }
-    .insane-preview--livonym .live-i::before { animation: live-dot 1.2s ease-in-out infinite; }
-    .insane-preview--impostor .wm-impostor { animation: impostor-shadow 2.4s steps(1, end) infinite; }
-    .insane-preview--impostor .sus-eye { animation: sus-gaze 2.4s ease-in-out infinite; }
-    .insane-preview--blitz .wm-blitz { animation: blitz-dash .32s ease-in-out infinite alternate; }
-    .insane-preview--blitz .bz-trails { animation: blitz-trails .4s linear infinite; }
-    .insane-preview--bridge .br-leap { animation: bridge-leap 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
-    .insane-preview--bridge .br-letter::before { animation: bridge-outline 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
-  }
+  .insane-preview--shiritori .sh-part { animation: sh-pass 1.15s calc(var(--i) * 120ms) infinite; }
+  .insane-preview--livonym .live-char { animation: live-type 2.4s calc(var(--i) * 140ms) infinite; }
+  .insane-preview--livonym .live-i::before { animation: live-dot 1.2s ease-in-out infinite; }
+  .insane-preview--impostor .wm-impostor { animation: impostor-shadow 2.4s steps(1, end) infinite; }
+  .insane-preview--impostor .sus-eye { animation: sus-gaze 2.4s ease-in-out infinite; }
+  .insane-preview--blitz .wm-blitz { animation: blitz-dash .32s ease-in-out infinite alternate; }
+  .insane-preview--blitz .bz-trails { animation: blitz-trails .4s linear infinite; }
+  .insane-preview--bridge .br-leap { animation: bridge-leap 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
+  .insane-preview--bridge .br-letter::before { animation: bridge-outline 2.4s calc(var(--i) * 180ms) ease-out infinite backwards; }
+}
+
+.insane-how-modal { z-index: 30; padding: 16px; }
+.insane-how-modal .rename-modal-backdrop { background: rgba(10, 12, 24, 0); }
+.insane-how-modal.is-open .rename-modal-backdrop { background: rgba(10, 12, 24, .56); }
+.insane-how-dialog.insane-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(100%, 540px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  padding: 26px 24px 24px;
+  border: 1px solid color-mix(in srgb, var(--mode-a) 55%, #424155);
+  border-radius: 16px;
+  background:
+    radial-gradient(110% 80% at 100% 0%, color-mix(in srgb, var(--mode-a) 16%, transparent), transparent 62%),
+    radial-gradient(90% 80% at 0% 100%, color-mix(in srgb, var(--mode-b) 10%, transparent), transparent 64%),
+    var(--mode-surface-active);
+  box-shadow: 0 22px 56px -18px rgb(0 0 0 / .72), inset 0 1px 0 rgb(255 255 255 / .08);
+}
+.insane-how-dialog > * { position: relative; z-index: 1; }
+.insane-how-content { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.insane-how-dialog .insane-preview-head {
+  flex: none;
+  padding-right: 34px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--mode-a) 22%, rgb(255 255 255 / .1));
+}
+.insane-how-dialog .insane-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  border-top: 0;
+  padding-top: 18px;
+}
+.insane-how-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / .14);
+  border-radius: 50%;
+  background: rgb(16 18 32 / .55);
+  color: #e6e2ef;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.insane-how-close:hover { border-color: var(--mode-a); color: #fff; background: rgb(16 18 32 / .8); }
+.insane-how-close:focus-visible { outline: 2px solid var(--mode-a); outline-offset: 2px; }
+.insane-how-close .icon { width: 16px; height: 16px; }
+@media (max-width: 560px) {
+  .insane-how-dialog.insane-preview { padding: 20px 16px 18px; }
+  .insane-how-dialog .insane-preview-head { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; padding-right: 30px; }
+  .insane-how-dialog .insane-preview-title > .insane-wordmark { font-size: 22px; }
 }
 
 /* INSANE：整屏快照上的多点侵蚀，顶栏也随页面一起被吞没。 */
@@ -4628,7 +4849,7 @@ html[data-scene-motion="erosion"][data-scene-direction="backward"]::view-transit
 }
 
 /* 顶栏的聚焦环在深色底上换成浅紫。 */
-body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .site-header :focus-visible { outline-color: #d8baff; }
 @media (prefers-reduced-motion: reduce) {
   html[data-scene-motion="erosion"]::view-transition-old(root),
   html[data-scene-motion="erosion"]::view-transition-new(root) { animation: none !important; }
@@ -4636,6 +4857,30 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
 
 /* ── 即时竞猜 ── */
 .livonym-secret-block { display: grid; gap: 6px; }
+.livonym-secret-block .section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.livonym-secret-block .section-heading h2 {
+  min-width: 0;
+  white-space: nowrap;
+}
+.livonym-secret-block .section-heading .readonly-tag {
+  justify-self: end;
+  text-align: right;
+  white-space: nowrap;
+}
+.livonym-secret-length {
+  grid-column: 2;
+  justify-self: center;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .livonym-secret { margin: 0; text-align: center; font-size: clamp(28px, 6vw, 44px); font-weight: 700; letter-spacing: .04em; }
 .livonym-describe-input {
   min-height: 96px;
@@ -4645,13 +4890,23 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
   line-height: 1.7;
   text-align: center;
   align-content: center;
+  text-align: left;
+  align-content: start;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .livonym-describe-input.is-blocked { border-color: var(--vermilion); box-shadow: 0 0 0 3px var(--vermilion-soft); }
+.livonym-describe-input.is-locked,
+.livonym-describe-input:disabled {
+  opacity: .75;
+  cursor: not-allowed;
+  background: var(--bg-subtle);
+}
 /* 提示行：左侧说明玩法，右侧字数；顶到上限还继续打字时整行转红。 */
 .describe-hint { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; }
 .describe-hint-text { min-width: 0; }
+.describe-hint.is-blocked .describe-hint-text,
+.describe-hint-text.is-blocked { color: var(--vermilion); font-weight: 600; }
 .describe-count { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; transition: color var(--dur-1) var(--ease-out); }
 .livonym-describe-form.is-over .describe-hint-text,
 .livonym-describe-form.is-over .describe-count { color: var(--vermilion); }
@@ -4724,6 +4979,9 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
   line-height: 1.7;
   text-align: center;
 }
+.livonym-stream-card {
+  text-align: center;
+}
 .livonym-stream-body {
   display: inline-block;
   max-width: 100%;
@@ -4743,14 +5001,42 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
 }
 @keyframes livonym-caret { 50% { opacity: 0; } }
 
-/* 玩家身份：头像尺寸跟着所在文字的字号走，名字与标签沿用大厅那一套。 */
-.player-identity { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-/* 汉字的墨迹中心比行盒中心低约 .03em，抬回来才和头像的中心对齐。 */
-.player-identity-name { min-width: 0; overflow-wrap: anywhere; translate: 0 -.03em; }
-.player-identity .player-identity-avatar { width: 1.3em; height: 1.3em; flex: none; border-radius: .34em; }
+/* 玩家身份：头像/ID/混合文字三者始终处于同一水平中心线上。 */
+.player-identity { display: inline-flex; align-items: center; gap: 6px; min-width: 0; line-height: 1.3; vertical-align: middle; }
+.player-identity-name { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.player-identity .player-identity-avatar { width: 1.3em; height: 1.3em; flex: none; border-radius: .34em; display: block; }
 .player-identity .badge { flex: none; }
-.livonym-stream-author { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.livonym-preparing-title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .12em .28em;
+  max-width: 100%;
+  line-height: 1.25;
+}
+.stage-copy h1:has(.player-identity, .livonym-preparing-title),
+.stage-copy h1.livonym-preparing-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .12em .28em;
+  line-height: 1.25;
+}
+.livonym-preparing-title > span,
+.livonym-preparing-title .player-identity,
+.livonym-preparing-title .player-identity-name { line-height: 1.25; }
+.stage-copy h1 .player-identity { max-width: 100%; }
+.livonym-preparing-title .avatar,
+.stage-copy h1 .player-identity .player-identity-avatar {
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+  border-radius: .32em;
+  display: block;
+}
+.livonym-stream-author { display: inline-flex; align-items: center; gap: 6px; min-width: 0; line-height: 1.3; }
 .livonym-stream-author-name { min-width: 0; }
+.livonym-stream-suffix { flex: none; line-height: 1.3; white-space: nowrap; }
 
 /* 抢答卡：整卡是反馈面。猜错时铺一层灰绿色阴影，从右往左收成进度条；答对时整卡呼吸绿光。 */
 .guess-form { position: relative; overflow: hidden; isolation: isolate; }
@@ -4790,6 +5076,82 @@ body[data-insane] .site-header :focus-visible { outline-color: #d8baff; }
 }
 body[data-insane] .button.primary.is-correct,
 body[data-insane] .button.primary.is-correct:disabled { color: #071026; background: var(--jade); }
+
+/* 猜词记录标签 */
+.guessed-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+  min-height: 0;
+}
+.guessed-tags:empty { display: none; }
+.guessed-tags .badge.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: line-through;
+}
+
+/* 弹幕轨道：挂在壳层顶部，跨阶段切换不打断正在飘过的弹幕 */
+.livonym-danmu-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 132px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 25;
+}
+.livonym-danmu-item {
+  position: absolute;
+  top: calc(10px + var(--track, 0) * 38px);
+  left: 100%;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.76);
+  backdrop-filter: blur(4px);
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  animation: livonym-danmu-scroll 10s linear forwards;
+  will-change: transform;
+}
+.livonym-danmu-author {
+  color: var(--accent-light, #93c5fd);
+  font-weight: 600;
+  gap: 5px;
+}
+.livonym-danmu-sep {
+  color: var(--accent-light, #93c5fd);
+  font-weight: 600;
+  margin-left: -4px;
+  line-height: 1.3;
+}
+.livonym-danmu-text {
+  color: #f8fafc;
+  line-height: 1.3;
+}
+@keyframes livonym-danmu-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100vw - 100%)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .livonym-danmu-item { animation-duration: 0.01ms; opacity: 0; }
+}
+
 .livonym-guessed-list { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
 .livonym-guessed-item {
   display: grid;
@@ -4800,6 +5162,90 @@ body[data-insane] .button.primary.is-correct:disabled { color: #071026; backgrou
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-subtle);
+}
+.livonym-guessed-list.is-spectatable .livonym-guessed-item {
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), outline var(--dur-1) var(--ease-out);
+}
+.livonym-guessed-list.is-spectatable .livonym-guessed-item:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-subtle));
+}
+.livonym-guessed-item.is-spectated {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* 旁观他人状态：屏幕四周主题色渐变氛围光 + 顶栏下方按内容自适应宽度的滑出提示条 */
+.spectate-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 92% 72% at 50% 48%, transparent 56%, color-mix(in srgb, var(--mode-a, var(--accent)) 18%, transparent) 84%, color-mix(in srgb, var(--mode-b, var(--accent)) 28%, transparent) 100%),
+    linear-gradient(135deg, color-mix(in srgb, var(--mode-a, var(--accent)) 14%, transparent) 0%, transparent 28%, transparent 72%, color-mix(in srgb, var(--mode-b, var(--accent)) 14%, transparent) 100%);
+  box-shadow:
+    inset 0 0 56px 6px color-mix(in srgb, var(--mode-a, var(--accent)) 42%, transparent),
+    inset 0 0 120px 14px color-mix(in srgb, var(--mode-b, var(--accent)) 22%, transparent);
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+.spectate-ambient.is-active {
+  opacity: 1;
+}
+.header-spectate-bar {
+  position: fixed;
+  top: calc(var(--header-gap) + var(--header-h) - 22px);
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: fit-content;
+  max-width: min(calc(var(--header-w) - 36px), calc(100vw - 52px));
+  min-height: 54px;
+  margin-inline: auto;
+  padding: 25px 16px 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--mode-a, var(--accent)) 40%, var(--line));
+  background: color-mix(in srgb, var(--card) 88%, var(--mode-a, var(--accent)) 12%);
+  box-shadow: 0 8px 22px rgb(0 0 0 / .24);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-34px);
+  transition: transform var(--dur-3) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.header-spectate-bar.is-active {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0);
+}
+.header-spectate-label {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mode-a, var(--accent));
+  white-space: nowrap;
+}
+.header-spectate-target {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 13px;
+  color: var(--ink);
+}
+.header-spectate-target .player-identity {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spectate-ambient { transition: none; }
+  .header-spectate-bar {
+    transition: opacity var(--dur-2) var(--ease-out);
+    transform: none;
+  }
 }
 .livonym-guessed-rank, .livonym-score-rank {
   display: grid;
@@ -4850,27 +5296,51 @@ body[data-insane] .button.primary.is-correct:disabled { color: #071026; backgrou
 .livonym-score-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .livonym-score-row {
   display: grid;
-  /* 名次 | 名字 | 总分（右上角挂本轮加分） */
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  /* 名次 | 名字 | 用时 | 总分（右上角内收本轮加分） */
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 12px;
-  padding: 14px 12px;
+  padding: 12px 16px 12px 12px;
   border-radius: var(--radius-sm);
   background: var(--bg-subtle);
 }
 .livonym-score-row.is-describer { background: var(--accent-soft); }
-/* 总分数字：右边留出空间把数字往左挪，本轮加分挂在它的右上角，与 122 同一套字样 */
-.livonym-score-total { position: relative; display: inline-block; padding-right: 12px; font-size: 20px; }
-.livonym-score-total > .livonym-gain { position: absolute; top: -0.78em; right: -0.5em; }
-/* 前三名：122 按猜中名次、123 按总分次序，两处共用金银铜。 */
-:is(.livonym-guessed-item, .livonym-score-row).is-first { --medal: var(--medal-gold); }
-:is(.livonym-guessed-item, .livonym-score-row).is-second { --medal: var(--medal-silver); }
-:is(.livonym-guessed-item, .livonym-score-row).is-third { --medal: var(--medal-bronze); }
-:is(.livonym-guessed-item, .livonym-score-row):is(.is-first, .is-second, .is-third) {
+.livonym-score-time {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 总分与本轮加分内收于行内右侧，避免溢出圆角矩形边界 */
+.livonym-score-total {
+  grid-column: 4;
+  justify-self: end;
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-right: 4px;
+  font-size: 20px;
+  line-height: 1.1;
+}
+.livonym-score-total > .livonym-gain {
+  position: static;
+  transform: translateY(-0.18em);
+  font-size: calc(12px + 3px * var(--gain));
+  line-height: 1;
+}
+/* 前三名：122 按猜中名次、123 与终局总分按名次次序，三处共用金银铜。 */
+:is(.livonym-guessed-item, .livonym-score-row, .livonym-result-row).is-first { --medal: var(--medal-gold); }
+:is(.livonym-guessed-item, .livonym-score-row, .livonym-result-row).is-second { --medal: var(--medal-silver); }
+:is(.livonym-guessed-item, .livonym-score-row, .livonym-result-row).is-third { --medal: var(--medal-bronze); }
+:is(.livonym-guessed-item, .livonym-score-row, .livonym-result-row):is(.is-first, .is-second, .is-third) {
   background: color-mix(in srgb, var(--medal) 18%, var(--bg-subtle));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--medal) 38%, transparent);
 }
-:is(.livonym-guessed-item, .livonym-score-row):is(.is-first, .is-second, .is-third) :is(.livonym-guessed-rank, .livonym-score-rank) {
+:is(.livonym-guessed-item, .livonym-score-row, .livonym-result-row):is(.is-first, .is-second, .is-third) :is(.livonym-guessed-rank, .livonym-score-rank, .livonym-result-rank) {
   background: var(--medal);
   color: #14121f;
   font-size: 14px;
@@ -4893,16 +5363,71 @@ body[data-insane] .button.primary.is-correct:disabled { color: #071026; backgrou
   grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 10px 16px 10px 12px;
   border-radius: var(--radius-sm);
   background: var(--bg-subtle);
 }
-.livonym-result-rank { color: var(--muted); font-variant-numeric: tabular-nums; }
-.livonym-result-score { font-size: 18px; }
-.livonym-badges { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
-.livonym-badges li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink-secondary); font-size: 13px; }
-.livonym-badge-label { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.livonym-result-rank {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.livonym-result-row:is(.is-first, .is-second, .is-third) .livonym-result-rank {
+  width: 26px;
+  height: 26px;
+  background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--medal) 62%, #fff) 0%, var(--medal) 62%, color-mix(in srgb, var(--medal) 74%, #14121f) 100%);
+  color: #14121f;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, #fff 40%, transparent),
+    inset 0 0 0 3px color-mix(in srgb, var(--medal) 68%, #14121f),
+    0 2px 6px color-mix(in srgb, var(--medal) 30%, transparent);
+}
+.livonym-result-score { padding-right: 4px; font-size: 18px; font-variant-numeric: tabular-nums; }
+.livonym-badges { display: grid; gap: 6px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); list-style: none; }
+.livonym-badge-row {
+  --award-tint: var(--accent);
+  --award-ink: var(--accent);
+  display: grid;
+  grid-template-columns: 6.8em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--award-tint) 11%, var(--bg-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--award-tint) 24%, transparent);
+  font-size: 13px;
+}
+.livonym-badge-row.is-award-guess { --award-tint: #E5A00D; --award-ink: #8E6100; }
+.livonym-badge-row.is-award-describe { --award-tint: #4B66FF; --award-ink: #344CE0; }
+.livonym-badge-row.is-award-fastest { --award-tint: #0E9F6E; --award-ink: #087A53; }
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .livonym-badge-row {
+  background: color-mix(in srgb, var(--award-tint) 14%, var(--bg-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--award-tint) 28%, transparent);
+}
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .livonym-badge-row.is-award-guess { --award-tint: #F6C85F; --award-ink: #F8D47C; }
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .livonym-badge-row.is-award-describe { --award-tint: #A0A9FF; --award-ink: #B7BFFF; }
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .livonym-badge-row.is-award-fastest { --award-tint: #4DDCAE; --award-ink: #6FE8C1; }
+.livonym-badge-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--award-ink);
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.livonym-badge-icon { width: 14px; height: 14px; flex: none; color: var(--award-ink); }
 .livonym-badge-name { font-size: 13px; color: var(--ink); }
+.livonym-badge-value { padding-right: 4px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* 逐棒回顾：一棒一页，翻页器与主页介绍同一套——圆形箭头夹着「1 / n」。 */
 .livonym-review-pages {
   display: grid;
@@ -4921,9 +5446,136 @@ body[data-insane] .button.primary.is-correct:disabled { color: #071026; backgrou
 .livonym-review-pages:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 /* 页里只放「本轮结算」卡片的内容，不套框；左右留出边距，排行不贴着容器边缘 */
 .livonym-review-page { min-width: 0; width: 100%; padding-inline: 12px; scroll-snap-align: start; scroll-snap-stop: always; overflow-x: clip; }
-/* 回顾页里的秘密词卡只保留结构与字号，不再套一层白卡。 */
-.livonym-review-page .livonym-secret-block { margin: 0 0 8px; padding: 0 0 4px; background: transparent; border: 0; }
-.livonym-review-page .livonym-secret { font-size: 24px; }
+/* 回顾页里的秘密词直接居中展示，不再保留「本轮秘密词」标题或白卡。 */
+.livonym-review-secret { margin: 0 0 10px; padding: 2px 0 4px; text-align: center; }
+.livonym-review-page .livonym-secret { font-size: 26px; }
+.livonym-review-describe {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  text-align: center;
+}
+.livonym-review-describe-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+.livonym-review-describe-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.livonym-review-describe-text.is-empty { color: var(--muted); font-style: normal; }
+.livonym-score-player { display: grid; gap: 4px; min-width: 0; }
+.livonym-score-hint-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.livonym-score-hint-row .game-hint { margin: 0; }
+.livonym-card-hint {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.livonym-card-hint[hidden] { display: none; }
+.livonym-score-name.has-wrong .player-identity-name {
+  color: #C83E2B;
+  font-weight: 600;
+}
+body:is([data-insane], :has(.match-detail-page[data-mode="livonym"])) .livonym-score-name.has-wrong .player-identity-name {
+  color: var(--vermilion);
+}
+.livonym-review-page .livonym-score-row { position: relative; }
+.livonym-review-player-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  max-width: 100%;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.livonym-review-player-trigger:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.livonym-review-player-trigger:hover .livonym-score-name.has-wrong .player-identity-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.livonym-review-player-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.livonym-score-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.livonym-review-time.is-hit { color: var(--jade); font-weight: 600; }
+.livonym-review-time.is-empty { color: var(--muted); }
+.livonym-wrong-popover {
+  position: fixed;
+  z-index: 40;
+  left: 16px;
+  top: 16px;
+  min-width: 220px;
+  max-width: min(calc(100vw - 24px), 380px);
+  max-height: min(calc(100vh - 24px), 300px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow-md, 0 10px 28px rgba(0, 0, 0, .24));
+}
+@media (max-width: 600px) {
+  .livonym-wrong-popover {
+    max-width: calc(100vw - 24px);
+  }
+}
+.livonym-wrong-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.livonym-wrong-popover-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.livonym-wrong-popover-list li {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.livonym-wrong-popover-empty { margin: 0; color: var(--muted); font-size: 14px; }
 .livonym-review-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 10px 0 0; }
 .livonym-review-pagination button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 50%; cursor: pointer; }
 .livonym-review-pagination button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
@@ -4977,6 +5629,7 @@ body[data-insane] .game-status.status-done { --status-color: #6fe8bd; --status-b
 body[data-insane] .player.status-away,
 body[data-insane] .game-status.status-away { --status-color: #ff9d90; --status-bg: #3b1f26; }
 body[data-insane] .player.status-host { --status-color: #ffb98a; --status-bg: #3a2618; }
+body[data-insane] .player-order-badge { background: var(--mode-a, var(--accent)); color: #111521; }
 body[data-insane] .result-vote-outcome.is-passed,
 body[data-insane] .result-vote-choice.is-yes { color: #6fe8bd; }
 body[data-insane] .result-vote-choice.is-no,
@@ -5218,6 +5871,7 @@ body[data-insane][data-insane-mode="bridge"]::before {
   mask-image: repeating-linear-gradient(to bottom, #000 0 6px, transparent 6px 8px);
   animation: bridge-outline 1.4s calc(var(--i) * 120ms) ease-out infinite backwards;
 }
+/* 回到狂意大厅：模式像素波反扫收拢，仅呈现 INSANE 纯字形艺术字。 */
 .insane-curtain.is-returning .insane-curtain-sheet {
   background:
     radial-gradient(ellipse 62% 58% at 32% 44%, rgb(134 113 185 / .22), transparent 64%),
@@ -5684,4 +6338,45 @@ body:has(.match-detail-page[data-mode="livonym"]) .livonym-secret {
   .match-fact-mode--livonym .insane-mark--livonym i:first-child { animation: join-live-orb-a 2.4s ease-in-out infinite; }
   .match-fact-mode--livonym .insane-mark--livonym i:nth-child(2) { animation: join-live-orb-b 2.4s ease-in-out infinite; }
   .match-fact-mode--livonym .insane-mark--livonym i:nth-child(3) { animation: join-live-pulse 2.4s ease-in-out infinite; }
+}
+
+/* 狂意页玩法演示共用容器：沿用首页 story-demo 组件形态，保留原版组件尺寸与外观。 */
+:is(.insane-preview, .insane-how-dialog) .story-demo {
+  position: relative;
+  margin-top: 16px;
+  text-align: left;
+  container-type: inline-size;
+}
+:is(.insane-preview, .insane-how-dialog) .story-demo .writing-stage { padding: 14px 18px; margin-bottom: 12px; }
+:is(.insane-preview, .insane-how-dialog) .story-demo .stage-meta { margin-bottom: 0; }
+:is(.insane-preview, .insane-how-dialog) .story-demo .demo-panels { align-items: start; }
+:is(.insane-preview, .insane-how-dialog) .story-demo .surface-block { margin-bottom: 0; }
+:is(.insane-preview, .insane-how-dialog) .story-demo .stage-step.is-current { color: var(--mode-a); }
+.livonym-demo .livonym-demo-panel { display: grid; gap: 12px; min-width: 0; }
+.livonym-demo .livonym-stream { white-space: normal; }
+.livonym-demo .guessed-tags:empty { display: none; }
+.livonym-demo .livonym-secret { text-shadow: 0 0 28px color-mix(in srgb, var(--mode-a) 45%, transparent); }
+.livonym-demo .livonym-caret { background: var(--mode-a); box-shadow: 0 0 8px var(--mode-a); }
+.livonym-demo .livonym-score-rank { color: var(--mode-a); background: color-mix(in srgb, var(--mode-a) 16%, transparent); }
+.livonym-demo .livonym-gain { --gain-ink: var(--mode-a); }
+:is(.insane-page, .insane-how-modal) .motion-observed:not(.motion-visible) *,
+:is(.insane-page, .insane-how-modal) .motion-observed.motion-hidden *,
+:is(.insane-page, .insane-how-modal) .motion-observed:not(.motion-visible) *::before,
+:is(.insane-page, .insane-how-modal) .motion-observed.motion-hidden *::before,
+:is(.insane-page, .insane-how-modal) .motion-observed:not(.motion-visible) *::after,
+:is(.insane-page, .insane-how-modal) .motion-observed.motion-hidden *::after { animation-play-state: paused; }
+@container (max-width: 360px) {
+  :is(.insane-preview, .insane-how-dialog) .story-demo .writing-stage { padding-inline: 10px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-meta { gap: 3px; font-size: 11px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-progress { gap: 2px; font-size: 11px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-step { gap: 1px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-step .icon { width: 11px; height: 11px; }
+}
+@container (max-width: 300px) {
+  :is(.insane-preview, .insane-how-dialog) .story-demo .writing-stage { padding-inline: 6px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-meta { gap: 2px; font-size: 10px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-progress { gap: 1px; font-size: 10px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-step .icon { width: 9px; height: 9px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-room { font-size: 10px; }
+  :is(.insane-preview, .insane-how-dialog) .story-demo .stage-room .icon { width: 11px; height: 11px; }
 }

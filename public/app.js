@@ -19,6 +19,7 @@ import {
   avatarDetails,
   deviceClaimHint,
   deviceClaimItemsMarkup,
+  escapeHtml,
   homeEntryMarkup,
   homeMarkup,
   icon,
@@ -26,6 +27,7 @@ import {
   joinRoomModeMarkup,
   lobbyMarkup,
   lobbyPlayersMarkup,
+  playerIdentityMarkup,
   playerItemMarkup,
   privacyMarkup,
   profileMarkup,
@@ -46,7 +48,7 @@ import {
   canStartRoom
 } from './render.js';
 import { hydrateAvatars } from './avatar.js';
-import { DESCRIBE_LIMIT, cleanDescribe, describeContainsSecret } from './livonym.js';
+import { DESCRIBE_LIMIT, cleanDescribe, describeContainsSecret, guessPoints } from './livonym.js';
 
 const MOCK = Boolean(window.__SYNCONYM_MOCK__);
 const APP_ROOT = MOCK ? '/__mock/play' : '/';
@@ -175,11 +177,15 @@ function syncInsanePreviewDOM(root = app) {
   }
   const preview = layout.querySelector('.insane-preview');
   if (!preview || preview.dataset.mode === previewMode) return;
+  stopPreviewStoryMotion();
+  stopPreviewStoryMotion = () => {};
   const previewCanvas = preview.querySelector(':scope > .insane-preview-canvas');
   preview.className = `insane-preview insane-preview--${previewMode}`;
   preview.dataset.mode = previewMode;
   preview.innerHTML = insanePreviewBodyMarkup(previewMode);
   if (previewCanvas) preview.prepend(previewCanvas);
+  hydrateAvatars(preview);
+  stopPreviewStoryMotion = observeStoryMotion(preview);
 }
 
 let settings = {
@@ -274,6 +280,7 @@ function emptyLivonymUi() {
   return {
     describeText: '', acceptedText: '', describeBlocked: false, describeOver: false,
     guessText: '', guessedOrder: 0, guessPoints: 0, guessCooldownUntil: 0, guessWrong: false,
+    guessedWords: [], spectatingUid: null,
     streamText: '', streamRev: 0
   };
 }
@@ -282,8 +289,8 @@ let describeTimer;
 let lastDescribeSentAt = 0;
 let guessCooldownTimer;
 
-function livonymPointsFor(order) {
-  return order === 1 ? 3 : order === 2 ? 2 : order ? 1 : 0;
+function livonymPointsFor(order, totalPlayers = 3) {
+  return guessPoints(order, totalPlayers);
 }
 
 // 快照比本地流式更新新时才回填，避免把刚推送的新文本覆盖成旧值。
@@ -295,16 +302,44 @@ function syncLivonymFromState(room) {
     livonymUi.streamRev = rev;
     livonymUi.streamText = livonym.streamText || '';
   }
+  const totalPlayers = livonym.roundGuesserCount ? (livonym.roundGuesserCount + 1) : (room.players?.length || 3);
   const mine = (livonym.guessed || []).find((item) => item.uid === state.uid);
   if (mine) {
     livonymUi.guessedOrder = mine.order;
-    livonymUi.guessPoints = livonymPointsFor(mine.order);
+    livonymUi.guessPoints = livonymPointsFor(mine.order, totalPlayers);
+  }
+  if (livonym.wrongGuesses && Array.isArray(livonym.wrongGuesses[state.uid])) {
+    for (const w of livonym.wrongGuesses[state.uid]) {
+      if (!livonymUi.guessedWords.includes(w)) livonymUi.guessedWords.push(w);
+    }
+  }
+  const isDescriber = livonym.describerUid === state.uid;
+  if (isDescriber && room.phase === 'lvPlay') {
+    const guessedCount = livonym.guessed?.length || 0;
+    const guesserCount = livonym.guesserCount ?? (livonym.roundGuesserCount ?? 0);
+    const isLocked = Boolean(livonym.locked || (guesserCount > 0 && guessedCount >= guesserCount - 1));
+    if (isLocked) {
+      const input = app.querySelector('#describe-input');
+      if (input && !input.disabled) {
+        input.disabled = true;
+        input.readOnly = true;
+        input.classList.add('is-locked');
+      }
+      app.querySelector('#describe-form')?.classList.add('is-locked');
+      const hint = app.querySelector('#describe-hint .describe-hint-text');
+      if (hint) hint.textContent = guessedCount >= guesserCount ? '全员已猜中，描述已锁定' : '只剩一个没猜中了，等等 TA';
+    }
   }
 }
 let roomHistoryGuard = false;
 
 let stopJoinPlaceholder = () => {};
 let stopStoryMotion = () => {};
+let stopPreviewStoryMotion = () => {};
+let stopHowStoryMotion = () => {};
+let insaneHowMode = '';
+let insaneHowTrigger = null;
+let insaneHowCloseTimer;
 let stopInsaneCardMotion = () => {};
 let awaitingRoomRestore = false;
 let restoreStatusTimer;
@@ -648,6 +683,7 @@ function confirmSequence(steps) {
 function confirmLeaveIdentityFinal() { return confirmSequence(LEAVE_FINAL_STEPS); }
 
 window.addEventListener('popstate', async () => {
+  closeWrongPopovers();
   if (!state.room) {
     if (typeof insaneTransition !== 'undefined' && insaneTransition.isActive()) {
       pendingInsaneReveal = null;
@@ -659,6 +695,8 @@ window.addEventListener('popstate', async () => {
     qaOpen = new URLSearchParams(location.search).has('qa');
     insaneOpen = new URLSearchParams(location.search).has('insane');
     state.profile = null;
+    state.removed = null;
+    if (typeof syncNavOnPopstate === 'function') syncNavOnPopstate();
     if (typeof syncMockLocation === 'function') syncMockLocation();
     if (profileOpen && socket.ready) requestProfile(historyQuery(location.search).page);
     render();
@@ -728,10 +766,20 @@ function sendDescribe(force = false) {
   const room = state.room;
   const livonym = room?.livonym;
   if (!livonym || room.phase !== 'lvPlay') return;
+  const guessedCount = livonym.guessed?.length || 0;
+  const guesserCount = livonym.guesserCount ?? (livonym.roundGuesserCount ?? 0);
+  if (livonym.locked || (guesserCount > 0 && guessedCount >= guesserCount - 1)) return;
   const text = livonymUi.describeText;
   const blocked = describeContainsSecret(text, livonym.secret);
   livonymUi.describeBlocked = blocked;
   app.querySelector('#describe-input')?.classList.toggle('is-blocked', blocked);
+  const hint = app.querySelector('#describe-hint');
+  const hintText = app.querySelector('#describe-hint .describe-hint-text');
+  hint?.classList.toggle('is-blocked', blocked);
+  if (hintText) {
+    hintText.classList.toggle('is-blocked', blocked);
+    hintText.textContent = blocked ? '描述中不能包含秘密词或其变体' : '写出谜底会被拦下；可以分行。';
+  }
   if (blocked) return;
   if (text === livonymUi.acceptedText) return;
   const wait = 80 - (Date.now() - lastDescribeSentAt);
@@ -745,6 +793,10 @@ function sendDescribe(force = false) {
 }
 
 function acceptDescribeInput(input) {
+  const livonym = state.room?.livonym;
+  const guessedCount = livonym?.guessed?.length || 0;
+  const guesserCount = livonym?.guesserCount ?? (livonym?.roundGuesserCount ?? 0);
+  if (livonym?.locked || (guesserCount > 0 && guessedCount >= guesserCount - 1)) return;
   const value = input.value;
   const rawLength = [...cleanDescribe(value, Infinity)].length;
   const cleaned = cleanDescribe(value);
@@ -754,9 +806,8 @@ function acceptDescribeInput(input) {
     input.value = cleaned;
     input.setSelectionRange(position, position);
   }
-  // 顶到上限后继续打字置红，删回上限以下立刻恢复。
-  if (rawLength > DESCRIBE_LIMIT) livonymUi.describeOver = true;
-  else if (rawLength < DESCRIBE_LIMIT) livonymUi.describeOver = false;
+  // 顶到上限后继续打字置红，删回上限（<=50）立刻恢复。
+  livonymUi.describeOver = rawLength > DESCRIBE_LIMIT;
   livonymUi.describeText = cleaned;
   syncDescribeHeight(input);
   syncDescribeMeter(input);
@@ -793,8 +844,66 @@ function markGuessAccepted() {
   if (hint) hint.textContent = `第 ${livonymUi.guessedOrder} 个猜中，本轮 +${livonymUi.guessPoints} 分`;
 }
 
-// 猜错只冷却 1.5 秒，不扣分也不计数：整张抢答卡变成从右往左收缩的进度条。
-function startGuessCooldown() {
+let pendingGuessInputFocus = false;
+
+function isAnyModalOpen() {
+  return Boolean(
+    document.querySelector('.rename-modal.is-open, dialog[open], .modal.is-open, [role="dialog"].is-open, .is-modal-open, .confirm-modal')
+    || renameOpen || profileOpen || privacyOpen || qaOpen || insaneOpen || Boolean(pendingTransfer)
+  );
+}
+
+function restorePendingGuessFocus() {
+  if (!pendingGuessInputFocus) return;
+  if (state.room?.phase !== 'lvPlay' || livonymUi.guessedOrder) {
+    pendingGuessInputFocus = false;
+    return;
+  }
+  const input = app.querySelector('#guess-input');
+  if (input && !input.disabled && !isAnyModalOpen()) {
+    pendingGuessInputFocus = false;
+    input.focus();
+  }
+}
+
+function renderGuessedTags() {
+  const container = app.querySelector('#guessed-tags');
+  if (!container) return;
+  container.innerHTML = (livonymUi.guessedWords || [])
+    .map((word) => `<span class="badge tag">${escapeHtml(word)}</span>`)
+    .join('');
+}
+
+let danmuTrackIndex = 0;
+function renderDanmuItem(message) {
+  const container = app.querySelector('#livonym-danmu-container, .livonym-danmu-container');
+  if (!container || !message?.text) return;
+  const item = document.createElement('div');
+  item.className = 'livonym-danmu-item';
+  danmuTrackIndex = (danmuTrackIndex + 1) % 3;
+  item.style.setProperty('--track', danmuTrackIndex);
+  if (message.name) {
+    const author = document.createElement('span');
+    author.innerHTML = playerIdentityMarkup(message.name, { className: 'livonym-danmu-author' });
+    const identity = author.firstElementChild;
+    if (identity) item.appendChild(identity);
+    const sep = document.createElement('span');
+    sep.className = 'livonym-danmu-sep';
+    sep.textContent = ':';
+    item.appendChild(sep);
+  }
+  const text = document.createElement('span');
+  text.className = 'livonym-danmu-text';
+  text.textContent = message.text;
+  item.appendChild(text);
+  hydrateAvatars(item);
+  container.appendChild(item);
+  item.addEventListener('animationend', () => item.remove());
+  setTimeout(() => item.remove(), 11000);
+}
+
+// 猜错冷却 1.5 秒，弹幕冷却 1 秒，不扣分也不计数：整张抢答卡变成从右往左收缩的进度条。
+function startGuessCooldown(cooldownMs = GUESS_COOLDOWN_MS) {
   const form = app.querySelector('#guess-form');
   const input = app.querySelector('#guess-input');
   const button = app.querySelector('#guess-form button');
@@ -802,8 +911,8 @@ function startGuessCooldown() {
   clearGuessCooldown();
   input.disabled = true;
   if (button) button.disabled = true;
-  livonymUi.guessCooldownUntil = Date.now() + GUESS_COOLDOWN_MS;
-  form.style.setProperty('--guess-cooldown', `${GUESS_COOLDOWN_MS}ms`);
+  livonymUi.guessCooldownUntil = Date.now() + cooldownMs;
+  form.style.setProperty('--guess-cooldown', `${cooldownMs}ms`);
   // 连续猜错时重启动画，避免第二次沿用上一轮已经播完的进度。
   void form.offsetWidth;
   form.classList.add('is-cooling');
@@ -816,8 +925,16 @@ function startGuessCooldown() {
     const current = app.querySelector('#guess-input');
     const currentButton = app.querySelector('#guess-form button');
     if (currentButton) currentButton.disabled = false;
-    if (current) { current.disabled = false; current.focus(); }
-  }, GUESS_COOLDOWN_MS);
+    if (current) {
+      current.disabled = false;
+      if (isAnyModalOpen()) {
+        pendingGuessInputFocus = true;
+      } else {
+        pendingGuessInputFocus = false;
+        current.focus();
+      }
+    }
+  }, cooldownMs);
 }
 
 
@@ -1088,7 +1205,86 @@ function syncHomeDrawerDOM() {
 
 function syncModalScrollLock() {
   document.documentElement.classList.toggle('is-modal-open', renameOpen || Boolean(pendingTransfer) || Boolean(pendingConfirm) || Boolean(pendingJoin) || Boolean(inviteTrigger) || pathOpen || startOpen);
+  if (insaneHowMode) document.documentElement.classList.add('is-modal-open');
+  if (!isAnyModalOpen()) {
+    restorePendingGuessFocus();
+  }
 }
+
+function closeInsaneHowModal({ focus = true, immediate = false } = {}) {
+  clearTimeout(insaneHowCloseTimer);
+  stopHowStoryMotion();
+  stopHowStoryMotion = () => {};
+  const trigger = insaneHowTrigger;
+  insaneHowMode = '';
+  insaneHowTrigger = null;
+  syncModalScrollLock();
+  const modal = app.querySelector('#insane-how-modal');
+  if (modal) {
+    modal.classList.remove('is-open');
+    const finish = () => {
+      if (insaneHowMode) return;
+      modal.hidden = true;
+      modal.setAttribute('inert', '');
+      const howBody = modal.querySelector('.insane-how-content');
+      if (howBody) howBody.innerHTML = '';
+      const dialog = modal.querySelector('.insane-how-dialog');
+      if (dialog) dialog.style.height = '';
+    };
+    if (immediate) finish();
+    else insaneHowCloseTimer = setTimeout(finish, 220);
+  }
+  if (focus && trigger?.isConnected) trigger.focus();
+}
+
+const INSANE_HOW_MAX_HINTS = {
+  livonym: '第 1 名 +3 分，第 2 名 +2 分；猜错冷却 1.5 秒'
+};
+
+function syncInsaneHowDialogHeight(dialog, mode = insaneHowMode) {
+  if (!dialog) return;
+  dialog.style.height = '';
+  const body = dialog.querySelector('.insane-preview-body');
+  const hint = dialog.querySelector('[data-demo-hint]');
+  const prevHint = hint ? hint.textContent : '';
+  const maxHint = INSANE_HOW_MAX_HINTS[mode] || hint?.dataset.demoMaxHint;
+  if (hint && maxHint) hint.textContent = maxHint;
+  const overflow = body ? Math.max(0, body.scrollHeight - body.clientHeight) : 0;
+  const maxHeight = Math.ceil(dialog.getBoundingClientRect().height + overflow);
+  if (hint) hint.textContent = prevHint;
+  if (maxHeight > 0) dialog.style.height = `${maxHeight}px`;
+}
+
+function openInsaneHowModal(mode, trigger = null) {
+  const modal = app.querySelector('#insane-how-modal');
+  const dialog = modal?.querySelector('.insane-how-dialog');
+  const howBody = modal?.querySelector('.insane-how-content');
+  if (!modal || !dialog || !howBody || !mode) return;
+  clearTimeout(insaneHowCloseTimer);
+  stopHowStoryMotion();
+  stopHowStoryMotion = () => {};
+  insaneHowMode = mode;
+  insaneHowTrigger = trigger || document.activeElement;
+  dialog.className = `rename-dialog insane-how-dialog insane-preview insane-preview--${mode}`;
+  dialog.dataset.mode = mode;
+  howBody.innerHTML = insanePreviewBodyMarkup(mode);
+  hydrateAvatars(dialog);
+  modal.hidden = false;
+  modal.removeAttribute('inert');
+  syncModalScrollLock();
+  syncInsaneHowDialogHeight(dialog, mode);
+  requestAnimationFrame(() => modal.classList.add('is-open'));
+  stopHowStoryMotion = observeStoryMotion(dialog);
+  modal.querySelector('.insane-how-close')?.focus();
+}
+
+window.matchMedia('(min-width: 1000px)').addEventListener('change', (event) => {
+  if (event.matches && insaneHowMode) closeInsaneHowModal({ focus: false, immediate: true });
+});
+window.addEventListener('resize', () => {
+  if (!insaneHowMode) return;
+  syncInsaneHowDialogHeight(app.querySelector('#insane-how-modal .insane-how-dialog'), insaneHowMode);
+});
 
 function syncRenameModalDOM(focusInput = false) {
   syncModalScrollLock();
@@ -1179,7 +1375,11 @@ function syncHistoryTimeBadge() {
 }
 
 // 宽度变化时重新选一次徽标文案与留白
-window.addEventListener('resize', () => { if (app.querySelector('.profile-page')) syncHistoryTimeBadge(); });
+window.addEventListener('resize', () => {
+  closeWrongPopovers();
+  if (app.querySelector('.profile-page')) syncHistoryTimeBadge();
+});
+window.addEventListener('hashchange', () => closeWrongPopovers());
 
 // 输入即搜：不跳转页面，改完地址后直接向服务端要第一页结果。
 let historySearchTimer;
@@ -1296,6 +1496,32 @@ function patchHeaderDOM(inRoom) {
   syncRenameModalDOM(false);
 }
 
+function syncSpectateChrome() {
+  if (!state.room || state.room.mode !== 'livonym') {
+    app.querySelector('#livonym-danmu-container')?.replaceChildren();
+  }
+  const spectatedPlayer = (state.room?.phase === 'lvPlay' && livonymUi.guessedOrder > 0 && livonymUi.spectatingUid && livonymUi.spectatingUid !== state.uid)
+    ? (state.room.players || []).find((p) => p.uid === livonymUi.spectatingUid)
+    : null;
+  app.querySelector('#spectate-ambient')?.classList.toggle('is-active', Boolean(spectatedPlayer));
+  const bar = app.querySelector('#header-spectate-bar');
+  if (!bar) return;
+  if (spectatedPlayer) {
+    const target = bar.querySelector('#header-spectate-target');
+    if (target && (target.dataset.uid !== spectatedPlayer.uid || target.dataset.name !== spectatedPlayer.name)) {
+      target.dataset.uid = spectatedPlayer.uid;
+      target.dataset.name = spectatedPlayer.name;
+      target.innerHTML = playerIdentityMarkup(spectatedPlayer.name, { className: 'header-spectate-player' });
+      hydrateAvatars(bar);
+    }
+    bar.setAttribute('aria-hidden', 'false');
+    bar.classList.add('is-active');
+  } else {
+    bar.classList.remove('is-active');
+    bar.setAttribute('aria-hidden', 'true');
+  }
+}
+
 function patchLobbyDOM(nextState) {
   const { room, uid } = nextState;
   const page = app.querySelector('.lobby-page');
@@ -1409,7 +1635,7 @@ function screenKeyFor(nextState) {
 
 function buildScreenMarkup(screen) {
   if (screen === 'home') return homeMarkup(settings, homeSettingsOpen);
-  if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search)) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
+  if (screen === 'profile') return historyQuery(location.search).id ? matchDetailMarkup(state.matchDetail, historyQuery(location.search), state.uid) : profileMarkup({ ...state, historyQuery: historyQuery(location.search) });
   if (screen === 'privacy') return privacyMarkup();
   if (screen === 'qa') return qaMarkup();
   if (screen === 'insane') return insaneMarkup();
@@ -1470,7 +1696,10 @@ function patchSameScene(stage, nextScreen) {
       && page.dataset.round === String(state.room.round)) {
       const livonym = state.room.livonym || {};
       const list = page.querySelector('#livonym-guessed');
+      const spectateHint = page.querySelector('#livonym-spectate-hint');
+      if (spectateHint) spectateHint.hidden = !livonymUi.guessedOrder;
       if (list) {
+        list.classList.toggle('is-spectatable', Boolean(livonymUi.guessedOrder));
         // 名次变化会换位：先量旧位置，改写快照后让每一行从原处滑到新处。
         const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const firstRects = new Map();
@@ -1479,7 +1708,7 @@ function patchSameScene(stage, nextScreen) {
             firstRects.set(item.dataset.uid, item.getBoundingClientRect());
           }
         }
-        patchMarkup(list, livonymGuessedRowsMarkup(livonym, state.uid));
+        patchMarkup(list, livonymGuessedRowsMarkup(livonym, state.uid, livonymUi?.spectatingUid, state.room?.players));
         hydrateAvatars(list);
         if (firstRects.size) {
           for (const item of list.querySelectorAll('.livonym-guessed-item[data-uid]')) {
@@ -1501,8 +1730,46 @@ function patchSameScene(stage, nextScreen) {
           }
         }
       }
-      // 刷新或重连后快照里可能已经有自己的猜中名次，补上同一套答对反馈。
-      if (livonymUi.guessedOrder) markGuessAccepted();
+      // 刷新或重连后快照里可能已经有自己的猜中名次，补上同一套答对反馈，并同步旁观视图。
+      if (livonymUi.guessedOrder) {
+        const guessForm = page.querySelector('#guess-form');
+        if (guessForm) {
+          const tpl = document.createElement('template');
+          tpl.innerHTML = livonymMarkup(state, livonymUi);
+          const freshForm = tpl.content.querySelector('#guess-form');
+          if (freshForm) {
+            patchMarkup(guessForm, freshForm.innerHTML);
+            guessForm.className = freshForm.className;
+            hydrateAvatars(guessForm);
+          }
+        }
+        if (!livonymUi.spectatingUid) markGuessAccepted();
+        else clearGuessCooldown();
+      }
+      const describeForm = page.querySelector('#describe-form');
+      if (describeForm) {
+        const guessedCount = livonym.guessed?.length || 0;
+        const guesserCount = livonym.guesserCount ?? (livonym.roundGuesserCount ?? 0);
+        const locked = Boolean(livonym.locked || (guesserCount > 0 && guessedCount >= guesserCount - 1));
+        if (locked) {
+          const tpl = document.createElement('template');
+          tpl.innerHTML = livonymMarkup(state, livonymUi);
+          const freshDescribe = tpl.content.querySelector('#describe-form');
+          if (freshDescribe) {
+            describeForm.className = freshDescribe.className;
+            const input = describeForm.querySelector('#describe-input');
+            if (input) {
+              input.disabled = true;
+              input.readOnly = true;
+              input.classList.add('is-locked');
+            }
+            describeForm.querySelector('.livonym-lock-banner')?.remove();
+            const hintText = describeForm.querySelector('#describe-hint .describe-hint-text');
+            const freshHintText = freshDescribe.querySelector('#describe-hint .describe-hint-text');
+            if (hintText && freshHintText) hintText.textContent = freshHintText.textContent;
+          }
+        }
+      }
       const count = page.querySelector('#livonym-guessed-count');
       if (count) count.textContent = String((livonym.guessed || []).length);
       const stream = page.querySelector('#livonym-stream-text');
@@ -1589,8 +1856,12 @@ function animateLivonymScoreRank(stage) {
 }
 
 function replaceScene(stage, nextScreen, generation) {
+  closeWrongPopovers();
   const html = buildScreenMarkup(nextScreen);
   if (generation !== renderGeneration) return;
+  closeInsaneHowModal({ focus: false, immediate: true });
+  stopPreviewStoryMotion();
+  stopPreviewStoryMotion = () => {};
   stopStoryMotion();
   stopJoinPlaceholder();
   stopInsaneCardMotion();
@@ -1662,6 +1933,8 @@ function render({ forceFull = false, initialSync = false } = {}) {
     if (generation !== renderGeneration) return;
     currentMotionTarget = nextMotionTarget;
     const stage = ensureShell(Boolean(state.room));
+    syncSpectateChrome();
+    if (previousScreen !== nextScreen) closeWrongPopovers();
     if (shouldTransition) document.documentElement.dataset.sceneSnapshot = 'new';
     syncConnectionUI();
     applyPendingUpdate();
@@ -1672,6 +1945,11 @@ function render({ forceFull = false, initialSync = false } = {}) {
     const patched = !forceFull && patchSameScene(stage, nextScreen);
     if (patched) refreshTimers();
     else replaceScene(stage, nextScreen, generation);
+    if (!currentInsaneScene && stage.querySelector?.('.match-detail-page[data-mode="livonym"]')) {
+      insaneBackground.setActive(true);
+      insaneBackground.setMode?.('livonym', { immediate: true });
+      insaneBackground.setGlitch?.(false);
+    }
     // 123 的排名位移：函数内部去重，结算页里的重画不会重播
     if (nextScreen === 'lvScore') animateLivonymScoreRank(stage);
     lastRenderedScreen = nextScreen;
@@ -1876,7 +2154,7 @@ const socket = new Socket({
     }
     const profile = state.profile;
     state = { ...next, profile, matchDetail: state.matchDetail, deviceCandidates: state.deviceCandidates, removed: state.removed };
-    if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; insaneOpen = false; state.profile = null; }
+    if (nextRoom) { profileOpen = false; privacyOpen = false; qaOpen = false; insaneOpen = false; state.profile = null; state.removed = null; awaitingRemoved = false; }
     timeOffset = Number.isFinite(next.serverNow) ? next.serverNow - Date.now() : 0;
     if (next.room) {
       socket.roomCode = next.room.code;
@@ -1979,8 +2257,20 @@ const socket = new Socket({
   },
   onLivonymGuessResult(message) {
     if (!message.ok) {
-      if (message.reason === 'cooldown') { startGuessCooldown(); return; }
+      if (message.reason === 'cooldown') {
+        startGuessCooldown(Number(message.cooldownMs) || 1500);
+        return;
+      }
+      if (message.reason === 'danmu') {
+        startGuessCooldown(Number(message.cooldownMs) || 1000);
+        return;
+      }
       if (message.reason === 'wrong') {
+        const attempted = message.text || livonymUi.guessText;
+        if (attempted && !livonymUi.guessedWords.includes(attempted)) {
+          livonymUi.guessedWords.push(attempted);
+          renderGuessedTags();
+        }
         livonymUi.guessText = '';
         livonymUi.guessWrong = true;
         const input = app.querySelector('#guess-input');
@@ -1989,16 +2279,21 @@ const socket = new Socket({
           input.classList.add('input-shake');
           setTimeout(() => input.classList.remove('input-shake'), 400);
         }
-        startGuessCooldown();
+        startGuessCooldown(1500);
       }
       return;
     }
     livonymUi.guessedOrder = Number(message.order) || 0;
-    livonymUi.guessPoints = Number(message.points) || 0;
+    const totalPlayers = state.room?.livonym?.roundGuesserCount ? (state.room.livonym.roundGuesserCount + 1) : (state.room?.players?.length || 3);
+    livonymUi.guessPoints = Number(message.points) || guessPoints(livonymUi.guessedOrder, totalPlayers);
     livonymUi.guessWrong = false;
     markGuessAccepted();
+    render();
   },
   onLivonymGuessed() {},
+  onLivonymDanmu(message) {
+    renderDanmuItem(message);
+  },
   onLivonymBlocked(message) {
     livonymUi.describeText = livonymUi.acceptedText;
     const input = app.querySelector('#describe-input');
@@ -2008,11 +2303,18 @@ const socket = new Socket({
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
       syncDescribeHeight(input);
-      if ([...livonymUi.describeText].length < DESCRIBE_LIMIT) livonymUi.describeOver = false;
+      livonymUi.describeOver = [...livonymUi.describeText].length > DESCRIBE_LIMIT;
       syncDescribeMeter(input);
+      const hint = app.querySelector('#describe-hint');
+      const hintText = app.querySelector('#describe-hint .describe-hint-text');
+      hint?.classList.add('is-blocked');
+      if (hintText) {
+        hintText.classList.add('is-blocked');
+        hintText.textContent = message.reason === 'tooLong' ? `描述超出 ${DESCRIBE_LIMIT} 字上限` : '描述中不能包含秘密词或其变体';
+      }
     }
     if (message.reason === 'tooLong') toast(`描述超出 ${DESCRIBE_LIMIT} 字上限`);
-    else toast('写出谜底会被拦下');
+    else toast('描述中不能包含秘密词或其变体');
   },
   onToast: toast
 });
@@ -2083,11 +2385,28 @@ app.addEventListener('submit', (event) => {
   } else if (event.target.id === 'guess-form' && state.room?.phase === 'lvPlay') {
     const input = app.querySelector('#guess-input');
     if (!input || input.disabled) return;
-    const guess = cleanWord(input.value);
-    if (!guess) { markInvalid(input); toast('输入 1–12 个汉字、字母或数字'); return; }
-    livonymUi.guessText = guess;
-    input.classList.remove('input-shake');
-    socket.send({ type: 'livonymGuess', text: guess });
+    const rawVal = input.value.trim();
+    if (!rawVal) return;
+    const targetLength = state.room?.livonym?.secretLength || [...(state.room?.livonym?.secret || '')].length;
+    const isPunctuationOrSymbol = /[^\p{Script=Han}\p{L}\p{N}]/u.test(rawVal);
+    const isDanmu = isPunctuationOrSymbol || (targetLength > 0 && [...rawVal].length !== targetLength);
+
+    if (!isDanmu) {
+      const guess = cleanWord(rawVal).trim();
+      if (!guess) { markInvalid(input); toast('输入 1–12 个汉字、字母或数字'); return; }
+      if (livonymUi.guessedWords.includes(guess) || livonymUi.guessedWords.includes(rawVal)) {
+        toast('这个词已经猜过了');
+        input.value = '';
+        return;
+      }
+      livonymUi.guessText = guess;
+      input.classList.remove('input-shake');
+      socket.send({ type: 'livonymGuess', text: guess });
+    } else {
+      socket.send({ type: 'livonymDanmu', text: rawVal });
+      input.value = '';
+      startGuessCooldown(1000);
+    }
   }
 });
 
@@ -2174,6 +2493,7 @@ app.addEventListener('keydown', (event) => {
     }
     return;
   }
+  if (event.key === 'Escape' && insaneHowMode) { event.preventDefault(); closeInsaneHowModal(); return; }
   if (event.key === 'Escape' && pathOpen) { event.preventDefault(); closePath(); return; }
   if (event.key !== 'Enter' && event.key !== ' ') return;
   const row = event.target.closest?.('[data-action="transfer-host"]');
@@ -2255,11 +2575,32 @@ function syncReviewPagination(pages) {
   return { slides, index };
 }
 
+function closeWrongPopovers(except = null) {
+  for (const popover of document.querySelectorAll('.livonym-wrong-popover:not([hidden])')) {
+    if (popover === except) continue;
+    popover.hidden = true;
+    popover.style.left = '';
+    popover.style.top = '';
+    const row = popover.closest('.livonym-score-row');
+    row?.querySelector('[data-action="toggle-wrong-popover"]')?.setAttribute('aria-expanded', 'false');
+  }
+}
+
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.livonym-wrong-popover, [data-action="toggle-wrong-popover"]')) {
+    closeWrongPopovers();
+  }
+});
+
 app.addEventListener('scroll', (event) => {
-  if (event.target.matches?.('.livonym-review-pages')) syncReviewPagination(event.target);
+  if (event.target.matches?.('.livonym-review-pages')) {
+    closeWrongPopovers();
+    syncReviewPagination(event.target);
+  }
 }, true);
 
 app.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeWrongPopovers();
   if (!event.target.matches('.livonym-review-pages')) return;
   const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
   if (!step) return;
@@ -2268,6 +2609,52 @@ app.addEventListener('keydown', (event) => {
 });
 
 app.addEventListener('click', (event) => {
+  const exitSpectate = event.target.closest('[data-action="exit-spectate"]');
+  if (exitSpectate) {
+    livonymUi.spectatingUid = null;
+    render();
+    return;
+  }
+  const guessedRow = event.target.closest('.livonym-guessed-item');
+  if (guessedRow && state.room?.phase === 'lvPlay' && livonymUi.guessedOrder > 0) {
+    const targetUid = guessedRow.dataset.uid;
+    if (targetUid) {
+      livonymUi.spectatingUid = (targetUid === state.uid || targetUid === livonymUi.spectatingUid) ? null : targetUid;
+      render();
+      return;
+    }
+  }
+  const wrongTrigger = event.target.closest('[data-action="toggle-wrong-popover"]');
+  if (wrongTrigger) {
+    const row = wrongTrigger.closest('.livonym-score-row');
+    const popover = row?.querySelector('.livonym-wrong-popover');
+    if (popover) {
+      const opening = popover.hidden;
+      closeWrongPopovers(opening ? popover : null);
+      if (opening) {
+        popover.hidden = false;
+        popover.style.left = '0px';
+        popover.style.top = '0px';
+        const pw = popover.offsetWidth || 0;
+        const ph = popover.offsetHeight || 0;
+        const pad = 12;
+        const hasPointer = event.clientX > 0 || event.clientY > 0;
+        const rect = hasPointer ? null : wrongTrigger.getBoundingClientRect();
+        const anchorX = hasPointer ? event.clientX : rect.left + Math.min(rect.width * 0.5, 48);
+        const anchorY = hasPointer ? event.clientY : rect.bottom;
+        const x = Math.max(pad, Math.min(anchorX - 16, window.innerWidth - pw - pad));
+        let y = anchorY + 10;
+        if (y + ph > window.innerHeight - pad && anchorY - 10 - ph >= pad) {
+          y = anchorY - 10 - ph;
+        }
+        y = Math.max(pad, Math.min(y, window.innerHeight - ph - pad));
+        popover.style.left = `${Math.round(x)}px`;
+        popover.style.top = `${Math.round(y)}px`;
+      }
+      wrongTrigger.setAttribute('aria-expanded', String(opening));
+    }
+    return;
+  }
   const reviewStep = event.target.closest('[data-review-step]');
   if (!reviewStep) return;
   const pages = reviewStep.closest('.livonym-review-carousel').querySelector('.livonym-review-pages');
@@ -2424,6 +2811,7 @@ app.addEventListener('click', async (event) => {
     const card = insaneRow.closest('.insane-card');
     const mode = insaneCardMode(card);
     if (isInsaneSplitLayout()) event.preventDefault();
+    else if (!card?.querySelector('.insane-description')) event.preventDefault();
     if (mode) {
       insaneSelectedMode = mode;
       syncInsanePreviewDOM();
@@ -2432,6 +2820,13 @@ app.addEventListener('click', async (event) => {
   }
   const button = event.target.closest('button');
   if (!button || button.disabled) return;
+  if (button.dataset.action === 'insane-how') {
+    event.preventDefault();
+    event.stopPropagation();
+    openInsaneHowModal(button.dataset.mode, button);
+    return;
+  }
+  if (button.dataset.action === 'close-insane-how') { closeInsaneHowModal(); return; }
   if (button.dataset.action === 'cancel-join') { closeJoin(); return; }
   if (button.dataset.action === 'confirm-join') {
     const code = pendingJoin?.code;
