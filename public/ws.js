@@ -1,8 +1,8 @@
 export class Socket {
   constructor({ device = null, onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
-    onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked }) {
+    onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked, onLivonymDanmu }) {
     this.handlers = { onHello, onState, onProfile, onMatchDetail, onIdentity, onError, onToast, onConnection,
-      onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked };
+      onDeviceCandidates, onRemovedMatches, onLivonymStream, onLivonymGuessResult, onLivonymGuessed, onLivonymBlocked, onLivonymDanmu };
     this.device = device;
     this.mock = Boolean(globalThis.__SYNCONYM_MOCK__);
     const slot = this.mock ? (new URLSearchParams(location.search).get('slot') || '') : '';
@@ -90,6 +90,8 @@ export class Socket {
         this.handlers.onLivonymGuessed?.(message);
       } else if (message.type === 'livonymBlocked') {
         this.handlers.onLivonymBlocked?.(message);
+      } else if (message.type === 'livonymDanmu') {
+        this.handlers.onLivonymDanmu?.(message);
       } else if (message.type === 'toast') {
         this.handlers.onToast?.(message.message);
       }

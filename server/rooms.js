@@ -8,8 +8,8 @@ import { collectDeviceKeys } from './identity.js';
 import { UID_CHARS, UID_LENGTH, isValidUid, validateCode, validateName, validateSettings, validateWord, normalizeWord, modeCapacity } from './rules.js';
 import {
   LIVONYM_LIMITS, LIVONYM_PHASES, LIVONYM_INTRO_SECONDS, LIVONYM_SCORE_SECONDS,
-  LIVONYM_STREAM_INTERVAL_MS, LIVONYM_GUESS_COOLDOWN_MS,
-  containsSecret, describerPoints, guessPoints, livonymDescriberUid, pickSecret
+  LIVONYM_STREAM_INTERVAL_MS, LIVONYM_GUESS_COOLDOWN_MS, LIVONYM_COOLDOWN_DAYS,
+  containsSecret, describerPoints, guessPoints, livonymDescriberUid, drawSecret
 } from './livonym.js';
 
 const ROOM_IDLE_MS = 5 * 60 * 1000;
@@ -157,6 +157,17 @@ export class RoomManager {
     return { code: recent.room.code, expiresAt: recent.expiresAt };
   }
 
+  effectiveLivonymGuesserCount(room) {
+    const lv = room?.livonym;
+    if (!lv) return 0;
+    const describerUid = livonymDescriberUid(lv.order, lv.index);
+    const effective = new Set(lv.guessed.map((item) => item.uid));
+    for (const player of room.players) {
+      if (player.uid !== describerUid && player.connected) effective.add(player.uid);
+    }
+    return effective.size;
+  }
+
   // 即时竞猜的可见性只在服务端裁剪：秘密词只发给本轮出题人，本轮结束后全员可见。
   livonymView(room, uid) {
     const lv = room.livonym;
@@ -165,19 +176,31 @@ export class RoomManager {
     const describer = room.players.find((player) => player.uid === describerUid);
     const revealed = ['lvScore', 'result', 'rematch', 'interrupted'].includes(room.phase);
     const guessers = room.players.filter((player) => player.uid !== describerUid && player.connected);
+    const guesserCount = ['lvIntro', 'lvPlay'].includes(room.phase)
+      ? this.effectiveLivonymGuesserCount(room)
+      : (lv.roundGuesserCount ?? this.effectiveLivonymGuesserCount(room));
+    const locked = Boolean(guesserCount > 0 && lv.guessed.length >= Math.max(1, guesserCount - 1));
+    const rematchSeconds = (room.mode === 'livonym' && (room.players.length >= 5 || room.matchPlayers?.length >= 5))
+      ? 60
+      : REMATCH_SECONDS;
     return {
       order: lv.order,
       index: Math.max(0, lv.index), totalRounds: lv.totalRounds,
       describerUid, describerName: describer?.name ?? null,
       streamText: lv.stream.text, streamRev: lv.stream.rev,
       secret: revealed || uid === describerUid ? lv.secret : null,
+      secretLength: lv.secret ? [...lv.secret].length : 0,
+      roundGuesserCount: guesserCount,
+      locked,
+      rematchSeconds,
       // 每条都带上本轮得分，列表直接显示各自加了几分，不必在客户端重算规则。
       guessed: lv.guessed.map((item) => ({ ...item, points: lv.roundPoints[item.uid] ?? 0 })),
       // 猜中列表为每位竞猜者留一行空态，未猜中的人排在已猜中的人之后。
       guessers: guessers.map((player) => ({ uid: player.uid, name: player.name })),
-      guesserCount: guessers.length,
+      guesserCount,
       scores: lv.scores,
       roundPoints: revealed ? lv.roundPoints : null,
+      wrongGuesses: lv.wrongGuesses ?? {},
     };
   }
 
@@ -644,8 +667,9 @@ export class RoomManager {
   }
 
   checkProgress(room) {
+    const minPlayers = room.mode === 'livonym' ? LIVONYM_LIMITS.minPlayers : 2;
     if (['countdown', 'writing', 'voting', 'prepare', 'breakVote', ...LIVONYM_PHASES].includes(room.phase)
-      && room.players.length === 1) {
+      && room.players.length < minPlayers) {
       room.history = [];
       room.currentRecord = null;
       room.outcome = 'interrupted';
@@ -653,13 +677,16 @@ export class RoomManager {
       return;
     }
     if (room.mode === 'livonym') {
-      // 出题人掉线即中止本轮（不暂停等待）；全员猜中则提前结算。
+      // 出题人掉线即中止本轮（不暂停等待）；无在线竞猜者或所有有效竞猜者均已猜中则提前结算。
       if (['lvIntro', 'lvPlay'].includes(room.phase)) {
         const lv = room.livonym;
         const describer = room.players.find((player) => player.uid === livonymDescriberUid(lv.order, lv.index));
         if (!describer || !describer.connected) return this.finishLivonymRound(room, true);
-        const guessers = this.livonymGuessers(room);
-        if (room.phase === 'lvPlay' && guessers.length && lv.guessed.length >= guessers.length) {
+        const onlineGuessers = this.livonymGuessers(room);
+        if (onlineGuessers.length === 0 && lv.guessed.length === 0) return this.finishLivonymRound(room, true);
+        const guesserCount = this.effectiveLivonymGuesserCount(room);
+        lv.roundGuesserCount = guesserCount;
+        if (room.phase === 'lvPlay' && guesserCount > 0 && lv.guessed.length >= guesserCount) {
           this.finishLivonymRound(room);
         }
       }
@@ -694,8 +721,12 @@ export class RoomManager {
     room.rematchEligibleUids = room.players.map((player) => player.uid);
     room.rematchRosterUids = [...room.rematchEligibleUids];
     room.rematchVotes = {};
-    this.setPhase(room, 'result', REMATCH_SECONDS, room.endedAt);
+    const rematchSeconds = (room.mode === 'livonym' && (room.players.length >= 5 || room.matchPlayers?.length >= 5))
+      ? 60
+      : REMATCH_SECONDS;
+    this.setPhase(room, 'result', rematchSeconds, room.endedAt);
     room.rematchDeadline = room.phaseDeadline;
+    room.rematchSeconds = rematchSeconds;
   }
 
   destroyRoom(room, message) {
@@ -777,9 +808,13 @@ export class RoomManager {
   startLivonym(room) {
     const order = room.players.map((player) => player.uid);
     const rounds = Math.max(1, Number(room.roundsPerPlayer) || 1);
+    if (!(room.livonymUsed instanceof Set)) room.livonymUsed = new Set();
+    const since = Date.now() - LIVONYM_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+    const recent = this.db.recentLivonymSecrets?.(order, { since });
+    room.livonymCooldown = recent instanceof Map ? recent : new Map(Object.entries(recent || {}));
     room.livonym = {
       order, index: -1, totalRounds: order.length * rounds,
-      secret: null, stream: { text: '', rev: 0 }, guessed: [],
+      secret: null, stream: { text: '', rev: 0 }, guessed: [], wrongGuesses: {},
       roundPoints: {}, roundStartAt: 0, used: [],
       scores: Object.fromEntries(order.map((uid) => [uid, 0]))
     };
@@ -791,15 +826,29 @@ export class RoomManager {
     for (;;) {
       lv.index += 1;
       if (lv.index >= lv.totalRounds) { this.finishLivonym(room); return; }
-      // 已离开房间的玩家跳过其棒次，不补位
-      if (room.players.some((player) => player.uid === livonymDescriberUid(lv.order, lv.index))) break;
+      // 已离开房间或处于离线断线保席期的玩家跳过其棒次，不补位也不等待
+      const describerUid = livonymDescriberUid(lv.order, lv.index);
+      const describer = room.players.find((player) => player.uid === describerUid);
+      if (describer && describer.connected) break;
     }
-    lv.secret = pickSecret({ used: lv.used, random: this.random });
-    lv.used.push(lv.secret);
+    const { secret, category } = drawSecret({
+      roomUsed: room.livonymUsed,
+      cooldown: room.livonymCooldown,
+      lastSecret: room.livonymLastSecret ?? null,
+      lastCategory: room.livonymLastCategory ?? null,
+      random: this.random
+    });
+    lv.secret = secret;
+    lv.used.push(secret);
+    room.livonymLastSecret = secret;
+    room.livonymLastCategory = category;
     lv.stream = { text: '', rev: 0 };
     lv.guessed = [];
+    lv.wrongGuesses = {};
     lv.roundPoints = {};
     lv.roundStartAt = Date.now();
+    lv.roundGuesserCount = this.effectiveLivonymGuesserCount(room);
+    room.livonymCooldown?.set(secret, lv.roundStartAt);
     room.round = lv.index + 1;
     room.currentRecord = null;
     for (const player of room.players) {
@@ -813,7 +862,9 @@ export class RoomManager {
     const lv = room.livonym;
     if (!lv || room.phase !== 'lvIntro') return;
     lv.roundStartAt = Date.now();
+    lv.roundGuesserCount = this.effectiveLivonymGuesserCount(room);
     this.setPhase(room, 'lvPlay', room.describeSeconds || 45);
+    this.checkProgress(room);
   }
 
   livonymGuessers(room) {
@@ -827,18 +878,24 @@ export class RoomManager {
     const lv = room.livonym;
     if (!lv || !['lvIntro', 'lvPlay'].includes(room.phase)) return;
     const describerUid = livonymDescriberUid(lv.order, lv.index);
-    const guessers = this.livonymGuessers(room);
-    const guessedCount = lv.guessed.filter((item) => guessers.some((player) => player.uid === item.uid)).length;
+    const guesserCount = this.effectiveLivonymGuesserCount(room);
+    lv.roundGuesserCount = guesserCount;
+    const guessedCount = lv.guessed.length;
     const points = { ...lv.roundPoints };
     points[describerUid] = (points[describerUid] || 0)
-      + describerPoints({ guessedCount, guesserCount: guessers.length });
+      + describerPoints({ guessedCount, guesserCount });
     for (const [uid, value] of Object.entries(points)) lv.scores[uid] = (lv.scores[uid] || 0) + value;
     lv.roundPoints = points;
+    const wrongGuesses = Object.fromEntries(
+      Object.entries(lv.wrongGuesses || {}).map(([uid, list]) => [uid, [...list]])
+    );
     const record = {
       n: room.round, outcome: 'played', words: {}, marks: {}, votes: null,
       modeDetails: {
-        secret: lv.secret, describerUid, guesserCount: guessers.length, aborted,
+        secret: lv.secret, describerUid, description: lv.stream?.text ?? '',
+        guesserCount, aborted,
         guesses: Object.fromEntries(lv.guessed.map((item) => [item.uid, { order: item.order, atMs: item.atMs }])),
+        wrongGuesses,
         points
       }
     };
@@ -883,6 +940,11 @@ export class RoomManager {
     if (!lv) throw new Error('当前不在即时竞猜');
     const describerUid = livonymDescriberUid(lv.order, lv.index);
     if (room.phase !== 'lvPlay' || player.uid !== describerUid) throw new Error('这一轮不是你出题');
+    const guesserCount = this.effectiveLivonymGuesserCount(room);
+    lv.roundGuesserCount = guesserCount;
+    if (guesserCount > 0 && lv.guessed.length >= Math.max(1, guesserCount - 1)) {
+      return this.sendTo(connection, { type: 'livonymBlocked', reason: 'locked', text: lv.stream.text });
+    }
     if (typeof text !== 'string') return this.sendTo(connection, { type: 'livonymBlocked', reason: 'invalid', text: '' });
     if ([...text].length > LIVONYM_LIMITS.describeLimit) {
       return this.sendTo(connection, { type: 'livonymBlocked', reason: 'tooLong', text });
@@ -895,6 +957,53 @@ export class RoomManager {
     this.broadcastLivonymStream(room, describerUid);
   }
 
+  isLivonymDanmu(room, text) {
+    if (room?.mode !== 'livonym') return false;
+    if (typeof text !== 'string' || !text.trim()) return false;
+    const lv = room?.livonym;
+    if (!lv?.secret) return false;
+    let normalized;
+    try {
+      normalized = validateWord(text, [], false);
+    } catch {
+      return true; // 包含标点、特殊符号、空白或超长
+    }
+    const targetLength = [...(lv.secret || '')].length;
+    if ([...normalized].length !== targetLength) {
+      return true; // 字数与秘密词不符
+    }
+    return false;
+  }
+
+  broadcastLivonymDanmu(room, payload) {
+    const message = JSON.stringify({
+      type: 'livonymDanmu',
+      ...payload
+    });
+    for (const connection of this.clients.values()) {
+      if (connection.roomCode === room.code && connection.ws?.readyState === 1) {
+        connection.ws.send(message);
+      }
+    }
+  }
+
+  applyLivonymDanmu(room, connection, player, rawText) {
+    if (typeof rawText !== 'string') return;
+    const text = rawText.trim().slice(0, 100);
+    if (!text) return;
+    const now = Date.now();
+    if (now - (connection.lastDanmu ?? 0) < 1000) {
+      return this.sendTo(connection, { type: 'livonymDanmuResult', ok: false, reason: 'cooldown', cooldownMs: 1000 });
+    }
+    connection.lastDanmu = now;
+    this.broadcastLivonymDanmu(room, {
+      uid: player.uid,
+      name: player.name,
+      text,
+      timestamp: now
+    });
+  }
+
   applyLivonymGuess(room, connection, player, text) {
     const lv = room.livonym;
     if (!lv) throw new Error('当前不在即时竞猜');
@@ -903,14 +1012,32 @@ export class RoomManager {
     });
     if (room.phase !== 'lvPlay') return reply({ ok: false, reason: 'closed' });
     if (player.uid === livonymDescriberUid(lv.order, lv.index)) throw new Error('这一轮由你出题');
+    if (this.isLivonymDanmu(room, text)) {
+      const danmuText = typeof text === 'string' ? text.trim().slice(0, 100) : '';
+      if (danmuText) {
+        this.broadcastLivonymDanmu(room, {
+          uid: player.uid,
+          name: player.name,
+          text: danmuText,
+          timestamp: Date.now()
+        });
+      }
+      return reply({ ok: false, reason: 'danmu', cooldownMs: 1000 });
+    }
     if (lv.guessed.some((item) => item.uid === player.uid)) return reply({ ok: false, reason: 'closed' });
     let normalized;
     try { normalized = validateWord(text, [], false); } catch { return reply({ ok: false, reason: 'invalid' }); }
-    if (normalized !== normalizeWord(lv.secret)) return reply({ ok: false, reason: 'wrong' });
+    if (normalized !== normalizeWord(lv.secret)) {
+      (lv.wrongGuesses[player.uid] ||= []).push(normalized);
+      return reply({ ok: false, reason: 'wrong' });
+    }
     const order = lv.guessed.length + 1;
     const atMs = Math.max(0, Date.now() - lv.roundStartAt);
     lv.guessed.push({ uid: player.uid, name: player.name, order, atMs });
-    const points = guessPoints(order);
+    const guesserCount = this.effectiveLivonymGuesserCount(room);
+    lv.roundGuesserCount = guesserCount;
+    const totalPlayers = guesserCount + 1;
+    const points = guessPoints(order, totalPlayers);
     lv.roundPoints[player.uid] = points;
     reply({ ok: true, order, points });
     for (const client of this.clients.values()) {
@@ -1012,20 +1139,36 @@ export class RoomManager {
     const typing = type === 'typing' || type === 'draft';
     const streaming = type === 'livonymStream';
     const guessing = type === 'livonymGuess';
+    const danmu = type === 'livonymDanmu';
     const now = Date.now();
     if (streaming) {
       // 流式抖动是常态：超限静默丢弃，不回错误提示
       if (now - connection.lastStream < LIVONYM_STREAM_INTERVAL_MS) return;
       connection.lastStream = now;
+    } else if (danmu) {
+      // 弹幕独立限流 1000ms，在 applyLivonymDanmu 处理
     } else if (guessing) {
-      if (now - connection.lastGuess < LIVONYM_GUESS_COOLDOWN_MS) {
-        this.sendTo(connection, {
-          type: 'livonymGuessResult', ok: false, reason: 'cooldown',
-          text: typeof message.text === 'string' ? message.text : ''
-        });
-        return;
+      const room = connection.roomCode ? this.rooms.get(connection.roomCode) : null;
+      const isDanmu = room?.mode === 'livonym' && room?.livonym && this.isLivonymDanmu(room, message.text);
+      if (isDanmu) {
+        if (now - (connection.lastDanmu ?? 0) < 1000) {
+          this.sendTo(connection, {
+            type: 'livonymGuessResult', ok: false, reason: 'danmu', cooldownMs: 1000,
+            text: typeof message.text === 'string' ? message.text : ''
+          });
+          return;
+        }
+        connection.lastDanmu = now;
+      } else {
+        if (now - connection.lastGuess < LIVONYM_GUESS_COOLDOWN_MS) {
+          this.sendTo(connection, {
+            type: 'livonymGuessResult', ok: false, reason: 'cooldown',
+            text: typeof message.text === 'string' ? message.text : ''
+          });
+          return;
+        }
+        connection.lastGuess = now;
       }
-      connection.lastGuess = now;
     } else {
       if (typing ? now - connection.lastTyping < 300 : now - connection.lastWrite < 500) {
         throw new Error('操作太频繁，请稍后再试');
@@ -1230,6 +1373,12 @@ export class RoomManager {
       case 'livonymStream': {
         this.applyLivonymStream(current, connection, player, message.text);
         this.touch(current);
+        return;
+      }
+      case 'livonymDanmu': {
+        if (current.mode === 'livonym') {
+          this.applyLivonymDanmu(current, connection, player, message.text);
+        }
         return;
       }
       case 'livonymGuess': {
@@ -1465,11 +1614,31 @@ export function createMemoryDb() {
           erase(round.breakVote);
           erase(round.breakVote?.choices);
           erase(round.modeDetails?.guesses);
+          erase(round.modeDetails?.wrongGuesses);
+          if (round.modeDetails?.describerUid === uid && 'description' in round.modeDetails) {
+            round.modeDetails.description = null;
+          }
         }
       }
       return true;
     },
     saveMatch(match) { if (!matches.has(match.id)) matches.set(match.id, structuredClone(match)); },
+    recentLivonymSecrets(uids, { since = 0 } = {}) {
+      const uidSet = new Set((uids || []).filter((uid) => typeof uid === 'string' && uid));
+      const seen = new Map();
+      if (!uidSet.size) return seen;
+      for (const match of matches.values()) {
+        if (match.mode !== 'livonym' || match.startedAt < since) continue;
+        if (!match.players?.some((player) => uidSet.has(player.uid))) continue;
+        for (const round of match.rounds || []) {
+          const secret = round.modeDetails?.secret;
+          if (typeof secret !== 'string' || !secret) continue;
+          const prev = seen.get(secret);
+          if (prev === undefined || match.startedAt > prev) seen.set(secret, match.startedAt);
+        }
+      }
+      return seen;
+    },
     getMatch(id) {
       const match = matches.get(id);
       return match ? { ...structuredClone(match), players: membersOf(match) } : undefined;

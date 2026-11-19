@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   livonymMarkup, livonymResultMarkup, livonymRoundReason, livonymRoundMax, stageProgressMarkup, matchDetailMarkup, lobbyMarkup,
-  profileMatchMarkup, canStartRoom, roomPlayerLimits, resultTitle
+  profileMatchMarkup, canStartRoom, roomPlayerLimits, resultTitle, qaMarkup, shellMarkup, startCountdownMarkup
 } from '../../public/render.js';
+import { insaneMarkup, insanePreviewMarkup } from '../../public/insane.js';
 import { cleanDescribe, describeContainsSecret, DESCRIBE_LIMIT } from '../../public/livonym.js';
 
 const players = [
@@ -148,10 +149,10 @@ test('加分字样的强弱由占比驱动，前三名共金银铜', () => {
   assert.match(styles, /\.livonym-gain \{[\s\S]*?--gain: 0;[\s\S]*?font-size: calc\(14px \+ 6px \* var\(--gain\)\);[\s\S]*?color: color-mix\(in srgb, var\(--gain-ink\) var\(--gain-pct\), var\(--muted\)\);/);
   assert.doesNotMatch(styles, /\.livonym-gain\[data-points="[123]"\]/);
   assert.match(styles, /\.livonym-gain\[data-points="0"\] \{ font-size: 14px; font-weight: 500; color: var\(--muted\);/);
-  // 金银铜变量与前三名规则，122 与 123 共用
+  // 金银铜变量与前三名规则，122、123 与终局总分榜共用
   for (const medal of ['gold', 'silver', 'bronze']) assert.match(styles, new RegExp(`--medal-${medal}: #`));
-  assert.match(styles, /:is\(\.livonym-guessed-item, \.livonym-score-row\)\.is-first \{ --medal: var\(--medal-gold\); \}/);
-  assert.match(styles, /:is\(\.livonym-guessed-item, \.livonym-score-row\)\.is-third \{ --medal: var\(--medal-bronze\); \}/);
+  assert.match(styles, /:is\(\.livonym-guessed-item, \.livonym-score-row, \.livonym-result-row\)\.is-first \{ --medal: var\(--medal-gold\); \}/);
+  assert.match(styles, /:is\(\.livonym-guessed-item, \.livonym-score-row, \.livonym-result-row\)\.is-third \{ --medal: var\(--medal-bronze\); \}/);
   // 空态短横上抬 1px：24px 高的圈底部让出 2px
   assert.match(styles, /\.livonym-guessed-item\.is-pending \.livonym-guessed-rank \{[\s\S]*?padding-bottom: 2px;/);
 });
@@ -272,13 +273,20 @@ test('结算给出总分、称号与逐棒回顾', () => {
   state.room.history = [{ n: 1, outcome: 'played', modeDetails }];
   const html = livonymResultMarkup(state);
   assert.match(html, /总分/);
-  assert.match(html, /竞猜王 · <span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">乙/);
-  assert.match(html, /最佳描述 · <span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">甲/);
-  assert.match(html, /神猜 · <span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">乙/);
+  // 总分前三名保留可见名次数字与极简奖牌圆形类，不用 icon 替代数字
+  assert.match(html, /class="livonym-result-row is-first"><span class="livonym-result-rank is-medal">1<\/span>/);
+  assert.doesNotMatch(html, /livonym-result-rank[^>]*>[\s\S]*?icon-medal/);
+  assert.match(html, /class="livonym-badge-row is-award-guess"><span class="livonym-badge-title">[\s\S]*?#icon-crown[\s\S]*?<span>竞猜王<\/span><\/span><span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">乙/);
+  assert.match(html, /class="livonym-badge-row is-award-describe"><span class="livonym-badge-title">[\s\S]*?#icon-message-square-text[\s\S]*?<span>最佳描述<\/span><\/span><span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">甲/);
+  assert.match(html, /class="livonym-badge-row is-award-fastest"><span class="livonym-badge-title">[\s\S]*?#icon-zap[\s\S]*?<span>神猜<\/span><\/span><span class="player-identity livonym-badge-name">[\s\S]*?player-identity-name">乙/);
+  const resultStyles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(resultStyles, /\.livonym-result-row:is\(\.is-first, \.is-second, \.is-third\) \.livonym-result-rank \{[\s\S]*?radial-gradient/);
+  assert.match(resultStyles, /\.livonym-badge-row\.is-award-guess[\s\S]*?\.livonym-badge-row\.is-award-describe[\s\S]*?\.livonym-badge-row\.is-award-fastest/);
   assert.match(html, /逐棒回顾/);
-  // 总分榜与回顾页的每一行都先给头像；秘密词改由共用卡片显示
+  // 总分榜与回顾页的每一行都先给头像；回顾秘密词直接展示词本身，不显示「本轮秘密词」和「x 个字」
   assert.match(html, /livonym-result-row[\s\S]*?player-identity-avatar/);
-  assert.match(html, /本轮秘密词[\s\S]*?class="livonym-secret">高压锅/);
+  assert.match(html, /livonym-review-secret[\s\S]*?class="livonym-secret">高压锅/);
+  assert.doesNotMatch(html, /本轮秘密词|个字/);
   assert.match(html, /本轮满分 3 分（在线竞猜者 2 人）/);
   assert.doesNotMatch(html, /本轮结算|1 人猜中/);
   // 结算页沿用重赛区；下一步单独一张卡，总分与回顾同在主列，总分在前
@@ -306,8 +314,8 @@ test('逐棒回顾一棒一页，翻页器与主页介绍同一套，页内总�
   assert.match(pages[1], /运河/);
   // 页里只有卡片的内容：不套外面的框，也不带「图标 + 本轮结算 + 没人猜中」那行
   assert.doesNotMatch(html, /class="surface-block livonym-score-block"/);
-  for (const page of pages) assert.doesNotMatch(page, /readonly-tag|livonym-score-block|本轮结算|人猜中/);
-  assert.match(pages[0], /本轮秘密词[\s\S]*?class="livonym-secret">高压锅/);
+  for (const page of pages) assert.doesNotMatch(page, /readonly-tag|livonym-score-block|本轮结算|人猜中|本轮秘密词|个字/);
+  assert.match(pages[0], /livonym-review-secret[\s\S]*?class="livonym-secret">高压锅/);
   // 第 1 棒结束时乙 3 分、甲 1 分；第 2 棒再加 3 与 2
   assert.match(pages[0], /<strong>3<\/strong><span class="livonym-gain" data-points="3"/);
   assert.match(pages[1], /<strong>6<\/strong><span class="livonym-gain" data-points="3"/);
@@ -595,4 +603,291 @@ test('全员 0 分不点名祝贺，也不再是「这一局结束了」', () =>
   const title = resultTitle(state.room);
   assert.doesNotMatch(title, /甲|乙|丙/);
   assert.notEqual(title, '这一局结束了');
+});
+
+test('逐棒回顾展示出题描述、猜中用时与可展开猜错词浮窗，缺失或空态用 ---- 占位', () => {
+  const detail = {
+    match: {
+      id: 'm-review', roomCode: '12345', mode: 'livonym', outcome: 'played',
+      totalRounds: 3, convergedRound: 3, startedAt: 1700000000000, endedAt: 1700000600000,
+      maxRounds: 12, players,
+      rounds: [
+        {
+          n: 1, words: {}, marks: {}, outcome: 'played',
+          modeDetails: {
+            secret: '高压锅', describerUid: 'U1', description: '厨房里会嘶嘶响的锅',
+            guesserCount: 2, aborted: false,
+            guesses: { U2: { order: 1, atMs: 4200 } },
+            wrongGuesses: { U2: ['电饭煲', '高压'] },
+            points: { U2: 3, U1: 1 }
+          }
+        },
+        {
+          n: 2, words: {}, marks: {}, outcome: 'played',
+          modeDetails: {
+            secret: '运河', describerUid: 'U2', description: '',
+            guesserCount: 2, aborted: false,
+            guesses: {},
+            wrongGuesses: {},
+            points: {}
+          }
+        },
+        {
+          // 模拟未收集过 description 与 wrongGuesses 的旧对局
+          n: 3, words: {}, marks: {}, outcome: 'played',
+          modeDetails: {
+            secret: '灯塔', describerUid: 'U3',
+            guesserCount: 2, aborted: false,
+            guesses: { U1: { order: 1, atMs: 1800 } },
+            points: { U1: 3, U3: 1 }
+          }
+        }
+      ]
+    }
+  };
+
+  const html = matchDetailMarkup(detail, {}, 'U2');
+  const pages = html.split('class="livonym-review-page"').slice(1);
+  assert.equal(pages.length, 3);
+
+  // 不再出现「未留下」「未记录」「无错词」「错词未记录」
+  assert.doesNotMatch(html, /未留下|未记录|无错词/);
+
+  // 第 1 棒：描述内容、猜中时间（在分数左侧，格式与对局流程内一致）直接展示；仅对有猜错词的 U2 开放点击并换色提示，U3 无错词不可点击
+  assert.match(pages[0], /描述内容[\s\S]*?厨房里会嘶嘶响的锅/);
+  assert.match(pages[0], /class="livonym-score-time">4\.2s<\/span>\s*<span class="livonym-score-total">/);
+  assert.match(pages[0], /点变色名字看错词/);
+  assert.match(pages[0], /data-action="toggle-wrong-popover" aria-expanded="false" aria-controls="lv-wrong-1-U2"[^>]*><span class="player-identity livonym-score-name has-wrong"/);
+  assert.match(pages[0], /id="lv-wrong-1-U2" class="livonym-wrong-popover"[^>]* hidden>[\s\S]*?<li>电饭煲<\/li><li>高压<\/li>/);
+  assert.doesNotMatch(pages[0], /lv-wrong-1-U3/);
+
+  // 第 2 棒：空描述用 ---- 占位，无人有错词时不出现错词提示
+  assert.match(pages[1], /livonym-review-describe-text is-empty">----<\/p>/);
+  assert.doesNotMatch(pages[1], /点变色名字看错词|data-action="toggle-wrong-popover"|has-wrong/);
+
+  // 第 3 棒：旧对局未收集字段同样用 ---- 占位，无错词不可点
+  assert.match(pages[2], /livonym-review-describe-text is-empty">----<\/p>/);
+  assert.match(pages[2], /class="livonym-score-time">1\.8s<\/span>\s*<span class="livonym-score-total">/);
+  assert.doesNotMatch(pages[2], /lv-wrong-3-|data-action="toggle-wrong-popover"|has-wrong/);
+});
+
+
+test('出题人在 N-1 或 N 人猜中后输入框锁定并仅在提示行显示说明', () => {
+  const state = roomState('lvPlay');
+  state.room.livonym.locked = true;
+  const html = livonymMarkup(state);
+  assert.match(html, /<textarea id="describe-input"[^>]*disabled[^>]*readonly/);
+  assert.doesNotMatch(html, /banner-warning|livonym-lock-banner/);
+  assert.match(html, /只剩一个没猜中了，等等 TA/);
+
+  state.room.livonym.guessed = [
+    { uid: 'U2', name: '乙', order: 1, atMs: 1200, points: 3 },
+    { uid: 'U3', name: '丙', order: 2, atMs: 2400, points: 2 }
+  ];
+  const fullHtml = livonymMarkup(state);
+  assert.match(fullHtml, /<textarea id="describe-input"[^>]*disabled[^>]*readonly/);
+  assert.doesNotMatch(fullHtml, /banner-warning|livonym-lock-banner/);
+  assert.match(fullHtml, /全员已猜中，描述已锁定/);
+});
+
+test('出题人在本地拦截谜底时提示行展示警告说明而非静默停止', () => {
+  const state = roomState('lvPlay');
+  const html = livonymMarkup(state, { describeBlocked: true });
+  assert.match(html, /class="game-hint describe-hint is-blocked"/);
+  assert.match(html, /描述中不能包含秘密词或其变体/);
+});
+
+test('猜中者在 lvPlay 阶段可点击其他玩家切换至观战视角，展示被观战玩家状态与错词', () => {
+  const state = roomState('lvPlay');
+  state.uid = 'U2';
+  state.room.livonym.guessed = [{ uid: 'U2', order: 1, atMs: 3000, points: 3 }];
+  state.room.livonym.wrongGuesses = { U3: ['炒锅', '高压电'] };
+  
+  // 未猜中时观战提示隐藏；猜中后人数列表卡片右上角显示观战提示
+  const beforeGuessHtml = livonymMarkup(state, {});
+  assert.match(beforeGuessHtml, /id="livonym-spectate-hint"[^>]* hidden>点其他玩家可观战<\/span>/);
+
+  // 猜中但未切换观战视角
+  const normalHtml = livonymMarkup(state, { guessedOrder: 1, guessPoints: 3 });
+  assert.match(normalHtml, /class="button primary is-correct"[^>]*disabled/);
+  assert.match(normalHtml, /可点击左侧玩家列表观战/);
+  assert.match(normalHtml, /id="livonym-spectate-hint" class="readonly-tag livonym-card-hint">点其他玩家可观战<\/span>/);
+  assert.match(normalHtml, /class="livonym-guessed-list is-spectatable"/);
+
+  // 切换到观战 U3：不再在答题卡内渲染蓝色横幅或修改顺位提示，改由壳层第二层滑出框与氛围光承担
+  const spectatingHtml = livonymMarkup(state, { guessedOrder: 1, guessPoints: 3, spectatingUid: 'U3' });
+  assert.doesNotMatch(spectatingHtml, /livonym-spectator-banner/);
+  assert.match(spectatingHtml, /id="guess-hint"[^>]*>第 1 个猜中，本轮 \+3 分（可点击左侧玩家列表观战）<\/p>/);
+  assert.match(spectatingHtml, /placeholder="该玩家正在思考 \/ 答题中…"/);
+  assert.match(spectatingHtml, /<span class="badge tag">炒锅<\/span>/);
+  assert.match(spectatingHtml, /<span class="badge tag">高压电<\/span>/);
+  assert.match(spectatingHtml, /<li[^>]*class="[^"]*is-spectated[^"]*"[^>]*data-uid="U3"/);
+
+  const shellHtml = shellMarkup(true, { uid: 'U2', name: '乙' });
+  assert.match(shellHtml, /<div class="header-spectate-bar" id="header-spectate-bar" aria-hidden="true"><span class="header-spectate-label">正在观战<\/span><span class="header-spectate-target" id="header-spectate-target"><\/span><\/div>/);
+  assert.match(shellHtml, /<div class="spectate-ambient" id="spectate-ambient" aria-hidden="true"><\/div>/);
+});
+
+test('lvScore 揭晓秘密词不显示字数，答题用时紧贴总分左侧且加分不再绝对定位偏移出外框', () => {
+  const scoreState = roomState('lvScore');
+  scoreState.room.livonym.scores = { U1: 1, U2: 3, U3: 0 };
+  scoreState.room.history = [{
+    n: 1, outcome: 'played',
+    modeDetails: {
+      ...modeDetails,
+      guesses: { U2: { order: 1, atMs: 4200 } },
+      points: { U1: 1, U2: 3, U3: 0 }
+    }
+  }];
+  const html = livonymMarkup(scoreState);
+  const secretCard = html.match(/<section class="surface-block livonym-secret-block" data-revealed="true">[\s\S]*?<\/section>/)?.[0] || '';
+  assert.doesNotMatch(secretCard, /个字|livonym-secret-length/);
+
+  // 答题用时作为独立第 3 列紧贴 .livonym-score-total 左侧；出题人用空占位保持对齐
+  assert.match(html, /<span class="livonym-score-time">4\.2s<\/span>\s*<span class="livonym-score-total"><strong>3<\/strong>/);
+  assert.match(html, /<span class="livonym-score-time">–<\/span>\s*<span class="livonym-score-total"><strong>0<\/strong>/);
+  assert.match(html, /<span class="livonym-score-time" aria-hidden="true"><\/span>\s*<span class="livonym-score-total"><strong>1<\/strong>/);
+
+  const styles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  const gainRule = styles.match(/\.livonym-score-total > \.livonym-gain \{[^}]*\}/)?.[0] || '';
+  assert.doesNotMatch(gainRule, /position:\s*absolute|right:\s*-/);
+});
+
+test('错词浮窗限制最大宽高、固定视口定位并支持点击空白关闭（不再渲染关闭按钮）', () => {
+  const styles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /\.livonym-wrong-popover \{[\s\S]*?position:\s*fixed;[\s\S]*?max-width:\s*min\(calc\(100vw - 24px\),\s*380px\);/);
+  assert.match(styles, /\.livonym-wrong-popover \{[\s\S]*?max-height:\s*min\(calc\(100vh - 24px\),\s*300px\);[\s\S]*?overflow-y:\s*auto;/);
+  assert.match(styles, /@media \(max-width: 600px\) \{[\s\S]*?\.livonym-wrong-popover \{[\s\S]*?max-width:\s*calc\(100vw - 24px\);/);
+
+  const scoreState = roomState('lvScore');
+  scoreState.room.history = [{
+    n: 1, outcome: 'played',
+    modeDetails: { ...modeDetails, wrongGuesses: { U2: ['电饭煲'] } }
+  }];
+  const scoreHtml = livonymMarkup(scoreState);
+  assert.match(scoreHtml, /<div class="section-heading"><h2>[\s\S]*?本轮结算<\/span><\/h2><span class="readonly-tag livonym-card-hint">点变色名字看错词<\/span><\/div>/);
+  assert.match(scoreHtml, /data-uid="U2"[\s\S]*?livonym-score-name has-wrong[\s\S]*?<\/li>/);
+  assert.doesNotMatch(scoreHtml, /data-uid="U3"[\s\S]*?(has-wrong|toggle-wrong-popover)[\s\S]*?<\/li>/);
+  assert.match(scoreHtml, /<div class="livonym-wrong-popover-head"><span>猜错的词<\/span><\/div>/);
+  assert.doesNotMatch(scoreHtml, /data-wrong-close|livonym-wrong-popover-close/);
+  assert.match(styles, /\.livonym-score-name\.has-wrong \.player-identity-name \{/);
+
+  const noWrongState = roomState('lvScore');
+  noWrongState.room.history = [{
+    n: 1, outcome: 'played',
+    modeDetails: { ...modeDetails, wrongGuesses: {} }
+  }];
+  const noWrongHtml = livonymMarkup(noWrongState);
+  assert.doesNotMatch(noWrongHtml, /点变色名字看错词|toggle-wrong-popover|has-wrong|livonym-wrong-popover/);
+});
+
+test('弹幕容器挂在壳层顶部并配置跨阶段平滑滚动动画', () => {
+  const styles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  assert.match(styles, /\.livonym-danmu-container \{[\s\S]*?position:\s*fixed;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(styles, /\.livonym-danmu-item \{[\s\S]*?animation:\s*livonym-danmu-scroll 10s linear forwards;/);
+  assert.match(styles, /@keyframes livonym-danmu-scroll \{[\s\S]*?from \{ transform: translateX\(0\); \}[\s\S]*?to \{ transform: translateX\(calc\(-100vw - 100%\)\); \}/);
+});
+
+test('lvIntro 猜词方标题在出题人名字前渲染头像，出题人标题保持纯文本', () => {
+  const describerHtml = livonymMarkup(roomState('lvIntro'));
+  assert.match(describerHtml, /<h1>轮到你出题<\/h1>/);
+  assert.doesNotMatch(describerHtml, /livonym-preparing-author/);
+
+  const guesserState = roomState('lvIntro');
+  guesserState.uid = 'U2';
+  const guesserHtml = livonymMarkup(guesserState);
+  assert.match(guesserHtml, /<h1 class="livonym-preparing-title"><span class="player-identity livonym-preparing-author"><img class="avatar player-identity-avatar" data-avatar-name="甲"[^>]*><span class="player-identity-name">甲<\/span><\/span><span>正在准备<\/span><\/h1>/);
+});
+
+test('倒计时保持透明无胶囊框的简洁样式', () => {
+  const styles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  const clockBlock = styles.match(/\.writing-clock, \.rematch-clock \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(clockBlock, /padding:\s*2px 0;/);
+  assert.match(clockBlock, /background:\s*transparent;/);
+  assert.doesNotMatch(clockBlock, /border-radius|border:|var\(--bg-subtle\)/);
+});
+
+test('页面与说明文案已移除「抢猜顺位：」与「悬崖机制」字样', () => {
+  const describerHtml = livonymMarkup(roomState('lvPlay'));
+  const guesserState = roomState('lvPlay');
+  guesserState.uid = 'U2';
+  const guesserHtml = livonymMarkup(guesserState);
+  const qaHtml = qaMarkup();
+  const insaneHtml = insaneMarkup('livonym');
+  const previewHtml = insanePreviewMarkup('livonym');
+
+  for (const html of [describerHtml, guesserHtml, qaHtml, insaneHtml, previewHtml]) {
+    assert.doesNotMatch(html, /抢猜顺位：|悬崖机制/);
+  }
+  assert.match(guesserHtml, /第 1 名 \+3 分，第 2 名 \+2 分；猜错冷却 1\.5 秒/);
+  assert.match(describerHtml, /每有一人猜中 \+1 分，若全员猜中则得 0 分/);
+});
+
+test('开局倒计时顺序包裹在圆角框内，显示头像与名字、序号不加「第x棒」且项末尾带箭头', () => {
+  const html = startCountdownMarkup({
+    code: '12345',
+    mode: 'livonym',
+    players,
+    livonym: { order: ['U1', 'U2', 'U3'], totalRounds: 3 }
+  });
+  assert.match(html, /class="countdown-clue-order"[\s\S]*?共 3 棒[\s\S]*?class="countdown-order-list"/);
+  assert.doesNotMatch(html, /第\s*\d+\s*棒/);
+  const items = html.split('class="countdown-order-item').slice(1);
+  assert.equal(items.length, 3);
+  assert.match(items[0], /class="order-step">1<\/span>[\s\S]*?player-identity-avatar[\s\S]*?player-identity-name">甲<\/span>[\s\S]*?countdown-order-arrow/);
+  assert.match(items[1], /class="order-step">2<\/span>[\s\S]*?player-identity-avatar[\s\S]*?player-identity-name">乙<\/span>[\s\S]*?countdown-order-arrow/);
+  assert.match(items[2], /class="order-step">3<\/span>[\s\S]*?player-identity-avatar[\s\S]*?player-identity-name">丙<\/span>/);
+  assert.doesNotMatch(items[2], /countdown-order-arrow/);
+});
+
+test('Livonym 历史详情页具备专属深色 UI 与突出 Livonym 标识', () => {
+  const styles = readFileSync(new URL('../../public/styles.css', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../../public/app.js', import.meta.url), 'utf8');
+  const cardMotion = readFileSync(new URL('../../public/insane-card-motion.js', import.meta.url), 'utf8');
+  assert.match(styles, /body:has\(\.match-detail-page\[data-mode="livonym"\]\)\s*\{[^}]*color-scheme:\s*dark;/);
+  assert.match(styles, /body:has\(\.match-detail-page\[data-mode="livonym"\]\)\s*\{[^}]*--mode-a:\s*#8ee4d7;/);
+  assert.match(styles, /body\.has-insane-gl:has\(\.match-detail-page\[data-mode="livonym"\]\)::before\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(styles, /body:is\(\[data-insane\], :has\(\.match-detail-page\[data-mode="livonym"\]\)\) \.livonym-badge-row\.is-award-guess/);
+  assert.match(styles, /body:is\(\[data-insane\], :has\(\.match-detail-page\[data-mode="livonym"\]\)\) \.livonym-score-name\.has-wrong \.player-identity-name/);
+  assert.match(styles, /\.livonym-history-hero\s*\{/);
+  assert.match(styles, /\.livonym-history-hero-canvas\s*\{/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.livonym-history-hero-canvas\s*\{\s*display:\s*none;\s*\}/);
+  assert.match(app, /stage\.querySelector\?\.\('\.match-detail-page\[data-mode="livonym"\]'\)[\s\S]*?insaneBackground\.setActive\(true\)[\s\S]*?insaneBackground\.setMode\?\.\('livonym'/);
+  assert.match(app, /stage\.querySelector\('\.livonym-history-hero'\)\)[\s\S]*?observeInsaneCardMotion\(stage\)/);
+  assert.match(cardMotion, /\.livonym-history-hero > \.livonym-history-hero-canvas/);
+
+  const detail = {
+    match: {
+      id: 'm-lv-hero', roomCode: '12345', mode: 'livonym', outcome: 'played',
+      totalRounds: 1, convergedRound: 1, startedAt: 1700000000000, endedAt: 1700000600000,
+      maxRounds: 12, players,
+      rounds: [{ n: 1, words: {}, marks: {}, outcome: 'played', modeDetails }]
+    }
+  };
+  const html = matchDetailMarkup(detail, {}, 'U2');
+  assert.match(html, /class="page match-detail-page match-detail-page--livonym" data-screen="match-detail" data-mode="livonym"/);
+  assert.match(html, /class="livonym-history-hero" data-mode="livonym">\s*<canvas class="livonym-history-hero-canvas" aria-hidden="true"><\/canvas>/);
+  assert.doesNotMatch(html, /livonym-history-mode/);
+  assert.match(html, /<h1>[\s\S]*class="player-identity result-title-name"[\s\S]*乙[\s\S]*<\/h1>\s*<p class="livonym-history-subtitle">共 1 棒结束<\/p>/);
+  assert.match(html, /class="match-fact-mode match-fact-mode--livonym"[\s\S]*?match-fact-mode-badge[\s\S]*?insane-mark--livonym[\s\S]*?class="wm-livonym"[\s\S]*?<strong>即时竞猜<\/strong>/);
+  assert.match(html, /class="match-detail-players"[\s\S]*?<strong>乙<\/strong><span>UID：U2<\/span>/);
+  assert.doesNotMatch(html, /match-detail-players--livonym/);
+
+  const listHtml = profileMatchMarkup({
+    id: 'm-lv-list', roomCode: '12345', mode: 'livonym', outcome: 'played',
+    totalRounds: 3, startedAt: 1700000000000, players: ['甲', '乙']
+  }, {});
+  assert.match(listHtml, /class="profile-match profile-match--livonym" data-mode="livonym"/);
+  // 首行只放头像、名字与日期；第二行只显示「共 3 棒」，并把无胶囊的 Livonym 标识放在第三列主题位
+  const headingPart = listHtml.match(/class="profile-match-heading">[\s\S]*?<span class="profile-match-meta">/)?.[0] || '';
+  const metaPart = listHtml.match(/class="profile-match-meta">[\s\S]*?<span class="profile-match-open">/)?.[0] || '';
+  assert.doesNotMatch(headingPart, /profile-match-livonym-tag/);
+  assert.match(metaPart, /class="profile-match-outcome"[^>]*>[\s\S]*?<span>共 3 棒<\/span>/);
+  assert.doesNotMatch(metaPart, /即时竞猜 ·/);
+  assert.match(metaPart, /profile-match-room[\s\S]*?class="profile-match-livonym-tag"[\s\S]*?insane-mark insane-mark--livonym[\s\S]*?class="wm-livonym"/);
+  assert.match(styles, /\.profile-match--livonym \{[\s\S]*?margin:\s*8px 0;/);
+  const normLinkRule = styles.match(/\.profile-match-link \{[^}]*\}/)?.[0] || '';
+  assert.doesNotMatch(normLinkRule, /margin-inline:\s*-12px/);
+  const livTagRule = styles.match(/\.profile-match-livonym-tag \{[^}]*\}/)?.[0] || '';
+  assert.doesNotMatch(livTagRule, /border-radius:\s*999px/);
 });

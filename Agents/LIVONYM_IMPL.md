@@ -26,7 +26,7 @@
 | `countdown` | 5 秒（复用） | 开场，展示本局出题顺序与人数 |
 | `lvIntro` | 3 秒（固定） | 交给下一位出题人：出题人看到秘密词，其他人看到「X 正在准备」 |
 | `lvPlay` | `describeSeconds`，默认 45，可选 30/45/60 | 出题人实时打字，竞猜者流式阅读并抢猜 |
-| `lvScore` | 5 秒（固定） | 本轮看板：秘密词、猜中顺序与得分、当前总分 |
+| `lvScore` | 8 秒（固定） | 本轮看板：秘密词、猜中顺序与得分、当前总分 |
 | `result` / `interrupted` | 复用现有 | 见 §五 |
 
 `lvIntro` 是计划文档没有、但必须补的一环：出题人需要时间读词，其他人需要知道「轮到谁」，否则 45 秒会被读词吃掉。
@@ -113,7 +113,7 @@ function cleanDescribe(value, max = 400) {
 ## 二、状态机
 
 ```
-lobby ──start(3–8 人)──► countdown ──5s──► lvIntro ──3s──► lvPlay ──45s / 全猜中──► lvScore ──5s──┐
+lobby ──start(3–8 人)──► countdown ──5s──► lvIntro ──3s──► lvPlay ──45s / 全猜中──► lvScore ──8s──┐
                                                                                                 │
                     ┌──────────────────── 还有下一棒 ────────────────────────────────────────────┘
                     └──────────────────── 所有棒次完成 ──► settle ──► result ──► rematch / lobby

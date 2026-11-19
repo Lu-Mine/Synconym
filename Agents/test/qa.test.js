@@ -16,7 +16,7 @@ test('Q&A 使用站内路由，房间内从新标签打开', () => {
 
 test('Q&A 逐条折叠，默认全部收起', () => {
   const html = qaMarkup();
-  assert.equal((html.match(/<details class="qa-item" name="qa">/g) || []).length, 11);
+  assert.equal((html.match(/<details class="qa-item" name="qa">/g) || []).length, 12);
   assert.doesNotMatch(html, /<details[^>]*\sopen[\s>]/);
   assert.match(html, /<summary><span class="qa-question">第一次来，怎么开一局？<\/span>/);
   assert.match(html, /<h1>常见问题<\/h1>/);

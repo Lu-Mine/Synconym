@@ -286,6 +286,8 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
         }),
         stripKey(row.mode_details_json, (value) => {
           if (value.guesses && typeof value.guesses === 'object') erase(value.guesses);
+          if (value.wrongGuesses && typeof value.wrongGuesses === 'object') erase(value.wrongGuesses);
+          if (value.describerUid === uid && 'description' in value) value.description = null;
         }),
         row.match_id, row.n
       );
@@ -354,6 +356,32 @@ export function createDatabase(filename = process.env.DB_PATH || resolve('data/s
         .all(...params, limit, offset).map((row) => ({ ...matchView(row), players: membersOf(row.id) }));
     },
     saveMatch,
+    recentLivonymSecrets(uids, { since = 0 } = {}) {
+      const list = [...new Set((uids || []).filter((uid) => typeof uid === 'string' && uid))];
+      const seen = new Map();
+      if (!list.length) return seen;
+      const placeholders = list.map(() => '?').join(', ');
+      const rows = db.prepare(`
+        SELECT m.started_at AS started_at, r.mode_details_json AS mode_details_json
+        FROM match_rounds r
+        JOIN matches m ON m.id = r.match_id
+        WHERE m.mode = 'livonym'
+          AND m.started_at >= ?
+          AND r.mode_details_json IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM match_players p
+            WHERE p.match_id = m.id AND p.uid IN (${placeholders})
+          )
+        ORDER BY m.started_at DESC
+      `).all(since, ...list);
+      for (const row of rows) {
+        let secret;
+        try { secret = JSON.parse(row.mode_details_json)?.secret; } catch { continue; }
+        if (typeof secret !== 'string' || !secret) continue;
+        if (!seen.has(secret)) seen.set(secret, row.started_at);
+      }
+      return seen;
+    },
     getMatch(id) {
       const row = db.prepare('SELECT * FROM matches WHERE id = ?').get(id);
       if (!row) return undefined;
